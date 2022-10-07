@@ -25,7 +25,7 @@ defmodule Mix.Tasks.Kinda.Dist do
       _ ->
        []
       end
-    exs = Path.join([dir_name, ".." , "**", "*.ex"]) |> Path.wildcard()
+    exs = Path.join([dir_name, ".." , "**", "kinda-meta-*.ex"]) |> Path.wildcard()
     cwds = (solibs ++ dylibs ++ exs) |> Enum.map(&gen_cwd/1) |> List.flatten()
     System.cmd("tar", ["--dereference", "-cvzf", tar_name] ++ cwds)
   end
