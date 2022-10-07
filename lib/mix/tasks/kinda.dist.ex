@@ -13,6 +13,9 @@ defmodule Mix.Tasks.Kinda.Dist do
     if not File.exists?(nif_lib) do
       Mix.raise("NIF library #{nif_lib} does not exist")
     end
+    if Path.extname(nif_lib) == "so" do
+      Mix.raise("NIF library #{nif_lib} not a so file")
+    end
     base_name = Path.basename(nif_lib)
     dir_name = Path.dirname(nif_lib)
     tar_name = base_name <> ".tar.gz"
