@@ -18,7 +18,13 @@ defmodule Mix.Tasks.Kinda.Dist do
     tar_name = base_name <> ".tar.gz"
 
     solibs = Path.join([dir_name, "**", "*.so"]) |> Path.wildcard()
-    dylibs = Path.join([dir_name, "**", "*.dylib"]) |> Path.wildcard()
+    dylibs =
+      case :os.type() do
+        {:unix, :darwin} ->
+       Path.join([dir_name, "**", "*.dylib"]) |> Path.wildcard()
+      _ ->
+       []
+      end
     exs = Path.join([dir_name, ".." , "**", "*.ex"]) |> Path.wildcard()
     cwds = (solibs ++ dylibs ++ exs) |> Enum.map(&gen_cwd/1) |> List.flatten()
     System.cmd("tar", ["--dereference", "-cvzf", tar_name] ++ cwds)
