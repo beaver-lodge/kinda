@@ -183,7 +183,18 @@ defmodule Kinda.Prebuilt do
           Logger.debug("[Kinda] NIF loaded, path: #{nif_path}")
           :ok
         else
-          error -> error
+          {:error, {:load_failed, msg}} when is_list(msg) ->
+            Logger.error("[Kinda] NIF failed to load, path: #{nif_path}")
+            Logger.error("[Kinda] #{msg}")
+
+            :abort
+
+          error ->
+            Logger.error(
+              "[Kinda] NIF failed to load, path: #{nif_path}, error: #{inspect(error)}"
+            )
+
+            :abort
         end
       end
     end
