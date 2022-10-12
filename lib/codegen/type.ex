@@ -1,8 +1,14 @@
 defmodule Kinda.CodeGen.Type do
+  @type t() :: %__MODULE__{
+          zig_t: String.t(),
+          module_name: atom(),
+          kind_name: atom(),
+          fields: list(atom()),
+          kind_functions: list({atom(), integer()})
+        }
   defstruct zig_t: nil,
             module_name: nil,
             kind_name: nil,
-            backer: nil,
             fields: [],
             kind_functions: []
 
