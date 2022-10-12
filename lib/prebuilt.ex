@@ -217,7 +217,8 @@ defmodule Kinda.Prebuilt do
   # A helper function to extract the logic from __using__ macro.
   @doc false
   def __using__(root_module, opts) do
-    kinds = Keyword.get(opts, :kinds) || []
+    codegen_module = Keyword.fetch!(opts, :codegen_module)
+    kinds = codegen_module.kinds()
     forward_module = Keyword.fetch!(opts, :forward_module)
 
     if opts[:force_build] do
@@ -279,11 +280,9 @@ defmodule Kinda.Prebuilt do
     Logger.debug("[Kinda] generating Zig code for wrapper: #{wrapper}")
     include_paths = Keyword.get(opts, :include_paths, %{})
     constants = Keyword.get(opts, :constants, %{})
-    func_filter = Keyword.get(opts, :func_filter) || fn fns -> fns end
     version = Keyword.fetch!(opts, :version)
-    type_gen = Keyword.get(opts, :type_gen) || (&Type.default/2)
-    nif_gen = Keyword.get(opts, :nif_gen) || (&NIF.from_function/1)
     cache_root = Path.join([Mix.Project.build_path(), "mlir-zig-build", "zig-cache"])
+    codegen_module = Keyword.fetch!(opts, :codegen_module)
 
     if not is_map(include_paths) do
       raise "include_paths must be a map so that we could generate variables for build.zig. Got: #{inspect(include_paths)}"
@@ -313,7 +312,7 @@ defmodule Kinda.Prebuilt do
 
     functions =
       String.split(out, "\n")
-      |> func_filter.()
+      |> codegen_module.func_filter()
 
     # collecting functions with zig translate
     prints =
@@ -400,7 +399,7 @@ defmodule Kinda.Prebuilt do
       |> Enum.reject(fn x -> x in ["void"] end)
       |> Enum.map(fn x ->
         # TODO: support skip
-        {:ok, t} = type_gen.(root_module, x)
+        {:ok, t} = codegen_module.type_gen(root_module, x)
         t |> gen_kind_name_from_module_name
       end)
 
@@ -467,7 +466,7 @@ defmodule Kinda.Prebuilt do
     source = resource_kinds_str <> source
 
     nifs =
-      Enum.map(functions, nif_gen)
+      Enum.map(functions, fn x -> codegen_module.nif_gen(x) end)
       |> Enum.map(&gen_nif_name_from_module_name(root_module, &1))
       |> Enum.concat(List.flatten(Enum.map(resource_kinds, &NIF.from_resource_kind/1)))
 
