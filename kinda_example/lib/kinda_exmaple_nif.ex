@@ -9,6 +9,7 @@ defmodule KindaExample.NIF do
     version: "0.1.0",
     wrapper: Path.join(File.cwd!(), "native/wrapper.h"),
     zig_src: "native/zig-src",
+    zig_proj: "native/zig-proj",
     include_paths: %{
       kinda_example_include: Path.join(File.cwd!(), "native/c-src/include")
     },

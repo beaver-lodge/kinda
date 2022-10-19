@@ -1,5 +1,0 @@
-zig-cache
-*.imp.zig
-proj/*/src
-proj/*/src
-proj/*/src

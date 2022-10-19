@@ -267,14 +267,26 @@ defmodule Kinda.Prebuilt do
 
   defp gen_nif_name_from_module_name(_module_name, f), do: f
 
+  defp fmt_zig_project(project_dir) do
+    Logger.debug("[Kinda] formatting zig project: #{project_dir}")
+
+    if Mix.env() in [:test, :dev] do
+      with {_, 0} <- System.cmd("zig", ["fmt", "."], cd: project_dir) do
+        :ok
+      else
+        {_error, _} ->
+          Logger.warn("fail to run zig fmt")
+      end
+    end
+  end
+
   # Generate Zig code from a header and build a Zig project to produce a NIF library
   defp gen_and_build_zig(root_module, opts) do
     wrapper = Keyword.fetch!(opts, :wrapper)
     lib_name = Keyword.fetch!(opts, :lib_name)
     dest_dir = Keyword.fetch!(opts, :dest_dir)
-    project_dir = Keyword.fetch!(opts, :zig_src)
-    project_dir = Path.join(project_dir, "proj")
-    source_dir = Path.join(project_dir, "src")
+    source_dir = Keyword.fetch!(opts, :zig_src)
+    project_dir = Keyword.fetch!(opts, :zig_proj)
     project_dir = Path.join(project_dir, Atom.to_string(Mix.env()))
     project_source_dir = Path.join(project_dir, "src")
     Logger.debug("[Kinda] generating Zig code for wrapper: #{wrapper}")
@@ -543,25 +555,17 @@ defmodule Kinda.Prebuilt do
     dst = Path.join(project_dir, "build.imp.zig")
     Logger.debug("[Kinda] writing build import to: #{dst}")
     File.write!(dst, build_source)
-
-    if Mix.env() in [:test, :dev] do
-      with {_, 0} <- System.cmd("zig", ["fmt", "."], cd: project_dir) do
-        :ok
-      else
-        {_error, _} ->
-          Logger.warn("fail to run zig fmt")
-      end
-    end
-
-    sym_src_dir = Path.join(project_dir, "src")
-    File.mkdir_p(sym_src_dir)
+    fmt_zig_project(project_dir)
 
     zig_sources =
       Kinda.zig_sources() ++
         Path.wildcard(Path.join(source_dir, "*.zig"))
 
+    File.mkdir_p(project_source_dir)
+
     for zig_source <- zig_sources do
-      zig_source_link = Path.join(sym_src_dir, Path.basename(zig_source))
+      zig_source = zig_source |> Path.absname()
+      zig_source_link = Path.join(project_source_dir, Path.basename(zig_source)) |> Path.absname()
       Logger.debug("[Kinda] sym linking source #{zig_source} => #{zig_source_link}")
 
       if File.exists?(zig_source_link) do
