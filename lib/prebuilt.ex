@@ -273,7 +273,7 @@ defmodule Kinda.Prebuilt do
     lib_name = Keyword.fetch!(opts, :lib_name)
     dest_dir = Keyword.fetch!(opts, :dest_dir)
     project_dir = Keyword.fetch!(opts, :zig_src)
-    project_dir = Path.join(File.cwd!(), project_dir)
+    project_dir = Path.join(project_dir, "proj")
     source_dir = Path.join(project_dir, "src")
     project_dir = Path.join(project_dir, Atom.to_string(Mix.env()))
     project_source_dir = Path.join(project_dir, "src")
@@ -307,12 +307,13 @@ defmodule Kinda.Prebuilt do
         out
       else
         {_error, _} ->
-          raise "fail to run zig translate-c"
+          raise "fail to run zig translate-c for wrapper: #{wrapper}"
       end
 
     functions =
-      String.split(out, "\n")
-      |> codegen_module.func_filter()
+      String.split(out, "\n", trim: true)
+      |> Enum.filter(fn x -> String.contains?(x, "extern") and String.contains?(x, "fn") end)
+      |> codegen_module.filter_functions()
 
     # collecting functions with zig translate
     prints =
@@ -373,7 +374,7 @@ defmodule Kinda.Prebuilt do
     functions =
       out
       |> String.trim()
-      |> String.split("\n")
+      |> String.split("\n", trim: true)
       |> Enum.reduce([], fn
         "func: " <> func, acc ->
           [%Function{name: func} | acc]
@@ -470,20 +471,17 @@ defmodule Kinda.Prebuilt do
       |> Enum.map(&gen_nif_name_from_module_name(root_module, &1))
       |> Enum.concat(List.flatten(Enum.map(resource_kinds, &NIF.from_resource_kind/1)))
 
+    # TODO: reverse the alias here
     source = """
     #{source}
     pub fn open_generated_resource_types(env: beam.env) void {
     #{resource_kinds_str_open_str}
-
-    // TODO: reverse the alias here
-    kinda.aliasKind(kinda.Internal.USize, USize);
-    kinda.aliasKind(kinda.Internal.OpaquePtr, OpaquePtr);
-    kinda.aliasKind(kinda.Internal.OpaqueArray, OpaqueArray);
     }
     pub export const generated_nifs = .{
       #{nifs |> Enum.map(&Kinda.CodeGen.NIF.gen/1) |> Enum.join("  ")}
     }
-    ++ #{Enum.map(resource_kinds, fn %{kind_name: kind_name} -> "#{kind_name}.nifs" end) |> Enum.join(" ++ \n")};
+    #{if length(resource_kinds) > 0, do: "++", else: ""}
+    #{Enum.map(resource_kinds, fn %{kind_name: kind_name} -> "#{kind_name}.nifs" end) |> Enum.join(" ++ \n")};
     """
 
     source =
@@ -498,7 +496,7 @@ defmodule Kinda.Prebuilt do
       pub const root_module = "#{root_module}";
       """ <> source
 
-    dst = Path.join(project_source_dir, "mlir.imp.zig")
+    dst = Path.join(project_source_dir, "#{lib_name}.imp.zig")
     File.mkdir_p(project_source_dir)
     Logger.debug("[Kinda] writing source import to: #{dst}")
     File.write!(dst, source)
@@ -558,7 +556,11 @@ defmodule Kinda.Prebuilt do
     sym_src_dir = Path.join(project_dir, "src")
     File.mkdir_p(sym_src_dir)
 
-    for zig_source <- Path.wildcard(Path.join(source_dir, "*.zig")) do
+    zig_sources =
+      Kinda.zig_sources() ++
+        Path.wildcard(Path.join(source_dir, "*.zig"))
+
+    for zig_source <- zig_sources do
       zig_source_link = Path.join(sym_src_dir, Path.basename(zig_source))
       Logger.debug("[Kinda] sym linking source #{zig_source} => #{zig_source_link}")
 

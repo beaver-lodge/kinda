@@ -24,6 +24,14 @@ defmodule Kinda.CodeGen.Resource do
     resource_type_resource_kind(type, resource_kind_map) <> ".t"
   end
 
+  def resource_open(%Type{kind_name: kind_name})
+      when kind_name in ~w{USize OpaquePtr OpaqueArray} do
+    """
+    #{kind_name}.open_all(env);
+    kinda.aliasKind(#{kind_name}, kinda.Internal.#{kind_name});
+    """
+  end
+
   def resource_open(%Type{kind_name: kind_name}) do
     """
     #{kind_name}.open_all(env);

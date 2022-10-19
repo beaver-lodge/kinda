@@ -9,8 +9,8 @@ defmodule Kinda.CodeGen do
     end
   end
 
-  @callback func_filter(list(Kinda.CodeGen.Function.t())) :: list(Kinda.CodeGen.Function.t())
-  def func_filter(funcs), do: funcs
+  @callback filter_functions(list(Kinda.CodeGen.Function.t())) :: list(Kinda.CodeGen.Function.t())
+  def filter_functions(funcs), do: funcs
 
   @callback type_gen(atom(), String.t()) :: {:ok, Kinda.CodeGen.Type.t()} | :skip
 
