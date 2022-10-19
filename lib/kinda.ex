@@ -49,4 +49,8 @@ defmodule Kinda do
       end
     end
   end
+
+  def zig_sources() do
+    __DIR__ |> Path.join("..") |> Path.join("zig-src") |> Path.join("*.zig") |> Path.wildcard()
+  end
 end
