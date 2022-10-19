@@ -51,4 +51,4 @@ jobs:
       - name: Run tests (example)
         working-directory: ./kinda_example
         run: |
-          mix test
+          mix test --force
