@@ -13,16 +13,18 @@ concurrency:
 
 jobs:
   build:
-    name: Build and test
     runs-on: ubuntu-latest
-
+    name: OTP ${{matrix.otp}} / Elixir ${{matrix.elixir}}
+    strategy:
+      matrix:
+        otp: ["25.0"]
+        elixir: ["1.13.0"]
     steps:
       - uses: actions/checkout@v2
-      - name: Set up Elixir
-        uses: erlef/setup-beam@v1
+      - uses: erlef/setup-beam@v1
         with:
-          elixir-version: "1.13.0" # Define the elixir version [required]
-          otp-version: "24.1" # Define the OTP version [required]
+          otp-version: ${{matrix.otp}}
+          elixir-version: ${{matrix.elixir}}
       - name: Set up Zig
         uses: goto-bus-stop/setup-zig@v1
         with:
