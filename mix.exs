@@ -4,7 +4,7 @@ defmodule Kinda.MixProject do
   def project do
     [
       app: :kinda,
-      version: "0.2.5",
+      version: "0.2.6",
       elixir: "~> 1.9",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
@@ -23,7 +23,7 @@ defmodule Kinda.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:ex_doc, ">= 0.0.0", only: :dev, runtime: false, override: true},
+      {:ex_doc, ">= 0.0.0", only: :dev, runtime: false},
       {:rustler_precompiled, "~> 0.5"},
       {:zig_parser, "~> 0.1.0"}
     ]

@@ -3,6 +3,7 @@ defmodule Kinda.CodeGen.Wrapper do
   @moduledoc false
   defstruct types: [], functions: [], root_module: nil
 
+  alias Inspect.Stream
   alias Kinda.CodeGen.{KindDecl, Resource, NIFDecl}
 
   def new(root_module) do
@@ -138,6 +139,12 @@ defmodule Kinda.CodeGen.Wrapper do
 
     File.mkdir("tmp")
     File.write!("tmp/translate.out.zig", translate_out)
+
+    translate_out
+    |> String.split()
+    |> Enum.reject(fn x -> String.contains?(x, "e+") or String.contains?(x, "e-") end)
+    |> Enum.join()
+
     zig_ast = Zig.Parser.parse(translate_out).code
     # File.write!("tmp/translate.out.ex", zig_ast |> inspect(pretty: true, limit: :infinity))
 
