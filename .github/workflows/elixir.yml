@@ -54,3 +54,8 @@ jobs:
         working-directory: ./kinda_example
         run: |
           mix test --force
+      - uses: actions/upload-artifact@v3
+        if: failure()
+        with:
+          name: my-artifact
+          path: ./kinda_example/tmp/**/*.zig
