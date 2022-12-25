@@ -138,14 +138,14 @@ defmodule Kinda.CodeGen.Wrapper do
       end
 
     File.mkdir("tmp")
-    File.write!("tmp/translate.out.zig", translate_out)
 
     translate_out =
       translate_out
-      |> String.split()
+      |> String.split("\n")
       |> Enum.reject(fn x -> String.contains?(x, "e+") or String.contains?(x, "e-") end)
-      |> Enum.join()
+      |> Enum.join("\n")
 
+    File.write!("tmp/translate.out.zig", translate_out)
     zig_ast = Zig.Parser.parse(translate_out).code
     # File.write!("tmp/translate.out.ex", zig_ast |> inspect(pretty: true, limit: :infinity))
 
