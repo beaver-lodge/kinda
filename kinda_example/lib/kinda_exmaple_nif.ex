@@ -7,7 +7,7 @@ defmodule KindaExample.NIF do
     base_url:
       "https://github.com/beaver-project/beaver-prebuilt/releases/download/2022-10-15-0706",
     version: "0.1.0",
-    wrapper: Path.join(File.cwd!(), "native/wrapper.h"),
+    wrapper: Path.join(File.cwd!(), "native/c-src/include/wrapper.h"),
     zig_src: "native/zig-src",
     zig_proj: "native/zig-proj",
     include_paths: %{
@@ -18,5 +18,5 @@ defmodule KindaExample.NIF do
     },
     dest_dir: dest_dir,
     forward_module: KindaExample.Native,
-    codegen_module: KindaExample.CodeGen
+    code_gen_module: KindaExample.CodeGen
 end

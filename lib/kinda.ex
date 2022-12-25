@@ -1,30 +1,10 @@
 defmodule Kinda do
-  alias Kinda.CodeGen.Type
+  alias Kinda.CodeGen.KindDecl
   require Logger
 
   @moduledoc """
   Documentation for `Kinda`.
   """
-
-  defp is_array(%Type{zig_t: type}) do
-    is_array(type)
-  end
-
-  defp is_array("[*c]const " <> _type) do
-    true
-  end
-
-  defp is_array(type) when is_binary(type) do
-    false
-  end
-
-  defp is_ptr("[*c]" <> _type) do
-    true
-  end
-
-  defp is_ptr(type) when is_binary(type) do
-    false
-  end
 
   def unwrap_ref(%{ref: ref}) do
     ref
@@ -39,10 +19,10 @@ defmodule Kinda do
   end
 
   def module_name(zig_t, forward_module, zig_t_module_map) do
-    if is_array(zig_t) do
+    if Kinda.ZigAST.is_array?(zig_t) do
       forward_module |> Module.concat("Array")
     else
-      if is_ptr(zig_t) do
+      if Kinda.ZigAST.is_ptr?(zig_t) do
         forward_module |> Module.concat("Ptr")
       else
         zig_t_module_map |> Map.fetch!(zig_t)

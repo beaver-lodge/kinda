@@ -3,20 +3,19 @@ defmodule Kinda.CodeGen do
   Behavior for customizing your source code generation.
   """
 
+  alias Kinda.CodeGen.{KindDecl, NIFDecl}
+
   defmacro __using__(_) do
     quote do
       @behaviour Kinda.CodeGen
     end
   end
 
-  @callback filter_functions(list(Kinda.CodeGen.Function.t())) :: list(Kinda.CodeGen.Function.t())
-  def filter_functions(funcs), do: funcs
+  @callback type_gen(atom(), String.t()) :: {:ok, KindDecl.t()} | :skip
 
-  @callback type_gen(atom(), String.t()) :: {:ok, Kinda.CodeGen.Type.t()} | :skip
+  @callback nif_gen(any()) :: NIFDecl.t()
+  def nif_gen(f), do: NIFDecl.from_function(f)
 
-  @callback nif_gen(Kinda.CodeGen.Function.t()) :: Kinda.CodeGen.NIF.t()
-  def nif_gen(f), do: Kinda.CodeGen.NIF.from_function(f)
-
-  @callback kinds() :: Kinda.CodeGen.Type.t()
+  @callback kinds() :: KindDecl.t()
   def kinds(), do: []
 end

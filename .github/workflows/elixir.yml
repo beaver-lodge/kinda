@@ -26,7 +26,7 @@ jobs:
       - name: Set up Zig
         uses: goto-bus-stop/setup-zig@v1
         with:
-          version: 0.9.1
+          version: 0.10.0
       - uses: seanmiddleditch/gha-setup-ninja@master
       - name: Restore dependencies cache
         uses: actions/cache@v3

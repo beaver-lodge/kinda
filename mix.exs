@@ -24,7 +24,8 @@ defmodule Kinda.MixProject do
   defp deps do
     [
       {:ex_doc, ">= 0.0.0", only: :dev, runtime: false},
-      {:rustler_precompiled, "~> 0.5"}
+      {:rustler_precompiled, "~> 0.5"},
+      {:zig_parser, git: "https://github.com/jackalcooper/zig_parser.git", branch: "fix-ex_doc"}
     ]
   end
 
