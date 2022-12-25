@@ -9,10 +9,10 @@ pub fn build(b: *std.build.Builder) void {
     const mode = b.standardReleaseOptions();
 
     const lib = b.addSharedLibrary(kinda.lib_name, "src/main.zig", .unversioned);
-    lib.addSystemIncludeDir(kinda.erts_include);
-    lib.addSystemIncludeDir(kinda.kinda_example_include);
+    lib.addSystemIncludePath(kinda.erts_include);
+    lib.addSystemIncludePath(kinda.kinda_example_include);
 
-    lib.addLibPath(kinda.kinda_example_libdir);
+    lib.addLibraryPath(kinda.kinda_example_libdir);
     if (os == .linux) {
         lib.addRPath("$ORIGIN");
     }

@@ -26,10 +26,10 @@ pub const Internal = struct {
     pub const OpaqueStruct: type = ResourceKind(OpaqueStructType, "Kinda.Internal.OpaqueStruct");
 };
 
-pub fn ResourceKind(comptime ElementType: type, module_name: anytype) type {
+pub fn ResourceKind(comptime ElementType: type, comptime module_name_: anytype) type {
     return struct {
+        pub const module_name = module_name_;
         pub const T = ElementType;
-        pub const module_name = module_name;
         pub const resource = struct {
             pub var t: beam.resource_type = undefined;
             pub const name = @typeName(ElementType);
@@ -110,7 +110,7 @@ pub fn ResourceKind(comptime ElementType: type, module_name: anytype) type {
         }
         fn dump(env: beam.env, _: c_int, args: [*c]const beam.term) callconv(.C) beam.term {
             const v: T = resource.fetch(env, args[0]) catch return beam.make_error_binary(env, "fail to fetch " ++ @typeName(T));
-            print("{}\n", .{v});
+            print("{?}\n", .{v});
             return beam.make_ok(env);
         }
         fn append_to_struct(env: beam.env, _: c_int, args: [*c]const beam.term) callconv(.C) beam.term {

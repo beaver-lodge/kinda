@@ -1,5 +1,5 @@
-defmodule Kinda.CodeGen.NIF do
-  alias Kinda.CodeGen.{Function, Type}
+defmodule Kinda.CodeGen.NIFDecl do
+  alias Kinda.CodeGen.KindDecl
   @type dirty() :: :io | :cpu | false
   @type t() :: %__MODULE__{
           wrapper_name: nil | String.t(),
@@ -11,17 +11,28 @@ defmodule Kinda.CodeGen.NIF do
         }
   defstruct zig_name: nil, nif_name: nil, arity: 0, ret: nil, dirty: false, wrapper_name: nil
 
-  def from_function(%Function{name: name, args: args, ret: ret}) do
+  defp arity({:fn, _fn_opts, [name: _name, params: [:...], type: _ret]}), do: 0
+
+  defp arity({:fn, _fn_opts, [name: _name, params: params, type: _ret]}), do: length(params)
+
+  def from_function(
+        {:fn, _fn_opts,
+         [
+           name: name,
+           params: _params,
+           type: ret
+         ]} = f
+      ) do
     %__MODULE__{
       wrapper_name: name,
       zig_name: name,
-      arity: length(args),
+      arity: arity(f),
       ret: ret
     }
   end
 
   # TODO: make this extensible
-  def from_resource_kind(%Type{module_name: module_name, kind_functions: kind_functions}) do
+  def from_resource_kind(%KindDecl{module_name: module_name, kind_functions: kind_functions}) do
     for {f, a} <-
           [
             ptr: 1,
