@@ -57,5 +57,5 @@ jobs:
       - uses: actions/upload-artifact@v3
         if: failure()
         with:
-          name: my-artifact
+          name: kinda-example-tmp-${{ github.run_number }}-${{ github.run_attempt }}
           path: ./kinda_example/tmp/**/*.zig
