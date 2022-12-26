@@ -26,3 +26,4 @@ kinda-*.tar
 /tmp/
 
 .elixir_ls
+/kinda_example/mix.lock
