@@ -339,7 +339,7 @@ pub const term = e.ErlNifTerm;
 pub fn get(comptime T: type, env_: env, value: term) !T {
     switch (T) {
         c_int => return get_c_int(env_, value),
-        c_uint => return @intCast(T, try get_u8(env_, value)),
+        c_uint => return get_c_uint(env_, value),
         c_long => return get_c_long(env_, value),
         isize => return get_isize(env_, value),
         usize => return get_usize(env_, value),
