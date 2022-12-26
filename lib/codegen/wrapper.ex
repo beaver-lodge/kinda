@@ -3,13 +3,16 @@ defmodule Kinda.CodeGen.Wrapper do
   @moduledoc false
   defstruct types: [], functions: [], root_module: nil
 
-  alias Inspect.Stream
   alias Kinda.CodeGen.{KindDecl, Resource, NIFDecl}
 
   def new(root_module) do
     %__MODULE__{
       root_module: root_module
     }
+  end
+
+  defp dump_ast?() do
+    System.get_env("KINDA_DUMP_AST") == "1"
   end
 
   defp put_types(%__MODULE__{} = w, zig_ast) when is_list(zig_ast) do
@@ -139,15 +142,15 @@ defmodule Kinda.CodeGen.Wrapper do
 
     File.mkdir("tmp")
 
-    translate_out =
-      translate_out
-      |> String.split("\n")
-      |> Enum.reject(fn x -> String.contains?(x, "e+") or String.contains?(x, "e-") end)
-      |> Enum.join("\n")
-
     File.write!("tmp/translate.out.zig", translate_out)
     zig_ast = Zig.Parser.parse(translate_out).code
-    # File.write!("tmp/translate.out.ex", zig_ast |> inspect(pretty: true, limit: :infinity))
+
+    task_dump_ast =
+      Task.async(fn ->
+        if dump_ast?() do
+          File.write!("tmp/translate.out.ex", zig_ast |> inspect(pretty: true, limit: :infinity))
+        end
+      end)
 
     Logger.debug("[Kinda] generating Elixir code for wrapper: #{wrapper}")
 
@@ -433,6 +436,10 @@ defmodule Kinda.CodeGen.Wrapper do
       Path.join(dest_dir, "kinda-meta-#{lib_name}.ex"),
       inspect(meta, pretty: true, limit: :infinity)
     )
+
+    if dump_ast?() do
+      Task.await(task_dump_ast, :infinity)
+    end
 
     {meta, %{dest_dir: dest_dir, lib_name: lib_name}}
   end
