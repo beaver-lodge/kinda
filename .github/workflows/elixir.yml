@@ -40,7 +40,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ./kinda_example/deps
-          key: ${{ runner.os }}-mix-example-${{ hashFiles('**/mix.lock') }}
+          key: ${{ runner.os }}-mix-example-${{ hashFiles('**/mix.exs') }}
           restore-keys: ${{ runner.os }}-mix-example-
       - name: Install dependencies
         run: mix deps.get
