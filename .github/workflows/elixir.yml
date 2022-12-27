@@ -34,13 +34,13 @@ jobs:
         uses: actions/cache@v3
         with:
           path: deps
-          key: ${{ runner.os }}-mix-kinda-${{ hashFiles('**/mix.lock') }}
+          key: kinda-${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
           restore-keys: ${{ runner.os }}-mix-kinda-
       - name: Restore dependencies cache
         uses: actions/cache@v3
         with:
           path: ./kinda_example/deps
-          key: ${{ runner.os }}-mix-example-${{ hashFiles('**/mix.lock') }}
+          key: example-${{ runner.os }}-mix-${{ hashFiles('**/mix.exs') }}-${{ hashFiles('**/mix.lock') }}
           restore-keys: ${{ runner.os }}-mix-example-
       - name: Install dependencies
         run: mix deps.get
