@@ -13,6 +13,7 @@ defmodule KindaExample.CodeGen do
     KindDecl.default(root_module, type)
   end
 
+  @impl true
   def nif_gen(f) do
     NIFDecl.from_function(f)
   end
