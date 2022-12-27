@@ -142,13 +142,17 @@ defmodule Kinda.CodeGen.Wrapper do
 
     File.mkdir("tmp")
 
-    File.write!("tmp/translate.out.zig", translate_out)
+    translate_out_filename = "#{lib_name}.translate.out.zig"
+    File.write!("tmp/#{translate_out_filename}.zig", translate_out)
     zig_ast = Zig.Parser.parse(translate_out).code
 
     task_dump_ast =
       Task.async(fn ->
         if dump_ast?() do
-          File.write!("tmp/translate.out.ex", zig_ast |> inspect(pretty: true, limit: :infinity))
+          File.write!(
+            "tmp/#{translate_out_filename}.ex",
+            zig_ast |> inspect(pretty: true, limit: :infinity)
+          )
         end
       end)
 
