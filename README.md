@@ -24,6 +24,34 @@ Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_do
 and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
 be found at <https://hexdocs.pm/Kinda>.
 
+## Usage
+
+A full example could be found in [kinda_example](kinda_example)
+
+### More examples
+
+- define a root module for the C library
+
+  ```elixir
+  defmodule Foo.CAPI do
+    use Kinda.Library, kinds: [Foo.BarKind]
+  end
+  ```
+
+- define a forwarder module
+  ```elixir
+  defmodule Foo.Native do
+    use Kinda.Forwarder, root_module: CAPI
+  end
+  ```
+- define kinds
+  ```elixir
+  defmodule Foo.BarKind do
+    use Kinda.ResourceKind,
+      forward_module: Foo.Native
+  end
+  ```
+
 ## What Kinda does
 
 - Make NIF more of a purely function dispatch. So that you can break the complicity among C/Zig and Elixir.
@@ -131,20 +159,3 @@ Kinda is also inspired by Rustler. Rustler really define what a ergonomic NIF li
 
 - It reuses code in [rustler_precompiled](https://github.com/philss/rustler_precompiled.git) to follow the same convention of checksum checks and OTP compatibility rules.
 - In Kinda, besides the main NIF library, there might be `kinda-meta-*.ex` for functions signatures and multiple shared libraries the main NIF library depends on. (Zig doesn't support static linking yet so we have to ship shared ones. [Related issue](https://github.com/ziglang/zig/issues/9053))
-
-## Usage
-
-```elixir
-defmodule Foo.Native do
-  use Kinda.Forwarder, root_module: CAPI
-end
-
-defmodule Foo.BarKind do
-  use Kinda.ResourceKind,
-    forward_module: Foo.Native
-end
-
-defmodule Foo.CAPI do
-  use Kinda.Library, kinds: [Foo.BarKind]
-end
-```

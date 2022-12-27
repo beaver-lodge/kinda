@@ -1,5 +1,4 @@
 defmodule Kinda do
-  alias Kinda.CodeGen.KindDecl
   require Logger
 
   @moduledoc """
