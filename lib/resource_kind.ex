@@ -18,10 +18,6 @@ defmodule Kinda.ResourceKind do
         @type t() :: %__MODULE__{}
       end
 
-      def array(data, opts \\ []) do
-        unquote(forward_module).array(data, __MODULE__, opts)
-      end
-
       if generic do
         def make(kind, args) when is_atom(kind) and is_list(args) do
           %__MODULE__{
