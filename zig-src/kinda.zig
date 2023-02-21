@@ -80,7 +80,7 @@ pub fn ResourceKind(comptime ElementType: type, comptime module_name_: anytype) 
             pub fn as_opaque(env: beam.env, _: c_int, args: [*c]const beam.term) callconv(.C) beam.term {
                 var array_ptr: ArrayType = @This().resource.fetch(env, args[0]) catch
                     return beam.make_error_binary(env, "fail to fetch resource for array, expected: " ++ @typeName(ArrayType));
-                return Internal.OpaqueArray.resource.make(env, array_ptr) catch
+                return Internal.OpaqueArray.resource.make(env, @ptrCast(Internal.OpaqueArray.T, array_ptr)) catch
                     return beam.make_error_binary(env, "fail to make resource for opaque arra");
             }
         };
@@ -89,11 +89,11 @@ pub fn ResourceKind(comptime ElementType: type, comptime module_name_: anytype) 
         }
         fn ptr_to_opaque(env: beam.env, _: c_int, args: [*c]const beam.term) callconv(.C) beam.term {
             const typed_ptr: Ptr.T = Ptr.resource.fetch(env, args[0]) catch return beam.make_error_binary(env, "fail to fetch resource for ptr, expected: " ++ @typeName(PtrType));
-            return Internal.OpaquePtr.resource.make(env, typed_ptr) catch return beam.make_error_binary(env, "fail to make resource for: " ++ @typeName(Internal.OpaquePtr.T));
+            return Internal.OpaquePtr.resource.make(env, @ptrCast(Internal.OpaquePtr.T, typed_ptr)) catch return beam.make_error_binary(env, "fail to make resource for: " ++ @typeName(Internal.OpaquePtr.T));
         }
         pub fn opaque_ptr(env: beam.env, _: c_int, args: [*c]const beam.term) callconv(.C) beam.term {
             const ptr_to_resource_memory: Ptr.T = beam.fetch_resource_ptr(T, env, @This().resource.t, args[0]) catch return beam.make_error_binary(env, "fail to create ptr " ++ @typeName(T));
-            return Internal.OpaquePtr.resource.make(env, ptr_to_resource_memory) catch return beam.make_error_binary(env, "fail to make resource for: " ++ @typeName(Internal.OpaquePtr.T));
+            return Internal.OpaquePtr.resource.make(env, @ptrCast(Internal.OpaquePtr.T, ptr_to_resource_memory)) catch return beam.make_error_binary(env, "fail to make resource for: " ++ @typeName(Internal.OpaquePtr.T));
         }
         // the returned term owns the memory of the array.
         fn array(env: beam.env, _: c_int, args: [*c]const beam.term) callconv(.C) beam.term {
