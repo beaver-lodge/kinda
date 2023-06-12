@@ -1,0 +1,43 @@
+name: Swift LLVM Image
+
+on:
+  pull_request:
+    branches: ["main"]
+  push:
+    branches: ["swift"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kinda-swift-llvm-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  IMG_TAG: kinda-dev-llvm-swift
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    name: OTP ${{matrix.otp}} / Elixir ${{matrix.elixir}}
+    strategy:
+      matrix:
+        otp: ["25.0"]
+        elixir: ["1.14.0"]
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v2
+      - name: Login to DockerHub
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Build and push
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{env.IMG_TAG}}:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{env.IMG_TAG}}:${{ github.sha }}
+          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/${{env.IMG_TAG}}:latest
+          cache-to: type=inline
+          context: swift-src
