@@ -42,7 +42,7 @@ jobs:
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/${{env.IMG_TAG}}-${{matrix.LLVM_VERSION}}-${{matrix.arch}}:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/${{env.IMG_TAG}}-${{matrix.LLVM_VERSION}}-${{matrix.arch}}:${{ github.sha }}
-          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/${{env.IMG_TAG}}:latest
+          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/${{env.IMG_TAG}}-${{matrix.LLVM_VERSION}}-${{matrix.arch}}:latest
           cache-to: type=inline
           context: swift-src
           platforms: linux/${{matrix.arch}}
