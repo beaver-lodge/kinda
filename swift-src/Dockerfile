@@ -5,4 +5,4 @@ RUN --mount=type=cache,id=apt-dev,target=/var/cache/apt \
     wget https://apt.llvm.org/llvm.sh && \
     chmod +x llvm.sh && \
     ./llvm.sh 16 && \
-    apt-get install libmlir-16-dev mlir-16-tools
+    apt-get install -y libmlir-16-dev mlir-16-tools
