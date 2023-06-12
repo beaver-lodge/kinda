@@ -1,5 +1,5 @@
 set -ex
 mkdir -p build
 cd build
-cmake -G 'Ninja' ../
+cmake -DCMAKE_CXX_COMPILER="clang++" -G 'Ninja' ../
 ninja
