@@ -18,11 +18,10 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
-    name: OTP ${{matrix.otp}} / Elixir ${{matrix.elixir}}
+    name: Platform ${{matrix.arch}}
     strategy:
       matrix:
-        otp: ["25.0"]
-        elixir: ["1.14.0"]
+        arch: ["amd64", "arm64"]
       fail-fast: false
     steps:
       - uses: actions/checkout@v2
@@ -40,9 +39,9 @@ jobs:
         with:
           push: true
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/${{env.IMG_TAG}}:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/${{env.IMG_TAG}}:${{ github.sha }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{env.IMG_TAG}}-${{matrix.arch}}:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{env.IMG_TAG}}-${{matrix.arch}}:${{ github.sha }}
           cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/${{env.IMG_TAG}}:latest
           cache-to: type=inline
           context: swift-src
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/${{matrix.arch}}
