@@ -3,7 +3,7 @@ ARG LLVM_VERSION=17
 RUN --mount=type=cache,id=apt-dev,target=/var/cache/apt \
     apt update \
     && apt install -y --allow-downgrades --allow-change-held-packages --no-install-recommends \
-    python3-pip ccache gcc g++ \
+    python3-pip ccache gcc g++ ninja-build \
     wget lsb-release software-properties-common gnupg && \
     wget https://apt.llvm.org/llvm.sh && \
     chmod +x llvm.sh && \
