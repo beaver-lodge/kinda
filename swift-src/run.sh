@@ -1,0 +1,2 @@
+set -ex
+swiftc -v
