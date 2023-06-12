@@ -3,10 +3,11 @@ ARG LLVM_VERSION=17
 RUN --mount=type=cache,id=apt-dev,target=/var/cache/apt \
     apt update \
     && apt install -y --allow-downgrades --allow-change-held-packages --no-install-recommends \
-    cmake ccache gcc g++ \
+    python3-pip ccache gcc g++ \
     wget lsb-release software-properties-common gnupg && \
     wget https://apt.llvm.org/llvm.sh && \
     chmod +x llvm.sh && \
     ./llvm.sh ${LLVM_VERSION} && \
     apt-get install -y --allow-downgrades --allow-change-held-packages --no-install-recommends \
-    libmlir-${LLVM_VERSION}-dev mlir-${LLVM_VERSION}-tools
+    libmlir-${LLVM_VERSION}-dev mlir-${LLVM_VERSION}-tools && \
+    python3 -m pip install cmake=="3.26"
