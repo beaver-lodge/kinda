@@ -11,3 +11,4 @@ RUN --mount=type=cache,id=apt-dev,target=/var/cache/apt \
     apt-get install -y --allow-downgrades --allow-change-held-packages --no-install-recommends \
     libmlir-${LLVM_VERSION}-dev mlir-${LLVM_VERSION}-tools && \
     python3 -m pip install cmake=="3.26"
+RUN ln -s /usr/bin/llvm-config-15 /usr/bin/llvm-config
