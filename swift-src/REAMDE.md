@@ -7,5 +7,5 @@ docker run --rm -it -v $PWD/swift-src:/swift-src swiftlang/swift:nightly-5.9-foc
 ```
 
 ```bash
-docker run --rm -it -v $PWD/swift-src:/swift-src -v $HOME/oss/swift-cmake-examples:/swift-cmake-examples -w /swift-cmake-examples/3_bidirectional_cxx_interop jackalcooper/kinda-dev-llvm-17-arm64 bash /swift-src/cmake.sh
+docker run --rm -it -v $PWD/swift-src:/swift-src -v $HOME/oss/swift-cmake-examples:/swift-cmake-examples -w /swift-cmake-examples jackalcooper/kinda-dev-llvm-17-arm64 bash /swift-src/cmake.sh
 ```
