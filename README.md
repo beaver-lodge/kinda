@@ -168,4 +168,5 @@ Kinda is also inspired by Rustler. Rustler really define what a ergonomic NIF li
 cd kinda_example
 mix deps.get
 mix test --force
+mix compile --force
 ```

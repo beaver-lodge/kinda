@@ -10,7 +10,7 @@ pub fn build(b: *std.build.Builder) void {
     const lib = b.addSharedLibrary(.{
         .name = kinda.lib_name,
         .root_source_file = .{ .path = "src/main.zig" },
-        .optimize = .Debug,
+        .optimize = .ReleaseSafe,
         .target = target,
     });
     lib.addSystemIncludePath(kinda.erts_include);

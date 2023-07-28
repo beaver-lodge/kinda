@@ -1,6 +1,4 @@
 const std = @import("std");
-const testing = std.testing;
-
 const beam = @import("beam.zig");
 const kinda = @import("kinda.zig");
 const e = @import("erl_nif.zig");

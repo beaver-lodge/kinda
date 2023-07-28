@@ -93,7 +93,7 @@ defmodule Kinda.CodeGen.Wrapper do
         :ok
       else
         {_error, _} ->
-          Logger.warn("fail to run zig fmt")
+          Logger.warning("fail to run zig fmt")
       end
     end
   end
@@ -380,7 +380,6 @@ defmodule Kinda.CodeGen.Wrapper do
     build_source =
       build_source <>
         """
-        pub const cache_root = "#{cache_root}";
         pub const erts_include = "#{erts_include}";
         pub const lib_name = "#{lib_name}";
         """
@@ -414,7 +413,9 @@ defmodule Kinda.CodeGen.Wrapper do
     Logger.debug("[Kinda] building Zig project in: #{project_dir}")
 
     with {_, 0} <-
-           System.cmd("zig", ["build", "--prefix", dest_dir, "-freference-trace"],
+           System.cmd(
+             "zig",
+             ["build", "--prefix", dest_dir, "-freference-trace", "--cache-dir", cache_root],
              cd: project_dir,
              stderr_to_stdout: true
            ) do
