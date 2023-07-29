@@ -111,7 +111,7 @@ defmodule Kinda.CodeGen.Wrapper do
     include_paths = Keyword.get(opts, :include_paths, %{})
     constants = Keyword.get(opts, :constants, %{})
     version = Keyword.fetch!(opts, :version)
-    cache_root = Path.join([Mix.Project.build_path(), "mlir-zig-build", "zig-cache"])
+    cache_root = Path.join([Mix.Project.app_path(), "zig_cache"])
     code_gen_module = Keyword.fetch!(opts, :code_gen_module)
 
     if not is_map(include_paths) do
