@@ -108,31 +108,17 @@ defmodule Kinda.CodeGen.Wrapper do
     project_dir = Path.join(project_dir, Atom.to_string(Mix.env()))
     project_source_dir = Path.join(project_dir, "src")
     Logger.debug("[Kinda] generating Zig code for wrapper: #{wrapper}")
-    include_paths = Keyword.get(opts, :include_paths, %{})
-    constants = Keyword.get(opts, :constants, %{})
+    translate_args = Keyword.get(opts, :translate_args, %{})
+    build_args = Keyword.get(opts, :build_args, %{})
     version = Keyword.fetch!(opts, :version)
     cache_root = Path.join([Mix.Project.app_path(), "zig_cache"])
     code_gen_module = Keyword.fetch!(opts, :code_gen_module)
-
-    if not is_map(include_paths) do
-      raise "include_paths must be a map so that we could generate variables for build.zig. Got: #{inspect(include_paths)}"
-    end
-
-    if not is_map(constants) do
-      raise "constants must be a map so that we could generate variables for build.zig. Got: #{inspect(constants)}"
-    end
-
-    include_path_args =
-      for {_, path} <- include_paths do
-        ["-I", path]
-      end
-      |> List.flatten()
 
     translate_out =
       with {out, 0} <-
              System.cmd(
                "zig",
-               ["translate-c", wrapper, "--cache-dir", cache_root] ++ include_path_args
+               ["translate-c", wrapper, "--cache-dir", cache_root] ++ translate_args
              ) do
         out
       else
@@ -350,46 +336,18 @@ defmodule Kinda.CodeGen.Wrapper do
     File.write!(dst, source)
 
     # generate build.inc.zig source
-    build_source =
-      for {name, path} <- include_paths do
-        """
-        pub const #{name} = "#{path}";
-        """
-      end
-      |> Enum.join()
-
-    build_source =
-      for {name, path} <- constants do
-        """
-        pub const #{name} = "#{path}";
-        """
-      end
-      |> Enum.join()
-      |> Kernel.<>(build_source)
 
     erts_include =
       Path.join([
         List.to_string(:code.root_dir()),
-        "erts-#{:erlang.system_info(:version)}",
-        "include"
+        "erts-#{:erlang.system_info(:version)}"
       ])
 
     {:ok, target} = RustlerPrecompiled.target()
     lib_name = "#{lib_name}-v#{version}-#{target}"
 
-    build_source =
-      build_source <>
-        """
-        pub const erts_include = "#{erts_include}";
-        pub const lib_name = "#{lib_name}";
-        """
-
     # zig will add the 'lib' prefix to the library name
     lib_name = "lib#{lib_name}"
-
-    dst = Path.join(project_dir, "build.imp.zig")
-    Logger.debug("[Kinda] writing build import to: #{dst}")
-    File.write!(dst, build_source)
     fmt_zig_project(project_dir)
 
     zig_sources =
@@ -412,10 +370,16 @@ defmodule Kinda.CodeGen.Wrapper do
 
     Logger.debug("[Kinda] building Zig project in: #{project_dir}")
 
+    zig_args =
+      ["build", "--prefix", dest_dir, "-freference-trace", "--cache-dir", cache_root] ++
+        build_args ++ ["--search-prefix", erts_include]
+
+    Logger.debug("[Kinda] zig #{Enum.join(zig_args, " ")}")
+
     with {_, 0} <-
            System.cmd(
              "zig",
-             ["build", "--prefix", dest_dir, "-freference-trace", "--cache-dir", cache_root],
+             zig_args,
              cd: project_dir,
              stderr_to_stdout: true
            ) do
