@@ -342,8 +342,6 @@ defmodule Kinda.CodeGen.Wrapper do
     Logger.debug("[Kinda] writing source import to: #{dst}")
     File.write!(dst, source)
 
-    # generate build.inc.zig source
-
     erts_include =
       Path.join([
         List.to_string(:code.root_dir()),
