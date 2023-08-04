@@ -352,7 +352,7 @@ defmodule Kinda.CodeGen.Wrapper do
     lib_name = "#{lib_name}-v#{version}-#{target}"
 
     # zig will add the 'lib' prefix to the library name
-    lib_name = "lib#{lib_name}"
+    prefixed_lib_name = "lib#{lib_name}"
     fmt_zig_project(project_dir)
 
     zig_sources =
@@ -380,7 +380,8 @@ defmodule Kinda.CodeGen.Wrapper do
              ["build", "--prefix", dest_dir, "-freference-trace", "--cache-dir", cache_root] ++
                build_args ++ ["--search-prefix", erts_include],
              cd: project_dir,
-             stderr_to_stdout: true
+             stderr_to_stdout: true,
+             env: [{"KINDA_LIB_NAME", lib_name}]
            ) do
       Logger.debug("[Kinda] Zig library installed to: #{dest_dir}")
       :ok
@@ -401,7 +402,7 @@ defmodule Kinda.CodeGen.Wrapper do
     }
 
     File.write!(
-      Path.join(dest_dir, "kinda-meta-#{lib_name}.ex"),
+      Path.join(dest_dir, "kinda-meta-#{prefixed_lib_name}.ex"),
       inspect(meta, pretty: true, limit: :infinity)
     )
 
@@ -409,6 +410,6 @@ defmodule Kinda.CodeGen.Wrapper do
       Task.await(task_dump_ast, :infinity)
     end
 
-    {meta, %{dest_dir: dest_dir, lib_name: lib_name}}
+    {meta, %{dest_dir: dest_dir, lib_name: prefixed_lib_name}}
   end
 end
