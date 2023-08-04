@@ -1,5 +1,5 @@
 defmodule KindaExample.NIF do
-  dest_dir = Path.join([Mix.Project.app_path(), "native-install"])
+  dest_dir = Path.join([Mix.Project.app_path(), "native_install"])
 
   use Kinda.Prebuilt,
     otp_app: :kinda_example,
@@ -10,12 +10,8 @@ defmodule KindaExample.NIF do
     wrapper: Path.join(File.cwd!(), "native/c-src/include/wrapper.h"),
     zig_src: "native/zig-src",
     zig_proj: "native/zig-proj",
-    include_paths: %{
-      kinda_example_include: Path.join(File.cwd!(), "native/c-src/include")
-    },
-    constants: %{
-      kinda_example_libdir: Path.join(dest_dir, "lib")
-    },
+    translate_args: ["-I", Path.join(File.cwd!(), "native/c-src/include")],
+    build_args: ["--search-prefix", dest_dir],
     dest_dir: dest_dir,
     forward_module: KindaExample.Native,
     code_gen_module: KindaExample.CodeGen
