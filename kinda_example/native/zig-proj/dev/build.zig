@@ -20,10 +20,10 @@ pub fn build(b: *std.build.Builder) void {
         .target = target,
     });
     if (os == .linux) {
-        lib.addRPath("$ORIGIN");
+        lib.addRPath(.{ .path = "$ORIGIN" });
     }
     if (os == .macos) {
-        lib.addRPath("@loader_path");
+        lib.addRPath(.{ .path = "@loader_path" });
     }
     lib.linkSystemLibrary("KindaExample");
     lib.linker_allow_shlib_undefined = true;
