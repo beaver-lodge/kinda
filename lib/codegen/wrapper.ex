@@ -98,6 +98,16 @@ defmodule Kinda.CodeGen.Wrapper do
     end
   end
 
+  defp run_zig(args, opts \\ []) do
+    Logger.debug("[Kinda] zig #{Enum.join(args, " ")}")
+
+    System.cmd(
+      "zig",
+      args,
+      opts
+    )
+  end
+
   # Generate Zig code from a header and build a Zig project to produce a NIF library
   def gen_and_build_zig(root_module, opts) do
     wrapper = Keyword.fetch!(opts, :wrapper)
@@ -116,10 +126,7 @@ defmodule Kinda.CodeGen.Wrapper do
 
     translate_out =
       with {out, 0} <-
-             System.cmd(
-               "zig",
-               ["translate-c", wrapper, "--cache-dir", cache_root] ++ translate_args
-             ) do
+             run_zig(["translate-c", wrapper, "--cache-dir", cache_root] ++ translate_args) do
         out
       else
         {_error, _} ->
@@ -370,16 +377,10 @@ defmodule Kinda.CodeGen.Wrapper do
 
     Logger.debug("[Kinda] building Zig project in: #{project_dir}")
 
-    zig_args =
-      ["build", "--prefix", dest_dir, "-freference-trace", "--cache-dir", cache_root] ++
-        build_args ++ ["--search-prefix", erts_include]
-
-    Logger.debug("[Kinda] zig #{Enum.join(zig_args, " ")}")
-
     with {_, 0} <-
-           System.cmd(
-             "zig",
-             zig_args,
+           run_zig(
+             ["build", "--prefix", dest_dir, "-freference-trace", "--cache-dir", cache_root] ++
+               build_args ++ ["--search-prefix", erts_include],
              cd: project_dir,
              stderr_to_stdout: true
            ) do
