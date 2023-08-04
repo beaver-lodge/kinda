@@ -11,7 +11,8 @@ defmodule KindaExample.NIF do
     zig_src: "native/zig-src",
     zig_proj: "native/zig-proj",
     translate_args: ["-I", Path.join(File.cwd!(), "native/c-src/include")],
-    build_args: ["--search-prefix", dest_dir],
+    build_args:
+      Enum.flat_map([dest_dir, Path.join(File.cwd!(), "native/c-src")], &["--search-prefix", &1]),
     dest_dir: dest_dir,
     forward_module: KindaExample.Native,
     code_gen_module: KindaExample.CodeGen
