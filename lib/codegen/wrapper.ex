@@ -378,7 +378,7 @@ defmodule Kinda.CodeGen.Wrapper do
     with {_, 0} <-
            run_zig(
              ["build", "--prefix", dest_dir, "-freference-trace", "--cache-dir", cache_root] ++
-               build_args ++ ["--search-prefix", erts_include],
+               build_args ++ ["--search-prefix", erts_include, "-DKINDA_LIB_NAME=#{lib_name}"],
              cd: project_dir,
              stderr_to_stdout: true,
              env: [{"KINDA_LIB_NAME", lib_name}]
