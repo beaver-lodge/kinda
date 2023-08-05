@@ -19,6 +19,9 @@ pub fn build(b: *std.build.Builder) void {
         .optimize = .Debug,
         .target = target,
     });
+    if (os == .linux) {
+        lib.addRPath(.{ .path = "$ORIGIN" });
+    }
     if (os == .macos) {
         lib.addRPath(.{ .path = "@loader_path" });
     }
