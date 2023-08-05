@@ -1,6 +1,14 @@
 defmodule KindaExample.NIF do
   dest_dir = Path.join([Mix.Project.app_path(), "native_install"])
 
+  for path <-
+        Path.wildcard("native/c-src/**/*.h") ++
+          Path.wildcard("native/c-src/**/*.cpp") ++
+          Path.wildcard("native/mlir-zig-src/**/*.zig") ++
+          ["native/zig-proj/#{Mix.env()}/build.zig"] do
+    @external_resource path
+  end
+
   use Kinda.Prebuilt,
     otp_app: :kinda_example,
     lib_name: "kinda_example",
