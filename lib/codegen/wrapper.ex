@@ -403,6 +403,8 @@ defmodule Kinda.CodeGen.Wrapper do
           _ ->
             {out, 0} = System.cmd("ldd", [p])
             Logger.debug("[Kinda] #{out}")
+            {out, 0} = System.cmd("readelf", ["-d", p])
+            String.split(out, "\n") |> Enum.take(20) |> Enum.join("\n") |> Logger.debug()
         end
       end
     end
