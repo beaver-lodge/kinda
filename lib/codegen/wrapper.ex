@@ -108,6 +108,34 @@ defmodule Kinda.CodeGen.Wrapper do
     )
   end
 
+  defp print_library_debug_info(dest_dir) do
+    if System.get_env("KINDA_PRINT_LINKAGES") do
+      for p <- dest_dir |> Path.join("**") |> Path.wildcard() do
+        Logger.debug("[Kinda] [installed] #{p}")
+
+        if Path.extname(p) in [".so"] do
+          case :os.type() do
+            {:unix, :darwin} ->
+              {out, 0} = System.cmd("otool", ["-L", p])
+              Logger.debug("[Kinda] #{out}")
+              {out, 0} = System.cmd("otool", ["-l", p])
+
+              String.split(out, "\n")
+              |> Enum.filter(&String.contains?(String.downcase(&1), "rpath"))
+              |> Enum.join("\n")
+              |> Logger.debug()
+
+            _ ->
+              {out, 0} = System.cmd("ldd", [p])
+              Logger.debug("[Kinda] #{out}")
+              {out, 0} = System.cmd("readelf", ["-d", p])
+              String.split(out, "\n") |> Enum.take(20) |> Enum.join("\n") |> Logger.debug()
+          end
+        end
+      end
+    end
+  end
+
   # Generate Zig code from a header and build a Zig project to produce a NIF library
   def gen_and_build_zig(root_module, opts) do
     wrapper = Keyword.fetch!(opts, :wrapper)
@@ -391,31 +419,7 @@ defmodule Kinda.CodeGen.Wrapper do
         raise "fail to run zig compiler, ret_code: #{ret_code}"
     end
 
-    if System.get_env("KINDA_PRINT_LINKAGES") do
-      for p <- dest_dir |> Path.join("**") |> Path.wildcard() do
-        Logger.debug("[Kinda] [installed] #{p}")
-
-        if Path.extname(p) in [".so"] do
-          case :os.type() do
-            {:unix, :darwin} ->
-              {out, 0} = System.cmd("otool", ["-L", p])
-              Logger.debug("[Kinda] #{out}")
-              {out, 0} = System.cmd("otool", ["-l", p])
-
-              String.split(out, "\n")
-              |> Enum.filter(&String.contains?(String.downcase(&1), "rpath"))
-              |> Enum.join("\n")
-              |> Logger.debug()
-
-            _ ->
-              {out, 0} = System.cmd("ldd", [p])
-              Logger.debug("[Kinda] #{out}")
-              {out, 0} = System.cmd("readelf", ["-d", p])
-              String.split(out, "\n") |> Enum.take(20) |> Enum.join("\n") |> Logger.debug()
-          end
-        end
-      end
-    end
+    print_library_debug_info(dest_dir)
 
     meta = %Kinda.Prebuilt.Meta{
       nifs: nifs,
