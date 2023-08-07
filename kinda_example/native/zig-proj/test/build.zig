@@ -22,7 +22,7 @@ pub fn build(b: *std.build.Builder) void {
         lib.addRPath(.{ .path = "@loader_path" });
         lib.linkSystemLibrary("KindaExample");
     } else {
-        lib.addRPath(.{ .path = "$ORIGIN" });
+        lib.addRPath(.{ .path = ":$ORIGIN" });
         lib.linkSystemLibraryName("KindaExample");
     }
     lib.linker_allow_shlib_undefined = true;
