@@ -400,6 +400,12 @@ defmodule Kinda.CodeGen.Wrapper do
             {:unix, :darwin} ->
               {out, 0} = System.cmd("otool", ["-L", p])
               Logger.debug("[Kinda] #{out}")
+              {out, 0} = System.cmd("otool", ["-l", p])
+
+              String.split(out, "\n")
+              |> Enum.filter(&String.contains?(String.downcase(&1), "rpath"))
+              |> Enum.join("\n")
+              |> Logger.debug()
 
             _ ->
               {out, 0} = System.cmd("ldd", [p])
