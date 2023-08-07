@@ -11,6 +11,9 @@ concurrency:
   group: manx-build-and-test-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  KINDA_PRINT_LINKAGES: 1
+
 jobs:
   build:
     runs-on: ubuntu-latest
