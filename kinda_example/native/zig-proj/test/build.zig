@@ -20,11 +20,12 @@ pub fn build(b: *std.build.Builder) void {
     });
     if (os == .linux) {
         lib.addRPath(.{ .path = "$ORIGIN" });
+        lib.linkSystemLibraryName("KindaExample");
     }
     if (os == .macos) {
         lib.addRPath(.{ .path = "@loader_path" });
+        lib.linkSystemLibrary("KindaExample");
     }
-    lib.linkSystemLibrary("KindaExample");
     lib.linker_allow_shlib_undefined = true;
 
     b.installArtifact(lib);
