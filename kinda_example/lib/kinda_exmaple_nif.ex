@@ -16,9 +16,9 @@ defmodule KindaExample.NIF do
       "https://github.com/beaver-project/beaver-prebuilt/releases/download/2022-10-15-0706",
     version: "0.1.0",
     wrapper: Path.join(File.cwd!(), "native/c-src/include/wrapper.h"),
-    zig_proj: "../zig-proj",
-    zig_src: "../zig-proj/example",
-    build_file: "../zig-proj/example.build.zig",
+    zig_proj: "..",
+    zig_src: "../src/example",
+    build_file: "../build.example.zig",
     translate_args: ["-I", Path.join(File.cwd!(), "native/c-src/include")],
     build_args:
       Enum.flat_map([dest_dir, Path.join(File.cwd!(), "native/c-src")], &["--search-prefix", &1]),

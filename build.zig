@@ -17,16 +17,16 @@ pub fn build(b: *std.Build) !void {
 
     const erl_nif = b.addModule(
         "erl_nif",
-        .{ .source_file = .{ .path = "erl_nif.zig" } },
+        .{ .source_file = .{ .path = "src/erl_nif.zig" } },
     );
     const beam = b.addModule(
         "beam",
-        .{ .source_file = .{ .path = "beam.zig" } },
+        .{ .source_file = .{ .path = "src/beam.zig" } },
     );
     try beam.dependencies.put("erl_nif", erl_nif);
     const kinda = b.addModule(
         "kinda",
-        .{ .source_file = .{ .path = "kinda.zig" } },
+        .{ .source_file = .{ .path = "src/kinda.zig" } },
     );
     try kinda.dependencies.put("erl_nif", erl_nif);
     try kinda.dependencies.put("beam", beam);

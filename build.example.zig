@@ -14,7 +14,7 @@ pub fn build(b: *std.build.Builder) void {
     const target: std.zig.CrossTarget = .{};
     const lib = b.addSharedLibrary(.{
         .name = lib_name,
-        .root_source_file = .{ .path = "example/main.zig" },
+        .root_source_file = .{ .path = "src/example/main.zig" },
         .optimize = .Debug,
         .target = target,
     });

@@ -141,8 +141,8 @@ defmodule Kinda.CodeGen.Wrapper do
     wrapper = Keyword.fetch!(opts, :wrapper)
     lib_name = Keyword.fetch!(opts, :lib_name)
     dest_dir = Keyword.fetch!(opts, :dest_dir)
-    project_dir = Keyword.fetch!(opts, :zig_proj)
-    source_dir = Keyword.get(opts, :zig_src, Path.join(project_dir, "src"))
+    project_dir = Keyword.fetch!(opts, :zig_proj) |> Path.expand()
+    source_dir = Keyword.get(opts, :zig_src, Path.join(project_dir, "src")) |> Path.expand()
     Logger.debug("[Kinda] generating Zig code for wrapper: #{wrapper}")
     translate_args = Keyword.get(opts, :translate_args, [])
     build_file = Keyword.get(opts, :build_file)
@@ -385,7 +385,7 @@ defmodule Kinda.CodeGen.Wrapper do
 
     build_file_args =
       if build_file do
-        ["--build-file", build_file]
+        ["--build-file", Path.expand(build_file)]
       else
         []
       end
@@ -393,9 +393,9 @@ defmodule Kinda.CodeGen.Wrapper do
     with {_, 0} <-
            run_zig(
              ["build", "--prefix", dest_dir, "-freference-trace", "--cache-dir", cache_root] ++
+               build_file_args ++
                build_args ++
-               ["--search-prefix", erts_include, "-DKINDA_LIB_NAME=#{lib_name}"] ++
-               build_file_args,
+               ["--search-prefix", erts_include, "-DKINDA_LIB_NAME=#{lib_name}"],
              cd: project_dir,
              stderr_to_stdout: true,
              env: [{"KINDA_LIB_NAME", lib_name}]
