@@ -14,10 +14,14 @@ pub fn build(b: *std.build.Builder) void {
     const target: std.zig.CrossTarget = .{};
     const lib = b.addSharedLibrary(.{
         .name = lib_name,
-        .root_source_file = .{ .path = "src/main.zig" },
+        .root_source_file = .{ .path = "example/main.zig" },
         .optimize = .Debug,
         .target = target,
     });
+    const kinda = b.anonymousDependency(".", @import("build.zig"), .{});
+    lib.addModule("kinda", kinda.module("kinda"));
+    lib.addModule("erl_nif", kinda.module("erl_nif"));
+    lib.addModule("beam", kinda.module("beam"));
     if (os.isDarwin()) {
         lib.addRPath(.{ .path = "@loader_path" });
         lib.linkSystemLibrary("KindaExample");

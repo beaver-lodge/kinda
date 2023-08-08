@@ -141,13 +141,12 @@ defmodule Kinda.CodeGen.Wrapper do
     wrapper = Keyword.fetch!(opts, :wrapper)
     lib_name = Keyword.fetch!(opts, :lib_name)
     dest_dir = Keyword.fetch!(opts, :dest_dir)
-    source_dir = Keyword.fetch!(opts, :zig_src)
     project_dir = Keyword.fetch!(opts, :zig_proj)
-    project_dir = Path.join(project_dir, Atom.to_string(Mix.env()))
-    project_source_dir = Path.join(project_dir, "src")
+    source_dir = Keyword.get(opts, :zig_src, Path.join(project_dir, "src"))
     Logger.debug("[Kinda] generating Zig code for wrapper: #{wrapper}")
-    translate_args = Keyword.get(opts, :translate_args, %{})
-    build_args = Keyword.get(opts, :build_args, %{})
+    translate_args = Keyword.get(opts, :translate_args, [])
+    build_file = Keyword.get(opts, :build_file)
+    build_args = Keyword.get(opts, :build_args, [])
     version = Keyword.fetch!(opts, :version)
     cache_root = Path.join([Mix.Project.app_path(), "zig_cache"])
     code_gen_module = Keyword.fetch!(opts, :code_gen_module)
@@ -359,14 +358,13 @@ defmodule Kinda.CodeGen.Wrapper do
     source =
       """
       pub const c = @import("prelude.zig");
-      const beam = @import("beam.zig");
-      const kinda = @import("kinda.zig");
-      const e = @import("erl_nif.zig");
+      const beam = @import("beam");
+      const kinda = @import("kinda");
+      const e = @import("erl_nif");
       pub const root_module = "#{root_module}";
       """ <> source
 
-    dst = Path.join(project_source_dir, "#{lib_name}.imp.zig")
-    File.mkdir_p(project_source_dir)
+    dst = Path.join(source_dir, "#{lib_name}.imp.zig")
     Logger.debug("[Kinda] writing source import to: #{dst}")
     File.write!(dst, source)
 
@@ -383,30 +381,21 @@ defmodule Kinda.CodeGen.Wrapper do
     prefixed_lib_name = "lib#{lib_name}"
     fmt_zig_project(project_dir)
 
-    zig_sources =
-      Kinda.zig_sources() ++
-        Path.wildcard(Path.join(source_dir, "*.zig"))
-
-    File.mkdir_p(project_source_dir)
-
-    for zig_source <- zig_sources do
-      zig_source = zig_source |> Path.absname()
-      zig_source_link = Path.join(project_source_dir, Path.basename(zig_source)) |> Path.absname()
-      Logger.debug("[Kinda] sym linking source #{zig_source} => #{zig_source_link}")
-
-      if File.exists?(zig_source_link) do
-        File.rm(zig_source_link)
-      end
-
-      File.ln_s(zig_source, zig_source_link)
-    end
-
     Logger.debug("[Kinda] building Zig project in: #{project_dir}")
+
+    build_file_args =
+      if build_file do
+        ["--build-file", build_file]
+      else
+        []
+      end
 
     with {_, 0} <-
            run_zig(
              ["build", "--prefix", dest_dir, "-freference-trace", "--cache-dir", cache_root] ++
-               build_args ++ ["--search-prefix", erts_include, "-DKINDA_LIB_NAME=#{lib_name}"],
+               build_args ++
+               ["--search-prefix", erts_include, "-DKINDA_LIB_NAME=#{lib_name}"] ++
+               build_file_args,
              cd: project_dir,
              stderr_to_stdout: true,
              env: [{"KINDA_LIB_NAME", lib_name}]

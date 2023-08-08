@@ -1,5 +1,5 @@
-const beam = @import("beam.zig");
-const e = @import("erl_nif.zig");
+const beam = @import("beam");
+const e = @import("erl_nif");
 const std = @import("std");
 const print = @import("std").debug.print;
 
@@ -136,14 +136,16 @@ pub fn ResourceKind(comptime ElementType: type, comptime module_name_: anytype) 
         }
         const maker = if (@typeInfo(ElementType) == .Struct and @hasDecl(ElementType, "maker"))
             ElementType.maker
-        else .{ make, 1 };
+        else
+            .{ make, 1 };
         const ptr_maker = if (@typeInfo(ElementType) == .Struct and @hasDecl(ElementType, "ptr"))
             ElementType.ptr
         else
             ptr;
         const extra_nifs = if (@typeInfo(ElementType) == .Struct and @hasDecl(ElementType, "nifs"))
             ElementType.nifs
-        else .{};
+        else
+            .{};
         pub const nifs = .{
             e.ErlNifFunc{ .name = module_name ++ ".ptr", .arity = 1, .fptr = ptr_maker, .flags = 0 },
             e.ErlNifFunc{ .name = module_name ++ ".ptr_to_opaque", .arity = 1, .fptr = ptr_to_opaque, .flags = 0 },
