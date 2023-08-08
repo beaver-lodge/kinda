@@ -93,7 +93,45 @@ defmodule Kinda.CodeGen.Wrapper do
         :ok
       else
         {_error, _} ->
-          Logger.warn("fail to run zig fmt")
+          Logger.warning("fail to run zig fmt")
+      end
+    end
+  end
+
+  defp run_zig(args, opts \\ []) do
+    Logger.debug("[Kinda] zig #{Enum.join(args, " ")}")
+
+    System.cmd(
+      "zig",
+      args,
+      opts
+    )
+  end
+
+  defp print_library_debug_info(dest_dir) do
+    if System.get_env("KINDA_PRINT_LINKAGES") do
+      for p <- dest_dir |> Path.join("**") |> Path.wildcard() do
+        Logger.debug("[Kinda] [installed] #{p}")
+
+        if Path.extname(p) in [".so"] do
+          case :os.type() do
+            {:unix, :darwin} ->
+              {out, 0} = System.cmd("otool", ["-L", p])
+              Logger.debug("[Kinda] #{out}")
+              {out, 0} = System.cmd("otool", ["-l", p])
+
+              String.split(out, "\n")
+              |> Enum.filter(&String.contains?(String.downcase(&1), "rpath"))
+              |> Enum.join("\n")
+              |> Logger.debug()
+
+            _ ->
+              {out, 0} = System.cmd("ldd", [p])
+              Logger.debug("[Kinda] #{out}")
+              {out, 0} = System.cmd("readelf", ["-d", p])
+              String.split(out, "\n") |> Enum.take(20) |> Enum.join("\n") |> Logger.debug()
+          end
+        end
       end
     end
   end
@@ -103,37 +141,19 @@ defmodule Kinda.CodeGen.Wrapper do
     wrapper = Keyword.fetch!(opts, :wrapper)
     lib_name = Keyword.fetch!(opts, :lib_name)
     dest_dir = Keyword.fetch!(opts, :dest_dir)
-    source_dir = Keyword.fetch!(opts, :zig_src)
-    project_dir = Keyword.fetch!(opts, :zig_proj)
-    project_dir = Path.join(project_dir, Atom.to_string(Mix.env()))
-    project_source_dir = Path.join(project_dir, "src")
+    project_dir = Keyword.fetch!(opts, :zig_proj) |> Path.expand()
+    source_dir = Keyword.get(opts, :zig_src, Path.join(project_dir, "src")) |> Path.expand()
     Logger.debug("[Kinda] generating Zig code for wrapper: #{wrapper}")
-    include_paths = Keyword.get(opts, :include_paths, %{})
-    constants = Keyword.get(opts, :constants, %{})
+    translate_args = Keyword.get(opts, :translate_args, [])
+    build_file = Keyword.get(opts, :build_file)
+    build_args = Keyword.get(opts, :build_args, [])
     version = Keyword.fetch!(opts, :version)
-    cache_root = Path.join([Mix.Project.build_path(), "mlir-zig-build", "zig-cache"])
+    cache_root = Path.join([Mix.Project.app_path(), "zig_cache"])
     code_gen_module = Keyword.fetch!(opts, :code_gen_module)
-
-    if not is_map(include_paths) do
-      raise "include_paths must be a map so that we could generate variables for build.zig. Got: #{inspect(include_paths)}"
-    end
-
-    if not is_map(constants) do
-      raise "constants must be a map so that we could generate variables for build.zig. Got: #{inspect(constants)}"
-    end
-
-    include_path_args =
-      for {_, path} <- include_paths do
-        ["-I", path]
-      end
-      |> List.flatten()
 
     translate_out =
       with {out, 0} <-
-             System.cmd(
-               "zig",
-               ["translate-c", wrapper, "--cache-dir", cache_root] ++ include_path_args
-             ) do
+             run_zig(["translate-c", wrapper, "--cache-dir", cache_root] ++ translate_args) do
         out
       else
         {_error, _} ->
@@ -338,85 +358,47 @@ defmodule Kinda.CodeGen.Wrapper do
     source =
       """
       pub const c = @import("prelude.zig");
-      const beam = @import("beam.zig");
-      const kinda = @import("kinda.zig");
-      const e = @import("erl_nif.zig");
+      const beam = @import("beam");
+      const kinda = @import("kinda");
+      const e = @import("erl_nif");
       pub const root_module = "#{root_module}";
       """ <> source
 
-    dst = Path.join(project_source_dir, "#{lib_name}.imp.zig")
-    File.mkdir_p(project_source_dir)
+    dst = Path.join(source_dir, "#{lib_name}.imp.zig")
     Logger.debug("[Kinda] writing source import to: #{dst}")
     File.write!(dst, source)
-
-    # generate build.inc.zig source
-    build_source =
-      for {name, path} <- include_paths do
-        """
-        pub const #{name} = "#{path}";
-        """
-      end
-      |> Enum.join()
-
-    build_source =
-      for {name, path} <- constants do
-        """
-        pub const #{name} = "#{path}";
-        """
-      end
-      |> Enum.join()
-      |> Kernel.<>(build_source)
 
     erts_include =
       Path.join([
         List.to_string(:code.root_dir()),
-        "erts-#{:erlang.system_info(:version)}",
-        "include"
+        "erts-#{:erlang.system_info(:version)}"
       ])
 
     {:ok, target} = RustlerPrecompiled.target()
     lib_name = "#{lib_name}-v#{version}-#{target}"
 
-    build_source =
-      build_source <>
-        """
-        pub const cache_root = "#{cache_root}";
-        pub const erts_include = "#{erts_include}";
-        pub const lib_name = "#{lib_name}";
-        """
-
     # zig will add the 'lib' prefix to the library name
-    lib_name = "lib#{lib_name}"
-
-    dst = Path.join(project_dir, "build.imp.zig")
-    Logger.debug("[Kinda] writing build import to: #{dst}")
-    File.write!(dst, build_source)
+    prefixed_lib_name = "lib#{lib_name}"
     fmt_zig_project(project_dir)
-
-    zig_sources =
-      Kinda.zig_sources() ++
-        Path.wildcard(Path.join(source_dir, "*.zig"))
-
-    File.mkdir_p(project_source_dir)
-
-    for zig_source <- zig_sources do
-      zig_source = zig_source |> Path.absname()
-      zig_source_link = Path.join(project_source_dir, Path.basename(zig_source)) |> Path.absname()
-      Logger.debug("[Kinda] sym linking source #{zig_source} => #{zig_source_link}")
-
-      if File.exists?(zig_source_link) do
-        File.rm(zig_source_link)
-      end
-
-      File.ln_s(zig_source, zig_source_link)
-    end
 
     Logger.debug("[Kinda] building Zig project in: #{project_dir}")
 
+    build_file_args =
+      if build_file do
+        ["--build-file", Path.expand(build_file)]
+      else
+        []
+      end
+
     with {_, 0} <-
-           System.cmd("zig", ["build", "--prefix", dest_dir, "-freference-trace"],
+           run_zig(
+             ["build", "--prefix", dest_dir, "-freference-trace", "--cache-dir", cache_root] ++
+               build_file_args ++
+               build_args ++
+               ["--search-prefix", erts_include, "-DKINDA_LIB_NAME=#{lib_name}"],
              cd: project_dir,
-             stderr_to_stdout: true
+             stderr_to_stdout: true,
+             env: [{"KINDA_LIB_NAME", lib_name}]
            ) do
       Logger.debug("[Kinda] Zig library installed to: #{dest_dir}")
       :ok
@@ -426,9 +408,7 @@ defmodule Kinda.CodeGen.Wrapper do
         raise "fail to run zig compiler, ret_code: #{ret_code}"
     end
 
-    for p <- dest_dir |> Path.join("**") |> Path.wildcard() do
-      Logger.debug("[Kinda] [installed] #{p}")
-    end
+    print_library_debug_info(dest_dir)
 
     meta = %Kinda.Prebuilt.Meta{
       nifs: nifs,
@@ -437,7 +417,7 @@ defmodule Kinda.CodeGen.Wrapper do
     }
 
     File.write!(
-      Path.join(dest_dir, "kinda-meta-#{lib_name}.ex"),
+      Path.join(dest_dir, "kinda-meta-#{prefixed_lib_name}.ex"),
       inspect(meta, pretty: true, limit: :infinity)
     )
 
@@ -445,6 +425,6 @@ defmodule Kinda.CodeGen.Wrapper do
       Task.await(task_dump_ast, :infinity)
     end
 
-    {meta, %{dest_dir: dest_dir, lib_name: lib_name}}
+    {meta, %{dest_dir: dest_dir, lib_name: prefixed_lib_name}}
   end
 end

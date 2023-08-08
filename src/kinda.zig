@@ -1,5 +1,5 @@
-const beam = @import("beam.zig");
-const e = @import("erl_nif.zig");
+const beam = @import("beam");
+const e = @import("erl_nif");
 const std = @import("std");
 const print = @import("std").debug.print;
 
@@ -80,7 +80,7 @@ pub fn ResourceKind(comptime ElementType: type, comptime module_name_: anytype) 
             pub fn as_opaque(env: beam.env, _: c_int, args: [*c]const beam.term) callconv(.C) beam.term {
                 var array_ptr: ArrayType = @This().resource.fetch(env, args[0]) catch
                     return beam.make_error_binary(env, "fail to fetch resource for array, expected: " ++ @typeName(ArrayType));
-                return Internal.OpaqueArray.resource.make(env, @ptrCast(Internal.OpaqueArray.T, array_ptr)) catch
+                return Internal.OpaqueArray.resource.make(env, @ptrCast(array_ptr)) catch
                     return beam.make_error_binary(env, "fail to make resource for opaque arra");
             }
         };
@@ -89,11 +89,11 @@ pub fn ResourceKind(comptime ElementType: type, comptime module_name_: anytype) 
         }
         fn ptr_to_opaque(env: beam.env, _: c_int, args: [*c]const beam.term) callconv(.C) beam.term {
             const typed_ptr: Ptr.T = Ptr.resource.fetch(env, args[0]) catch return beam.make_error_binary(env, "fail to fetch resource for ptr, expected: " ++ @typeName(PtrType));
-            return Internal.OpaquePtr.resource.make(env, @ptrCast(Internal.OpaquePtr.T, typed_ptr)) catch return beam.make_error_binary(env, "fail to make resource for: " ++ @typeName(Internal.OpaquePtr.T));
+            return Internal.OpaquePtr.resource.make(env, @ptrCast(typed_ptr)) catch return beam.make_error_binary(env, "fail to make resource for: " ++ @typeName(Internal.OpaquePtr.T));
         }
         pub fn opaque_ptr(env: beam.env, _: c_int, args: [*c]const beam.term) callconv(.C) beam.term {
             const ptr_to_resource_memory: Ptr.T = beam.fetch_resource_ptr(T, env, @This().resource.t, args[0]) catch return beam.make_error_binary(env, "fail to create ptr " ++ @typeName(T));
-            return Internal.OpaquePtr.resource.make(env, @ptrCast(Internal.OpaquePtr.T, ptr_to_resource_memory)) catch return beam.make_error_binary(env, "fail to make resource for: " ++ @typeName(Internal.OpaquePtr.T));
+            return Internal.OpaquePtr.resource.make(env, @ptrCast(ptr_to_resource_memory)) catch return beam.make_error_binary(env, "fail to make resource for: " ++ @typeName(Internal.OpaquePtr.T));
         }
         // the returned term owns the memory of the array.
         fn array(env: beam.env, _: c_int, args: [*c]const beam.term) callconv(.C) beam.term {
@@ -126,8 +126,8 @@ pub fn ResourceKind(comptime ElementType: type, comptime module_name_: anytype) 
                 return beam.make_error_binary(env, "fail to fetch resource opaque ptr to read, expect" ++ @typeName(Internal.OpaquePtr.T));
             const offset: Internal.USize.T = Internal.USize.resource.fetch(env, args[1]) catch
                 return beam.make_error_binary(env, "fail to fetch resource for offset, expected: " ++ @typeName(Internal.USize.T));
-            const ptr_int = @ptrToInt(ptr_to_read) + offset;
-            const obj_ptr = @intToPtr(*ElementType, ptr_int);
+            const ptr_int = @intFromPtr(ptr_to_read) + offset;
+            const obj_ptr: *ElementType = @ptrFromInt(ptr_int);
             var tuple_slice: []beam.term = beam.allocator.alloc(beam.term, 2) catch return beam.make_error_binary(env, "fail to allocate memory for tuple slice");
             defer beam.allocator.free(tuple_slice);
             tuple_slice[0] = resource.make(env, obj_ptr.*) catch return beam.make_error_binary(env, "fail to create resource for extract object");
@@ -136,14 +136,16 @@ pub fn ResourceKind(comptime ElementType: type, comptime module_name_: anytype) 
         }
         const maker = if (@typeInfo(ElementType) == .Struct and @hasDecl(ElementType, "maker"))
             ElementType.maker
-        else .{ make, 1 };
+        else
+            .{ make, 1 };
         const ptr_maker = if (@typeInfo(ElementType) == .Struct and @hasDecl(ElementType, "ptr"))
             ElementType.ptr
         else
             ptr;
         const extra_nifs = if (@typeInfo(ElementType) == .Struct and @hasDecl(ElementType, "nifs"))
             ElementType.nifs
-        else .{};
+        else
+            .{};
         pub const nifs = .{
             e.ErlNifFunc{ .name = module_name ++ ".ptr", .arity = 1, .fptr = ptr_maker, .flags = 0 },
             e.ErlNifFunc{ .name = module_name ++ ".ptr_to_opaque", .arity = 1, .fptr = ptr_to_opaque, .flags = 0 },

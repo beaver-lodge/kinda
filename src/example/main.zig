@@ -1,9 +1,7 @@
 const std = @import("std");
-const testing = std.testing;
-
-const beam = @import("beam.zig");
-const kinda = @import("kinda.zig");
-const e = @import("erl_nif.zig");
+const beam = @import("beam");
+const kinda = @import("kinda");
+const e = @import("erl_nif");
 const capi = @import("kinda_example.imp.zig");
 
 export fn add(a: i32, b: i32) i32 {
