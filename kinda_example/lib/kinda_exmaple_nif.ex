@@ -4,8 +4,8 @@ defmodule KindaExample.NIF do
   for path <-
         Path.wildcard("native/c-src/**/*.h") ++
           Path.wildcard("native/c-src/**/*.cpp") ++
-          Path.wildcard("native/mlir-zig-src/**/*.zig") ++
-          ["native/zig-proj/#{Mix.env()}/build.zig"] do
+          Path.wildcard("../src/**/*.zig") ++
+          ["../build.zig", "../build.example.zig"] do
     @external_resource path
   end
 
