@@ -48,6 +48,7 @@ pub fn ResourceKind(comptime ElementType: type, comptime module_name_: anytype) 
         else
             [*c]ElementType;
         pub const Ptr = struct {
+            pub const module_name = module_name_ ++ ".Ptr";
             pub const T = PtrType;
             pub const resource = struct {
                 pub var t: beam.resource_type = undefined;
@@ -65,6 +66,7 @@ pub fn ResourceKind(comptime ElementType: type, comptime module_name_: anytype) 
         else
             [*c]const ElementType;
         pub const Array = struct {
+            pub const module_name = module_name_ ++ ".Array";
             pub const T = ArrayType;
             pub const resource = struct {
                 pub var t: beam.resource_type = undefined;
