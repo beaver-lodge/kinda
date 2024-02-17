@@ -115,37 +115,6 @@ defmodule Kinda.Prebuilt do
   end
 
   # generate resource modules
-  defp kind_ast(root_module, forward_module, resource_kinds) do
-    for %Kinda.CodeGen.KindDecl{
-          module_name: module_name,
-          zig_t: zig_t,
-          fields: fields
-        } <-
-          resource_kinds,
-        Atom.to_string(module_name)
-        |> String.starts_with?(Atom.to_string(root_module)) do
-      Logger.debug("[Kinda] building resource kind #{module_name}")
-
-      quote bind_quoted: [
-              root_module: root_module,
-              module_name: module_name,
-              zig_t: zig_t,
-              fields: fields,
-              forward_module: forward_module
-            ] do
-        defmodule module_name do
-          @moduledoc """
-          #{zig_t}
-          """
-
-          use Kinda.ResourceKind,
-            root_module: root_module,
-            fields: fields,
-            forward_module: forward_module
-        end
-      end
-    end
-  end
 
   defp load_ast(dest_dir, lib_name) do
     quote do
@@ -186,16 +155,13 @@ defmodule Kinda.Prebuilt do
   end
 
   defp ast_from_meta(
-         root_module,
          forward_module,
          kinds,
          %Kinda.Prebuilt.Meta{
-           nifs: nifs,
-           resource_kinds: resource_kinds
+           nifs: nifs
          }
        ) do
-    kind_ast(root_module, forward_module, resource_kinds) ++
-      nif_ast(kinds, nifs, forward_module)
+    nif_ast(kinds, nifs, forward_module)
   end
 
   # A helper function to extract the logic from __using__ macro.
@@ -209,10 +175,10 @@ defmodule Kinda.Prebuilt do
       {meta, %{dest_dir: dest_dir, lib_name: lib_name}} =
         Wrapper.gen_and_build_zig(root_module, opts)
 
-      ast_from_meta(root_module, forward_module, kinds, meta) ++ [load_ast(dest_dir, lib_name)]
+      ast_from_meta(forward_module, kinds, meta) ++ [load_ast(dest_dir, lib_name)]
     else
       meta = Keyword.fetch!(opts, :meta)
-      ast_from_meta(root_module, forward_module, kinds, meta)
+      ast_from_meta(forward_module, kinds, meta)
     end
   end
 end
