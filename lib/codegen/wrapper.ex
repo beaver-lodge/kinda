@@ -5,12 +5,9 @@ defmodule Kinda.CodeGen.Wrapper do
 
   # Generate Zig code from a header and build a Zig project to produce a NIF library
   def gen_and_build_zig(opts) do
-    wrapper = Keyword.fetch!(opts, :wrapper)
     lib_name = Keyword.fetch!(opts, :lib_name)
     dest_dir = Keyword.fetch!(opts, :dest_dir)
     version = Keyword.fetch!(opts, :version)
-
-    Logger.debug("[Kinda] generating Elixir code for wrapper: #{wrapper}")
 
     {:ok, target} = RustlerPrecompiled.target()
     lib_name = "#{lib_name}-v#{version}-#{target}"

@@ -20,13 +20,6 @@ defmodule KindaExample.NIF do
     base_url:
       "https://github.com/beaver-project/beaver-prebuilt/releases/download/2022-10-15-0706",
     version: "0.1.0",
-    wrapper: Path.join(File.cwd!(), "native/c-src/include/wrapper.h"),
-    zig_proj: "..",
-    zig_src: "../src/example",
-    build_file: "../build.example.zig",
-    translate_args: ["-I", Path.join(File.cwd!(), "native/c-src/include")],
-    build_args:
-      Enum.flat_map([dest_dir, Path.join(File.cwd!(), "native/c-src")], &["--search-prefix", &1]),
     dest_dir: dest_dir,
     forward_module: KindaExample.Native,
     code_gen_module: KindaExample.CodeGen,
