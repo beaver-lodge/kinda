@@ -1,7 +1,5 @@
 defmodule KindaExample.Native do
   def check!(ret) do
-    ret |> dbg
-
     case ret do
       {:kind, mod, ref} when is_atom(mod) and is_reference(ref) ->
         struct!(mod, %{ref: ref})
