@@ -58,13 +58,18 @@ jobs:
         working-directory: ./kinda_example
         run: |
           mix test --force
+      - name: Production build
+        working-directory: ./kinda_example
+        env:
+          MIX_ENV: prod
+        run: |
+          mix
       - name: Tar production native libraries
         working-directory: ./kinda_example
         id: tar
         env:
           MIX_ENV: prod
         run: |
-          mix
           set -u
           APP_NAME=kinda_example
           ls _build/${MIX_ENV}/lib/${APP_NAME}/native_install/lib
