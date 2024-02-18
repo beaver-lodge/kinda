@@ -58,8 +58,25 @@ jobs:
         working-directory: ./kinda_example
         run: |
           mix test --force
-      - uses: actions/upload-artifact@v3
-        if: failure()
-        with:
-          name: kinda-example-tmp-${{ github.run_number }}-${{ github.run_attempt }}
-          path: ./kinda_example/tmp/**/*.zig
+      - name: Production build
+        working-directory: ./kinda_example
+        env:
+          MIX_ENV: prod
+        run: |
+          mix
+      - name: Tar production native libraries
+        working-directory: ./kinda_example
+        id: tar
+        env:
+          MIX_ENV: prod
+        run: |
+          set -u
+          APP_NAME=kinda_example
+          ls _build/${MIX_ENV}/lib/${APP_NAME}/native_install/lib
+          LIB_FINAL_SO=$(ls _build/${MIX_ENV}/lib/${APP_NAME}/native_install/lib | grep -E "lib${APP_NAME}.+so")
+          LIB_FINAL_NAME=${LIB_FINAL_SO}.tar.gz
+          tar --dereference -cvzf ${LIB_FINAL_NAME} \
+            -C $PWD/_build/${MIX_ENV}/lib/${APP_NAME}/native_install/lib $(cd $PWD/_build/${MIX_ENV}/lib/${APP_NAME}/native_install/lib && ls *.so) \
+            -C $PWD/_build/${MIX_ENV}/lib/${APP_NAME}/native_install/lib $(cd $PWD/_build/${MIX_ENV}/lib/${APP_NAME}/native_install/lib && ls *.dylib) \
+            -C $PWD/_build/${MIX_ENV}/lib/${APP_NAME}/native_install $(cd $PWD/_build/${MIX_ENV}/lib/${APP_NAME}/native_install && ls *.ex)
+          echo "LIB_FINAL_NAME=${LIB_FINAL_NAME}" >> $GITHUB_OUTPUT

@@ -6,6 +6,7 @@ ZIG_CACHE_DIR = ${MIX_APP_PATH}/zig_cache
 all: zig_build
 
 zig_build: cmake_build
+	echo "[{:kinda_example_add, 2}]" >> ${NATIVE_INSTALL_DIR}/kinda-meta-lib${KINDA_LIB_NAME}.ex
 	cd .. && zig build --cache-dir ${ZIG_CACHE_DIR} \
 		--build-file build.example.zig \
 	  --prefix ${NATIVE_INSTALL_DIR} \
@@ -13,7 +14,7 @@ zig_build: cmake_build
 		--search-prefix ${NATIVE_INSTALL_DIR} \
 		--search-prefix ${ERTS_INCLUDE_DIR}/.. \
 		-freference-trace \
-		-DKINDA_LIB_NAME=kinda_example-v0.1.0-${KINDA_NIF_TARGET}
+		-DKINDA_LIB_NAME=${KINDA_LIB_NAME}
 
 cmake_build:
 	cmake -G Ninja -S native/c-src -B ${CMAKE_BUILD_DIR} -DCMAKE_INSTALL_PREFIX=${NATIVE_INSTALL_DIR}

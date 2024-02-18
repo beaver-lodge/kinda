@@ -15,7 +15,7 @@ by adding `Kinda` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:kinda, "~> 0.5.0"}
+    {:kinda, "~> 0.6.0"}
   ]
 end
 ```
