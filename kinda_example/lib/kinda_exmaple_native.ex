@@ -1,11 +1,14 @@
 defmodule KindaExample.Native do
-  def check!(ref) do
-    case ref do
+  def check!(ret) do
+    case ret do
+      {:kind, mod, ref} when is_atom(mod) and is_reference(ref) ->
+        struct!(mod, %{ref: ref})
+
       {:error, e} ->
         raise e
 
-      ref ->
-        ref
+      _ ->
+        ret
     end
   end
 

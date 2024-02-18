@@ -75,7 +75,7 @@ defmodule Kinda.Prebuilt do
     end
   end
 
-  defp nif_ast(kinds, nifs, forward_module, zig_t_module_map) do
+  defp nif_ast(kinds, nifs, root_module, forward_module) do
     # generate stubs for generated NIFs
     Logger.debug("[Kinda] generating NIF wrappers, forward_module: #{inspect(forward_module)}")
 
@@ -85,9 +85,22 @@ defmodule Kinda.Prebuilt do
       |> List.flatten()
 
     for nif <- nifs ++ extra_kind_nifs do
+      nif =
+        case nif do
+          {wrapper_name, arity} when is_atom(wrapper_name) and is_integer(arity) ->
+            %NIFDecl{
+              wrapper_name: wrapper_name,
+              nif_name: Module.concat(root_module, wrapper_name),
+              arity: arity
+            }
+
+          _ ->
+            nif
+        end
+
       args_ast = Macro.generate_unique_arguments(nif.arity, __MODULE__)
 
-      %NIFDecl{wrapper_name: wrapper_name, nif_name: nif_name, ret: ret} = nif
+      %NIFDecl{wrapper_name: wrapper_name, nif_name: nif_name} = nif
 
       wrapper_name =
         if is_bitstring(wrapper_name) do
@@ -96,79 +109,25 @@ defmodule Kinda.Prebuilt do
           wrapper_name
         end
 
-      stub_ast =
-        quote do
-          @doc false
-          def unquote(nif_name)(unquote_splicing(args_ast)),
-            do:
-              raise(
-                "NIF for resource kind is not implemented, or failed to load NIF library. Function: :\"#{unquote(nif_name)}\"/#{unquote(nif.arity)}"
-              )
+      quote do
+        @doc false
+        def unquote(nif_name)(unquote_splicing(args_ast)),
+          do:
+            raise(
+              "NIF for resource kind is not implemented, or failed to load NIF library. Function: :\"#{unquote(nif_name)}\"/#{unquote(nif.arity)}"
+            )
+
+        def unquote(wrapper_name)(unquote_splicing(args_ast)) do
+          refs = Kinda.unwrap_ref([unquote_splicing(args_ast)])
+          ret = apply(__MODULE__, unquote(nif_name), refs)
+          unquote(forward_module).check!(ret)
         end
-
-      wrapper_ast =
-        if wrapper_name do
-          if ret == :void do
-            quote do
-              def unquote(wrapper_name)(unquote_splicing(args_ast)) do
-                refs = Kinda.unwrap_ref([unquote_splicing(args_ast)])
-                ref = apply(__MODULE__, unquote(nif_name), refs)
-                :ok = unquote(forward_module).check!(ref)
-              end
-            end
-          else
-            return_module = Kinda.module_name(ret, forward_module, zig_t_module_map)
-
-            quote do
-              def unquote(wrapper_name)(unquote_splicing(args_ast)) do
-                refs = Kinda.unwrap_ref([unquote_splicing(args_ast)])
-                ref = apply(__MODULE__, unquote(nif_name), refs)
-
-                struct!(unquote(return_module),
-                  ref: unquote(forward_module).check!(ref)
-                )
-              end
-            end
-          end
-        end
-
-      [stub_ast, wrapper_ast]
+      end
     end
     |> List.flatten()
   end
 
   # generate resource modules
-  defp kind_ast(root_module, forward_module, resource_kinds) do
-    for %Kinda.CodeGen.KindDecl{
-          module_name: module_name,
-          zig_t: zig_t,
-          fields: fields
-        } <-
-          resource_kinds,
-        Atom.to_string(module_name)
-        |> String.starts_with?(Atom.to_string(root_module)) do
-      Logger.debug("[Kinda] building resource kind #{module_name}")
-
-      quote bind_quoted: [
-              root_module: root_module,
-              module_name: module_name,
-              zig_t: zig_t,
-              fields: fields,
-              forward_module: forward_module
-            ] do
-        defmodule module_name do
-          @moduledoc """
-          #{zig_t}
-          """
-
-          use Kinda.ResourceKind,
-            root_module: root_module,
-            fields: fields,
-            forward_module: forward_module
-        end
-      end
-    end
-  end
 
   defp load_ast(dest_dir, lib_name) do
     quote do
@@ -208,35 +167,21 @@ defmodule Kinda.Prebuilt do
     end
   end
 
-  defp ast_from_meta(
-         root_module,
-         forward_module,
-         kinds,
-         %Kinda.Prebuilt.Meta{
-           nifs: nifs,
-           resource_kinds: resource_kinds,
-           zig_t_module_map: zig_t_module_map
-         }
-       ) do
-    kind_ast(root_module, forward_module, resource_kinds) ++
-      nif_ast(kinds, nifs, forward_module, zig_t_module_map)
-  end
-
   # A helper function to extract the logic from __using__ macro.
   @doc false
   def __using__(root_module, opts) do
     code_gen_module = Keyword.fetch!(opts, :code_gen_module)
     kinds = code_gen_module.kinds()
     forward_module = Keyword.fetch!(opts, :forward_module)
+    nifs = Keyword.get(opts, :nifs, [])
 
     if opts[:force_build] do
-      {meta, %{dest_dir: dest_dir, lib_name: lib_name}} =
-        Wrapper.gen_and_build_zig(root_module, opts)
+      %{dest_dir: dest_dir, lib_name: lib_name} =
+        Wrapper.gen_and_build_zig(opts)
 
-      ast_from_meta(root_module, forward_module, kinds, meta) ++ [load_ast(dest_dir, lib_name)]
+      nif_ast(kinds, nifs, root_module, forward_module) ++ [load_ast(dest_dir, lib_name)]
     else
-      meta = Keyword.fetch!(opts, :meta)
-      ast_from_meta(root_module, forward_module, kinds, meta)
+      nif_ast(kinds, nifs, root_module, forward_module)
     end
   end
 end

@@ -4,7 +4,7 @@ defmodule Kinda.MixProject do
   def project do
     [
       app: :kinda,
-      version: "0.3.0",
+      version: "0.5.0",
       elixir: "~> 1.9",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
@@ -25,7 +25,8 @@ defmodule Kinda.MixProject do
     [
       {:ex_doc, ">= 0.0.0", only: :dev, runtime: false},
       {:rustler_precompiled, "~> 0.5"},
-      {:zig_parser, "~> 0.1.0"}
+      {:zig_parser, "~> 0.1.0"},
+      {:elixir_make, "~> 0.4", runtime: false}
     ]
   end
 

@@ -9,7 +9,12 @@ defmodule KindaExample.MixProject do
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       compilers: [:elixir_make] ++ Mix.compilers()
-    ]
+    ] ++
+      [
+        make_precompiler: {:nif, Kinda.Precompiler},
+        make_precompiler_url:
+          "https://github.com/beaver-lodge/beaver-prebuilt/releases/download/2023-12-23-1442"
+      ]
   end
 
   # Run "mix help compile.app" to learn about applications.

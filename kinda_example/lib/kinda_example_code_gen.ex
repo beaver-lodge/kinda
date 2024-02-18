@@ -1,20 +1,14 @@
 defmodule KindaExample.CodeGen do
   @moduledoc false
-  alias Kinda.CodeGen.{KindDecl, NIFDecl}
+  alias Kinda.CodeGen.{KindDecl}
   use Kinda.CodeGen
 
   @impl true
   def kinds() do
-    []
-  end
-
-  @impl true
-  def type_gen(root_module, type) do
-    KindDecl.default(root_module, type)
-  end
-
-  @impl true
-  def nif_gen(f) do
-    NIFDecl.from_function(f)
+    [
+      %KindDecl{
+        module_name: KindaExample.NIF.CInt
+      }
+    ]
   end
 end
