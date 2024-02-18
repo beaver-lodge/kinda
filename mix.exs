@@ -25,7 +25,8 @@ defmodule Kinda.MixProject do
     [
       {:ex_doc, ">= 0.0.0", only: :dev, runtime: false},
       {:rustler_precompiled, "~> 0.5"},
-      {:zig_parser, "~> 0.1.0"}
+      {:zig_parser, "~> 0.1.0"},
+      {:elixir_make, "~> 0.4", runtime: false}
     ]
   end
 
