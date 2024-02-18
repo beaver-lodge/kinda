@@ -6,7 +6,7 @@ ZIG_CACHE_DIR = ${MIX_APP_PATH}/zig_cache
 all: zig_build
 
 zig_build: cmake_build
-	echo "[{:kinda_example_add, 2}]" >> ${NATIVE_INSTALL_DIR}/kinda-meta-${KINDA_LIB_NAME}.ex
+	echo "[{:kinda_example_add, 2}]" >> ${NATIVE_INSTALL_DIR}/kinda-meta-lib${KINDA_LIB_NAME}.ex
 	cd .. && zig build --cache-dir ${ZIG_CACHE_DIR} \
 		--build-file build.example.zig \
 	  --prefix ${NATIVE_INSTALL_DIR} \
