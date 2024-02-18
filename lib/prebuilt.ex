@@ -173,7 +173,7 @@ defmodule Kinda.Prebuilt do
     code_gen_module = Keyword.fetch!(opts, :code_gen_module)
     kinds = code_gen_module.kinds()
     forward_module = Keyword.fetch!(opts, :forward_module)
-    nifs = Keyword.get(opts, :nifs, [])
+    nifs = opts[:nifs] || opts[:meta] || []
 
     if opts[:force_build] do
       %{dest_dir: dest_dir, lib_name: lib_name} =
