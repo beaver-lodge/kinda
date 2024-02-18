@@ -13,7 +13,7 @@ zig_build: cmake_build
 		--search-prefix ${NATIVE_INSTALL_DIR} \
 		--search-prefix ${ERTS_INCLUDE_DIR}/.. \
 		-freference-trace \
-		-DKINDA_LIB_NAME=kinda_example-v0.1.0-${KINDA_NIF_TARGET}
+		-DKINDA_LIB_NAME=${KINDA_LIB_NAME}
 
 cmake_build:
 	cmake -G Ninja -S native/c-src -B ${CMAKE_BUILD_DIR} -DCMAKE_INSTALL_PREFIX=${NATIVE_INSTALL_DIR}

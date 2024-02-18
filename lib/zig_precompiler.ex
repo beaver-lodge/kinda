@@ -12,7 +12,11 @@ defmodule Kinda.Precompiler do
 
   @impl true
   def build_native(args) do
+    config = Mix.Project.config()
+    app = config |> Keyword.fetch!(:app)
+    version = Mix.Project.config() |> Keyword.fetch!(:version)
     {:ok, t} = current_target()
+    System.put_env("KINDA_LIB_NAME", "#{app}-v#{version}-#{t}")
     System.put_env("KINDA_NIF_TARGET", t)
     ElixirMake.Compiler.compile(args)
   end
