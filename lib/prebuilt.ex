@@ -182,7 +182,7 @@ defmodule Kinda.Prebuilt do
 
       nif_ast(kinds, nifs, root_module, forward_module) ++ [load_ast(dest_dir, lib_name)]
     else
-      nifs = opts |> Keyword.fetch(:meta)
+      nifs = opts |> Keyword.fetch!(:meta)
       nif_ast(kinds, nifs, root_module, forward_module)
     end
   end
