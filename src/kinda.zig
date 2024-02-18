@@ -201,7 +201,7 @@ pub fn open_internal_resource_types(env: beam.env) void {
     Internal.OpaqueArray.open_all(env);
 }
 
-const NIFFuncAttrs = struct { flags: u32 = 0, wrapper: ?[*c]const u8 = null };
+const NIFFuncAttrs = struct { flags: u32 = 0, nif_name: ?[*c]const u8 = null };
 pub fn NIFFunc(comptime Kinds: anytype, c: anytype, comptime name: anytype, attrs: NIFFuncAttrs) e.ErlNifFunc {
     @setEvalBranchQuota(2000);
     const cfunction = @field(c, name);
@@ -295,6 +295,6 @@ pub fn NIFFunc(comptime Kinds: anytype, c: anytype, comptime name: anytype, attr
                 return beam.make_tuple(env, tuple_slice);
             }
         }
-        const entry = e.ErlNifFunc{ .name = attrs.wrapper orelse name, .arity = FTI.params.len, .fptr = nif, .flags = flags };
+        const entry = e.ErlNifFunc{ .name = attrs.nif_name orelse name, .arity = FTI.params.len, .fptr = nif, .flags = flags };
     }).entry;
 }
