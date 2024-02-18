@@ -75,7 +75,7 @@ defmodule Kinda.Prebuilt do
     end
   end
 
-  defp nif_ast(kinds, nifs, forward_module) do
+  defp nif_ast(kinds, nifs, root_module, forward_module) do
     # generate stubs for generated NIFs
     Logger.debug("[Kinda] generating NIF wrappers, forward_module: #{inspect(forward_module)}")
 
@@ -90,9 +90,7 @@ defmodule Kinda.Prebuilt do
           {wrapper_name, arity} when is_atom(wrapper_name) and is_integer(arity) ->
             %NIFDecl{
               wrapper_name: wrapper_name,
-              nif_name:
-                "Elixir.Beaver.MLIR.CAPI.#{wrapper_name}"
-                |> String.to_atom(),
+              nif_name: Module.concat(root_module, wrapper_name),
               arity: arity
             }
 
@@ -169,14 +167,6 @@ defmodule Kinda.Prebuilt do
     end
   end
 
-  defp ast_from_meta(
-         forward_module,
-         kinds,
-         nifs
-       ) do
-    nif_ast(kinds, nifs, forward_module)
-  end
-
   # A helper function to extract the logic from __using__ macro.
   @doc false
   def __using__(root_module, opts) do
@@ -186,12 +176,12 @@ defmodule Kinda.Prebuilt do
     nifs = Keyword.get(opts, :nifs, [])
 
     if opts[:force_build] do
-      {_meta, %{dest_dir: dest_dir, lib_name: lib_name}} =
-        Wrapper.gen_and_build_zig(root_module, opts)
+      %{dest_dir: dest_dir, lib_name: lib_name} =
+        Wrapper.gen_and_build_zig(opts)
 
-      ast_from_meta(forward_module, kinds, nifs) ++ [load_ast(dest_dir, lib_name)]
+      nif_ast(kinds, nifs, root_module, forward_module) ++ [load_ast(dest_dir, lib_name)]
     else
-      ast_from_meta(forward_module, kinds, nifs)
+      nif_ast(kinds, nifs, root_module, forward_module)
     end
   end
 end
