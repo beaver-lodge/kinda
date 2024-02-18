@@ -1,4 +1,9 @@
 defmodule KindaExample.NIF do
+  defmodule CInt do
+    use Kinda.ResourceKind,
+      forward_module: KindaExample.Native
+  end
+
   dest_dir = Path.join([Mix.Project.app_path(), "native_install"])
 
   for path <-
@@ -24,5 +29,6 @@ defmodule KindaExample.NIF do
       Enum.flat_map([dest_dir, Path.join(File.cwd!(), "native/c-src")], &["--search-prefix", &1]),
     dest_dir: dest_dir,
     forward_module: KindaExample.Native,
-    code_gen_module: KindaExample.CodeGen
+    code_gen_module: KindaExample.CodeGen,
+    nifs: [{:kinda_example_add, 2}]
 end
