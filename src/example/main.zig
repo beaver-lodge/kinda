@@ -15,7 +15,7 @@ const Kinds = struct {
 };
 
 const all_nifs = .{
-    kinda.NIFFunc(Kinds.All, capi, "kinda_example_add", .{ .overwrite = "Elixir.KindaExample.NIF.kinda_example_add"}),
+    kinda.NIFFunc(Kinds.All, capi, "kinda_example_add", .{ .wrapper = "Elixir.KindaExample.NIF.kinda_example_add"}),
 } ++ Kinds.CInt.nifs;
 pub export var nifs: [all_nifs.len]e.ErlNifFunc = all_nifs;
 
