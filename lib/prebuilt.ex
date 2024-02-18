@@ -175,14 +175,14 @@ defmodule Kinda.Prebuilt do
     forward_module = Keyword.fetch!(opts, :forward_module)
 
     if opts[:force_build] do
-      nifs = opts[:nifs] || opts[:meta]
+      nifs = opts[:nifs] || []
 
       %{dest_dir: dest_dir, lib_name: lib_name} =
         Wrapper.gen_and_build_zig(opts)
 
       nif_ast(kinds, nifs, root_module, forward_module) ++ [load_ast(dest_dir, lib_name)]
     else
-      nifs = opts[:meta]
+      nifs = opts |> Keyword.fetch(:meta)
       nif_ast(kinds, nifs, root_module, forward_module)
     end
   end
