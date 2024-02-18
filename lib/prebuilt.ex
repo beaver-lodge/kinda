@@ -85,6 +85,21 @@ defmodule Kinda.Prebuilt do
       |> List.flatten()
 
     for nif <- nifs ++ extra_kind_nifs do
+      nif =
+        case nif do
+          {wrapper_name, arity} when is_atom(wrapper_name) and is_integer(arity) ->
+            %NIFDecl{
+              wrapper_name: wrapper_name,
+              nif_name:
+                "Elixir.Beaver.MLIR.CAPI.#{wrapper_name}"
+                |> String.to_atom(),
+              arity: arity
+            }
+
+          _ ->
+            nif
+        end
+
       args_ast = Macro.generate_unique_arguments(nif.arity, __MODULE__)
 
       %NIFDecl{wrapper_name: wrapper_name, nif_name: nif_name} = nif
@@ -157,9 +172,7 @@ defmodule Kinda.Prebuilt do
   defp ast_from_meta(
          forward_module,
          kinds,
-         %Kinda.Prebuilt.Meta{
-           nifs: nifs
-         }
+         nifs
        ) do
     nif_ast(kinds, nifs, forward_module)
   end
@@ -170,15 +183,15 @@ defmodule Kinda.Prebuilt do
     code_gen_module = Keyword.fetch!(opts, :code_gen_module)
     kinds = code_gen_module.kinds()
     forward_module = Keyword.fetch!(opts, :forward_module)
+    nifs = Keyword.get(opts, :nifs, [])
 
     if opts[:force_build] do
-      {meta, %{dest_dir: dest_dir, lib_name: lib_name}} =
+      {_meta, %{dest_dir: dest_dir, lib_name: lib_name}} =
         Wrapper.gen_and_build_zig(root_module, opts)
 
-      ast_from_meta(forward_module, kinds, meta) ++ [load_ast(dest_dir, lib_name)]
+      ast_from_meta(forward_module, kinds, nifs) ++ [load_ast(dest_dir, lib_name)]
     else
-      meta = Keyword.fetch!(opts, :meta)
-      ast_from_meta(forward_module, kinds, meta)
+      ast_from_meta(forward_module, kinds, nifs)
     end
   end
 end

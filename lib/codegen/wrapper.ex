@@ -3,8 +3,6 @@ defmodule Kinda.CodeGen.Wrapper do
   @moduledoc false
   defstruct types: [], functions: [], root_module: nil
 
-  alias Kinda.CodeGen.{KindDecl, NIFDecl}
-
   def new(root_module) do
     %__MODULE__{
       root_module: root_module
@@ -14,48 +12,6 @@ defmodule Kinda.CodeGen.Wrapper do
   defp dump_ast?() do
     System.get_env("KINDA_DUMP_AST") == "1"
   end
-
-  defp put_types(%__MODULE__{} = w, zig_ast) when is_list(zig_ast) do
-    functions =
-      for {:fn, %Zig.Parser.FnOptions{extern: true, inline: inline}, _parts} = f <-
-            zig_ast,
-          inline != true do
-        f
-      end
-
-    func_types =
-      Enum.reduce(functions, [], fn {:fn, _opts, parts}, acc ->
-        params =
-          for {_name, _opts, t} <- parts[:params] || [] do
-            t
-          end
-
-        return_type = parts[:type]
-        [return_type | params] ++ acc
-      end)
-
-    primitive_ptr_types = KindDecl.primitive_types() |> Enum.map(&KindDecl.ptr_type_name/1)
-    primitive_array_types = KindDecl.primitive_types() |> Enum.map(&KindDecl.array_type_name/1)
-    primitive_types = KindDecl.primitive_types() ++ primitive_ptr_types ++ primitive_array_types
-    types = (func_types ++ primitive_types) |> Enum.uniq()
-    %__MODULE__{w | functions: functions, types: types}
-  end
-
-  # if kind_name is absent, generate it from last part of module_name
-  defp gen_kind_name_from_module_name(%KindDecl{module_name: module_name, kind_name: nil} = t) do
-    %{t | kind_name: Module.split(module_name) |> List.last()}
-  end
-
-  defp gen_kind_name_from_module_name(t), do: t
-
-  defp gen_nif_name_from_module_name(
-         module_name,
-         %NIFDecl{wrapper_name: wrapper_name, nif_name: nil} = nif
-       ) do
-    %{nif | nif_name: Module.concat(module_name, wrapper_name)}
-  end
-
-  defp gen_nif_name_from_module_name(_module_name, f), do: f
 
   defp run_zig(args, opts \\ []) do
     Logger.debug("[Kinda] zig #{Enum.join(args, " ")}")
@@ -133,35 +89,6 @@ defmodule Kinda.CodeGen.Wrapper do
 
     Logger.debug("[Kinda] generating Elixir code for wrapper: #{wrapper}")
 
-    w = new(root_module) |> put_types(zig_ast)
-    functions = w.functions
-    types = w.types
-
-    resource_kinds =
-      types
-      |> Enum.reject(fn
-        {:cptr, _, _} -> true
-        _ -> false
-      end)
-      |> Enum.reject(fn x -> x in [:void] end)
-      |> Enum.map(fn x ->
-        with {:ok, t} <- code_gen_module.type_gen(root_module, x) do
-          gen_kind_name_from_module_name(t)
-        else
-          :skip -> nil
-        end
-      end)
-
-    zig_t_module_map =
-      resource_kinds
-      |> Enum.map(fn %{zig_t: zig_t, module_name: module_name} -> {zig_t, module_name} end)
-      |> Map.new()
-
-    nifs =
-      Enum.map(functions, fn x -> code_gen_module.nif_gen(x) end)
-      |> Enum.map(&gen_nif_name_from_module_name(root_module, &1))
-      |> Enum.concat(List.flatten(Enum.map(resource_kinds, &NIFDecl.from_resource_kind/1)))
-
     {:ok, target} = RustlerPrecompiled.target()
     lib_name = "#{lib_name}-v#{version}-#{target}"
 
@@ -171,9 +98,7 @@ defmodule Kinda.CodeGen.Wrapper do
     print_library_debug_info(dest_dir)
 
     meta = %Kinda.Prebuilt.Meta{
-      nifs: nifs,
-      resource_kinds: resource_kinds,
-      zig_t_module_map: zig_t_module_map
+      nifs: []
     }
 
     File.write!(
