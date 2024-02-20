@@ -22,7 +22,7 @@ defmodule Kinda.Precompiler do
 
   @impl true
   def precompile(args, _target) do
-    ElixirMake.Compiler.compile(args)
+    build_native(args)
     :ok
   end
 end
