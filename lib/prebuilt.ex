@@ -187,7 +187,6 @@ defmodule Kinda.Prebuilt do
 
       # zig will add the 'lib' prefix to the library name
       prefixed_lib_name = "lib#{lib_name}"
-      Mix.Project.app_path()
 
       nif_ast(kinds, nifs, root_module, forward_module) ++
         [load_ast(dest_dir, prefixed_lib_name)]
