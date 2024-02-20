@@ -177,6 +177,15 @@ defmodule Kinda.Prebuilt do
     if opts[:force_build] do
       nifs = opts[:nifs] || []
 
+      nifs =
+        case nifs do
+          nifs when is_list(nifs) ->
+            nifs
+
+          f when is_function(f) ->
+            f.()
+        end
+
       lib_name = Keyword.fetch!(opts, :lib_name)
       dest_dir = Keyword.fetch!(opts, :dest_dir)
       dest_dir = Path.join(Mix.Project.app_path(), dest_dir)
