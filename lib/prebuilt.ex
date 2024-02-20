@@ -33,13 +33,7 @@ defmodule Kinda.Prebuilt do
             otp_app
             |> Application.app_dir(path)
 
-          {meta, _binding} =
-            Path.dirname(load_path)
-            |> Path.join("kinda-meta-#{Path.basename(load_path)}.ex")
-            |> File.read!()
-            |> Code.eval_string()
-
-          contents = Kinda.Prebuilt.__using__(__MODULE__, Keyword.put(opts, :meta, meta))
+          contents = Kinda.Prebuilt.__using__(__MODULE__, opts)
           Module.eval_quoted(__MODULE__, contents)
 
           @doc false
@@ -173,19 +167,18 @@ defmodule Kinda.Prebuilt do
     code_gen_module = Keyword.fetch!(opts, :code_gen_module)
     kinds = code_gen_module.kinds()
     forward_module = Keyword.fetch!(opts, :forward_module)
+    nifs = opts[:nifs] || []
+
+    nifs =
+      case nifs do
+        nifs when is_list(nifs) ->
+          nifs
+
+        f when is_function(f) ->
+          f.()
+      end
 
     if opts[:force_build] do
-      nifs = opts[:nifs] || []
-
-      nifs =
-        case nifs do
-          nifs when is_list(nifs) ->
-            nifs
-
-          f when is_function(f) ->
-            f.()
-        end
-
       lib_name = Keyword.fetch!(opts, :lib_name)
       dest_dir = Keyword.fetch!(opts, :dest_dir)
       dest_dir = Path.join(Mix.Project.app_path(), dest_dir)
@@ -200,7 +193,6 @@ defmodule Kinda.Prebuilt do
       nif_ast(kinds, nifs, root_module, forward_module) ++
         [load_ast(dest_dir, prefixed_lib_name)]
     else
-      nifs = opts |> Keyword.fetch!(:meta)
       nif_ast(kinds, nifs, root_module, forward_module)
     end
   end
