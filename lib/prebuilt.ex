@@ -1,6 +1,6 @@
 defmodule Kinda.Prebuilt do
   require Logger
-  alias Kinda.CodeGen.{NIFDecl, Wrapper}
+  alias Kinda.CodeGen.{NIFDecl}
 
   defmacro __using__(opts) do
     quote do
