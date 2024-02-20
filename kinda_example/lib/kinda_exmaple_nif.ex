@@ -4,8 +4,6 @@ defmodule KindaExample.NIF do
       forward_module: KindaExample.Native
   end
 
-  dest_dir = Path.join([Mix.Project.app_path(), "native_install"])
-
   for path <-
         Path.wildcard("native/c-src/**/*.h") ++
           Path.wildcard("native/c-src/**/*.cpp") ++
@@ -20,7 +18,7 @@ defmodule KindaExample.NIF do
     base_url:
       "https://github.com/beaver-project/beaver-prebuilt/releases/download/2022-10-15-0706",
     version: "0.1.0",
-    dest_dir: dest_dir,
+    dest_dir: "native_install",
     forward_module: KindaExample.Native,
     code_gen_module: KindaExample.CodeGen,
     nifs: [{:kinda_example_add, 2}]

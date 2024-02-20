@@ -136,7 +136,8 @@ defmodule Kinda.Prebuilt do
       @dest_dir unquote(dest_dir)
       def kinda_on_load do
         require Logger
-        nif_path = Path.join(@dest_dir, "lib/#{unquote(lib_name)}")
+        app_path = Mix.Project.app_path()
+        nif_path = Path.join([app_path, @dest_dir, "lib/#{unquote(lib_name)}"])
         dylib = "#{nif_path}.dylib"
         so = "#{nif_path}.so"
 
@@ -177,10 +178,17 @@ defmodule Kinda.Prebuilt do
     if opts[:force_build] do
       nifs = opts[:nifs] || []
 
-      %{dest_dir: dest_dir, lib_name: lib_name} =
-        Wrapper.gen_and_build_zig(opts)
+      lib_name = Keyword.fetch!(opts, :lib_name)
+      dest_dir = Keyword.fetch!(opts, :dest_dir)
+      version = Keyword.fetch!(opts, :version)
 
-      nif_ast(kinds, nifs, root_module, forward_module) ++ [load_ast(dest_dir, lib_name)]
+      {:ok, target} = RustlerPrecompiled.target()
+      lib_name = "#{lib_name}-v#{version}-#{target}"
+
+      # zig will add the 'lib' prefix to the library name
+      prefixed_lib_name = "lib#{lib_name}"
+
+      nif_ast(kinds, nifs, root_module, forward_module) ++ [load_ast(dest_dir, prefixed_lib_name)]
     else
       nifs = opts |> Keyword.fetch!(:meta)
       nif_ast(kinds, nifs, root_module, forward_module)
