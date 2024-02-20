@@ -129,15 +129,15 @@ defmodule Kinda.Prebuilt do
 
   # generate resource modules
 
-  defp load_ast(dest_dir, lib_name) do
+  defp load_ast(otp_app, dest_dir, lib_name) do
     quote do
       # setup NIF loading
       @on_load :kinda_on_load
       @dest_dir unquote(dest_dir)
       def kinda_on_load do
         require Logger
-        app_path = Mix.Project.app_path()
-        nif_path = Path.join([app_path, @dest_dir, "lib/#{unquote(lib_name)}"])
+        app_dir = Application.app_dir(unquote(otp_app))
+        nif_path = Path.join([app_dir, @dest_dir, "lib/#{unquote(lib_name)}"])
         dylib = "#{nif_path}.dylib"
         so = "#{nif_path}.so"
 
@@ -174,6 +174,7 @@ defmodule Kinda.Prebuilt do
     code_gen_module = Keyword.fetch!(opts, :code_gen_module)
     kinds = code_gen_module.kinds()
     forward_module = Keyword.fetch!(opts, :forward_module)
+    otp_app = Keyword.fetch!(opts, :otp_app)
 
     if opts[:force_build] do
       nifs = opts[:nifs] || []
@@ -188,7 +189,8 @@ defmodule Kinda.Prebuilt do
       # zig will add the 'lib' prefix to the library name
       prefixed_lib_name = "lib#{lib_name}"
 
-      nif_ast(kinds, nifs, root_module, forward_module) ++ [load_ast(dest_dir, prefixed_lib_name)]
+      nif_ast(kinds, nifs, root_module, forward_module) ++
+        [load_ast(otp_app, dest_dir, prefixed_lib_name)]
     else
       nifs = opts |> Keyword.fetch!(:meta)
       nif_ast(kinds, nifs, root_module, forward_module)
