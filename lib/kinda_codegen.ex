@@ -7,14 +7,17 @@ defmodule Kinda.CodeGen do
 
   defmacro __using__(opts) do
     quote do
-      mod = unquote(opts)[:with]
+      mod = Keyword.fetch!(unquote(opts), :with)
+      root = Keyword.fetch!(unquote(opts), :root)
+      forward = Keyword.fetch!(unquote(opts), :forward)
 
-      Kinda.CodeGen.nif_ast(mod.kinds(), mod.nifs(), Beaver.MLIR.CAPI, Beaver.Native)
+      Kinda.CodeGen.nif_ast(mod.kinds(), mod.nifs(), root, forward)
       |> then(&Module.eval_quoted(__MODULE__, &1))
     end
   end
 
   @callback kinds() :: KindDecl.t()
+  @callback nifs() :: [{atom(), integer()}]
   def kinds(), do: []
 
   def nif_ast(kinds, nifs, root_module, forward_module) do
