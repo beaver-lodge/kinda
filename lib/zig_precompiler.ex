@@ -36,11 +36,16 @@ defmodule Kinda.Precompiler do
   end
 
   @impl ElixirMake.Precompiler
-  def all_supported_targets(_operation) do
+  def all_supported_targets(:fetch) do
     ~w(
       aarch64-apple-darwin
       x86_64-unknown-linux-gnu
     )
+  end
+
+  def all_supported_targets(:compile) do
+    {:ok, t} = current_target()
+    [t]
   end
 
   @impl ElixirMake.Precompiler
