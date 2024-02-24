@@ -46,22 +46,6 @@ defmodule Kinda.CodeGen.KindDecl do
         }
   defstruct kind_name: nil, zig_t: nil, module_name: nil, fields: [], kind_functions: []
 
-  def array_type_name(type) do
-    {:cptr,
-     %Zig.Parser.PointerOptions{align: nil, const: true, volatile: false, allowzero: false},
-     [type: type]}
-  end
-
-  def ptr_type_name(type) do
-    {:cptr,
-     %Zig.Parser.PointerOptions{
-       align: nil,
-       const: false,
-       volatile: false,
-       allowzero: false
-     }, [type: type]}
-  end
-
   defp module_basename(%__MODULE__{module_name: module_name}) do
     module_name |> Module.split() |> List.last() |> String.to_atom()
   end

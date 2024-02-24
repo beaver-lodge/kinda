@@ -1,28 +1,61 @@
 defmodule Kinda.Precompiler do
   @behaviour ElixirMake.Precompiler
 
-  @impl true
-  def current_target, do: RustlerPrecompiled.target()
+  def current_target({:unix, _}) do
+    # get current target triplet from `:erlang.system_info/1`
+    system_architecture = to_string(:erlang.system_info(:system_architecture))
+    current = String.split(system_architecture, "-", trim: true)
 
-  @impl true
-  def all_supported_targets(_), do: ~w(
-    aarch64-apple-darwin
-    x86_64-unknown-linux-gnu
-  )
+    case length(current) do
+      4 ->
+        {:ok, "#{Enum.at(current, 0)}-#{Enum.at(current, 2)}-#{Enum.at(current, 3)}"}
 
-  @impl true
-  def build_native(args) do
-    config = Mix.Project.config()
-    app = config |> Keyword.fetch!(:app)
-    version = Mix.Project.config() |> Keyword.fetch!(:version)
+      3 ->
+        case :os.type() do
+          {:unix, :darwin} ->
+            # could be something like aarch64-apple-darwin21.0.0
+            # but we don't really need the last 21.0.0 part
+            if String.match?(Enum.at(current, 2), ~r/^darwin.*/) do
+              {:ok, "#{Enum.at(current, 0)}-#{Enum.at(current, 1)}-darwin"}
+            else
+              {:ok, system_architecture}
+            end
+
+          _ ->
+            {:ok, system_architecture}
+        end
+
+      _ ->
+        {:error, "cannot decide current target"}
+    end
+  end
+
+  @impl ElixirMake.Precompiler
+  def current_target do
+    current_target(:os.type())
+  end
+
+  @impl ElixirMake.Precompiler
+  def all_supported_targets(:fetch) do
+    ~w(
+      aarch64-apple-darwin
+      x86_64-linux-gnu
+    )
+  end
+
+  def all_supported_targets(:compile) do
     {:ok, t} = current_target()
-    System.put_env("KINDA_LIB_NAME", "#{app}-v#{version}-#{t}")
+    [t]
+  end
+
+  @impl ElixirMake.Precompiler
+  def build_native(args) do
     ElixirMake.Compiler.compile(args)
   end
 
-  @impl true
+  @impl ElixirMake.Precompiler
   def precompile(args, _target) do
-    ElixirMake.Compiler.compile(args)
+    build_native(args)
     :ok
   end
 end

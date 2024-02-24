@@ -1,10 +1,10 @@
 defmodule KindaExample.NIF do
+  use Kinda.CodeGen, with: KindaExample.CodeGen, root: __MODULE__, forward: KindaExample.Native
+
   defmodule CInt do
     use Kinda.ResourceKind,
       forward_module: KindaExample.Native
   end
-
-  dest_dir = Path.join([Mix.Project.app_path(), "native_install"])
 
   for path <-
         Path.wildcard("native/c-src/**/*.h") ++
@@ -14,14 +14,19 @@ defmodule KindaExample.NIF do
     @external_resource path
   end
 
-  use Kinda.Prebuilt,
-    otp_app: :kinda_example,
-    lib_name: "kinda_example",
-    base_url:
-      "https://github.com/beaver-project/beaver-prebuilt/releases/download/2022-10-15-0706",
-    version: "0.1.0",
-    dest_dir: dest_dir,
-    forward_module: KindaExample.Native,
-    code_gen_module: KindaExample.CodeGen,
-    nifs: [{:kinda_example_add, 2}]
+  @on_load :load_nif
+
+  def load_nif do
+    nif_file = ~c"#{:code.priv_dir(:kinda_example)}/lib/libKindaExampleNIF"
+
+    if File.exists?(dylib = "#{nif_file}.dylib") do
+      File.ln_s(dylib, "#{nif_file}.so")
+    end
+
+    case :erlang.load_nif(nif_file, 0) do
+      :ok -> :ok
+      {:error, {:reload, _}} -> :ok
+      {:error, reason} -> IO.puts("Failed to load nif: #{inspect(reason)}")
+    end
+  end
 end
