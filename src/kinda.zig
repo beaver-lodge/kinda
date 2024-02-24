@@ -203,7 +203,7 @@ pub fn open_internal_resource_types(env: beam.env) void {
 
 const NIFFuncAttrs = struct { flags: u32 = 0, nif_name: ?[*c]const u8 = null };
 pub fn NIFFunc(comptime Kinds: anytype, c: anytype, comptime name: anytype, attrs: NIFFuncAttrs) e.ErlNifFunc {
-    @setEvalBranchQuota(2000);
+    @setEvalBranchQuota(5000);
     const cfunction = @field(c, name);
     const FTI = @typeInfo(@TypeOf(cfunction)).Fn;
     const flags = attrs.flags;
