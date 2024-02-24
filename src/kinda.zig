@@ -278,7 +278,7 @@ pub fn NIFFunc(comptime Kinds: anytype, c: anytype, comptime name: anytype, attr
             var c_args: VariadicArgs() = undefined;
             inline for (FTI.params, args, 0..) |p, arg, i| {
                 const ArgKind = getKind(p.type.?);
-                c_args[i] = ArgKind.resource.fetch(env, arg) catch return beam.make_error_binary(env, "fail to fetch arg resource, expect: " ++ @typeName(ArgKind.T));
+                c_args[i] = ArgKind.resource.fetch(env, arg) catch return beam.make_error_binary(env, "when calling function: " ++ name ++ ", fail to fetch arg resource, expect: " ++ @typeName(ArgKind));
             }
             const rt = FTI.return_type.?;
             if (rt == void) {
