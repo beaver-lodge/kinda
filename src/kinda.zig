@@ -203,7 +203,7 @@ pub fn open_internal_resource_types(env: beam.env) void {
 
 const NIFFuncAttrs = struct { flags: u32 = 0, nif_name: ?[*c]const u8 = null };
 pub fn NIFFunc(comptime Kinds: anytype, c: anytype, comptime name: anytype, attrs: NIFFuncAttrs) e.ErlNifFunc {
-    @setEvalBranchQuota(2000);
+    @setEvalBranchQuota(5000);
     const cfunction = @field(c, name);
     const FTI = @typeInfo(@TypeOf(cfunction)).Fn;
     const flags = attrs.flags;
@@ -278,7 +278,7 @@ pub fn NIFFunc(comptime Kinds: anytype, c: anytype, comptime name: anytype, attr
             var c_args: VariadicArgs() = undefined;
             inline for (FTI.params, args, 0..) |p, arg, i| {
                 const ArgKind = getKind(p.type.?);
-                c_args[i] = ArgKind.resource.fetch(env, arg) catch return beam.make_error_binary(env, "fail to fetch arg resource, expect: " ++ @typeName(ArgKind.T));
+                c_args[i] = ArgKind.resource.fetch(env, arg) catch return beam.make_error_binary(env, "when calling function: " ++ name ++ ", fail to fetch arg resource, expect: " ++ @typeName(ArgKind));
             }
             const rt = FTI.return_type.?;
             if (rt == void) {
