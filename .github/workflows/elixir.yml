@@ -58,17 +58,23 @@ jobs:
         working-directory: ./kinda_example
         run: |
           mix test --force
-      - name: Production build
+      - name: Precompile
         working-directory: ./kinda_example
         env:
           MIX_ENV: prod
+          ELIXIR_MAKE_CACHE_DIR: .
         run: |
-          mix
-      - name: Tar production native libraries
-        working-directory: ./kinda_example
-        id: tar
-        env:
-          MIX_ENV: prod
-        run: |
-          set -u
+          rm -rf _build
           mix elixir_make.precompile
+      - name: Start mock server in the background
+        working-directory: ./kinda_example
+        run: |
+          python3 -m http.server --directory . &> /dev/null &
+          sleep 3
+          ps aux
+      - name: Test precompiled
+        working-directory: ./kinda_example
+        run: |
+          MIX_ENV=prod mix elixir_make.checksum --all --ignore-unavailable --only-local --print
+          mix clean
+          mix test --exclude vulkan --exclude todo

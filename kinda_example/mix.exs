@@ -12,8 +12,7 @@ defmodule KindaExample.MixProject do
     ] ++
       [
         make_precompiler: {:nif, Kinda.Precompiler},
-        make_precompiler_url:
-          "https://github.com/beaver-lodge/beaver-prebuilt/releases/download/2023-12-23-1442"
+        make_precompiler_url: "http://127.0.0.1:8000/@{artefact_filename}"
       ]
   end
 
