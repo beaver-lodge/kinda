@@ -24,7 +24,6 @@ defmodule Kinda.MixProject do
   defp deps do
     [
       {:ex_doc, ">= 0.0.0", only: :dev, runtime: false},
-      {:zig_parser, "~> 0.1.0"},
       {:elixir_make, "~> 0.4", runtime: false}
     ]
   end
