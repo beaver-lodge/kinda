@@ -7,6 +7,9 @@ defmodule KindaExample.CodeGen do
     [
       %KindDecl{
         module_name: KindaExample.NIF.CInt
+      },
+      %KindDecl{
+        module_name: KindaExample.NIF.StrInt
       }
     ]
   end

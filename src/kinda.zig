@@ -110,22 +110,22 @@ pub fn ResourceKind(comptime ElementType: type, comptime module_name_: anytype) 
         fn mut_array(env: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
             return beam.get_resource_array(T, env, @This().resource.t, Ptr.resource.t, args[0]) catch PtrError.failToMakeMutableArrayResource;
         }
-        const PrimitiveError = error{ failToFetchPritimive, failToCreatePrimitive };
+        const PrimitiveError = error{ failToFetchPrimitive, failToCreatePrimitive };
         fn primitive(env: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
-            const v = resource.fetch(env, args[0]) catch return PrimitiveError.failToFetchPritimive;
+            const v = resource.fetch(env, args[0]) catch return PrimitiveError.failToFetchPrimitive;
             return beam.make(T, env, v) catch return PrimitiveError.failToCreatePrimitive;
         }
         fn dump(env: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
-            const v: T = resource.fetch(env, args[0]) catch return PrimitiveError.failToFetchPritimive;
+            const v: T = resource.fetch(env, args[0]) catch return PrimitiveError.failToFetchPrimitive;
             print("{?}\n", .{v});
             return beam.make_ok(env);
         }
         fn append_to_struct(env: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
-            const v = resource.fetch(env, args[0]) catch return PrimitiveError.failToFetchPritimive;
+            const v = resource.fetch(env, args[0]) catch return PrimitiveError.failToFetchPrimitive;
             return beam.make(T, env, v) catch return PrimitiveError.failToCreatePrimitive;
         }
         fn make(env: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
-            const v = beam.get(T, env, args[0]) catch return PrimitiveError.failToFetchPritimive;
+            const v = beam.get(T, env, args[0]) catch return PrimitiveError.failToFetchPrimitive;
             return resource.make(env, v) catch return PrimitiveError.failToCreatePrimitive;
         }
         const OpaquePtrError = error{ failToFetchResourceOpaquePtr, failToFetchOffset, failToAllocateMemoryForTupleSlice, failToMakeResourceForExtractedObject, failToMakeObjectSize };
