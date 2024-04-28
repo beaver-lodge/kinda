@@ -154,7 +154,7 @@ pub fn ResourceKind(comptime ElementType: type, comptime module_name_: anytype) 
             ElementType.nifs
         else
             .{};
-        pub const nifs: [numOfNIFsPerKind]e.ErlNifFunc = .{
+        pub const nifs: [numOfNIFsPerKind + @typeInfo(@TypeOf(extra_nifs)).Struct.fields.len]e.ErlNifFunc = .{
             result.nif(module_name ++ ".ptr", 1, ptr_maker).entry,
             result.nif(module_name ++ ".ptr_to_opaque", 1, ptr_to_opaque).entry,
             result.nif(module_name ++ ".opaque_ptr", 1, opaque_ptr).entry,
