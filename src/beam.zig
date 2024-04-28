@@ -1387,7 +1387,7 @@ pub fn make_exception(env_: env, exception_module: []const u8, err: anyerror, er
         const debug_info = std.debug.getSelfDebugInfo() catch return make_nil(env_);
 
         var frame_index: usize = 0;
-        var frames_left: usize = std.math.min(trace.index, trace.instruction_addresses.len);
+        var frames_left: usize = @min(trace.index, trace.instruction_addresses.len);
         var ert = e.enif_make_list(env_, 0);
 
         // currently macos has a bug where the error return trace is sometimes bogus.
