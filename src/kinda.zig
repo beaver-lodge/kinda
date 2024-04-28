@@ -2,6 +2,7 @@ const beam = @import("beam");
 const e = @import("erl_nif");
 const std = @import("std");
 const print = @import("std").debug.print;
+pub const result = @import("result.zig");
 
 // a function to make a resource term from a u8 slice.
 const OpaqueMaker: type = fn (beam.env, []u8) beam.term;
@@ -68,6 +69,7 @@ pub fn ResourceKind(comptime ElementType: type, comptime module_name_: anytype) 
         pub const Array = struct {
             pub const module_name = module_name_ ++ ".Array";
             pub const T = ArrayType;
+            const Error = error{ failToFetchResourceForArray, failToMakeResourceForOpaqueArray };
             pub const resource = struct {
                 pub var t: beam.resource_type = undefined;
                 pub const name = @typeName(ArrayType);
@@ -79,61 +81,64 @@ pub fn ResourceKind(comptime ElementType: type, comptime module_name_: anytype) 
                 }
             };
             // get the array adress as a opaque array
-            pub fn as_opaque(env: beam.env, _: c_int, args: [*c]const beam.term) callconv(.C) beam.term {
+            pub fn as_opaque(env: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
                 var array_ptr: ArrayType = @This().resource.fetch(env, args[0]) catch
-                    return beam.make_error_binary(env, "fail to fetch resource for array, expected: " ++ @typeName(ArrayType));
+                    return Error.failToFetchResourceForArray;
                 return Internal.OpaqueArray.resource.make(env, @ptrCast(array_ptr)) catch
-                    return beam.make_error_binary(env, "fail to make resource for opaque arra");
+                    return Error.failToMakeResourceForOpaqueArray;
             }
         };
-        fn ptr(env: beam.env, _: c_int, args: [*c]const beam.term) callconv(.C) beam.term {
-            return beam.get_resource_ptr_from_term(T, env, @This().resource.t, Ptr.resource.t, args[0]) catch return beam.make_error_binary(env, "fail to create ptr " ++ @typeName(T));
+        const PtrError = error{ failToMakePtrResource, failToFetchPtrResource, failToMakeResourceForOpaquePtr, failToMakeArrayResource, failToMakeMutableArrayResource };
+        fn ptr(env: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
+            return beam.get_resource_ptr_from_term(T, env, @This().resource.t, Ptr.resource.t, args[0]) catch return PtrError.failToMakePtrResource;
         }
-        fn ptr_to_opaque(env: beam.env, _: c_int, args: [*c]const beam.term) callconv(.C) beam.term {
-            const typed_ptr: Ptr.T = Ptr.resource.fetch(env, args[0]) catch return beam.make_error_binary(env, "fail to fetch resource for ptr, expected: " ++ @typeName(PtrType));
-            return Internal.OpaquePtr.resource.make(env, @ptrCast(typed_ptr)) catch return beam.make_error_binary(env, "fail to make resource for: " ++ @typeName(Internal.OpaquePtr.T));
+        fn ptr_to_opaque(env: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
+            const typed_ptr: Ptr.T = Ptr.resource.fetch(env, args[0]) catch return PtrError.failToFetchPtrResource;
+            return Internal.OpaquePtr.resource.make(env, @ptrCast(typed_ptr)) catch return PtrError.failToMakeResourceForOpaquePtr;
         }
-        pub fn opaque_ptr(env: beam.env, _: c_int, args: [*c]const beam.term) callconv(.C) beam.term {
-            const ptr_to_resource_memory: Ptr.T = beam.fetch_resource_ptr(T, env, @This().resource.t, args[0]) catch return beam.make_error_binary(env, "fail to create ptr " ++ @typeName(T));
-            return Internal.OpaquePtr.resource.make(env, @ptrCast(ptr_to_resource_memory)) catch return beam.make_error_binary(env, "fail to make resource for: " ++ @typeName(Internal.OpaquePtr.T));
+        pub fn opaque_ptr(env: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
+            const ptr_to_resource_memory: Ptr.T = beam.fetch_resource_ptr(T, env, @This().resource.t, args[0]) catch return PtrError.failToFetchPtrResource;
+            return Internal.OpaquePtr.resource.make(env, @ptrCast(ptr_to_resource_memory)) catch return PtrError.failToMakeResourceForOpaquePtr;
         }
         // the returned term owns the memory of the array.
-        fn array(env: beam.env, _: c_int, args: [*c]const beam.term) callconv(.C) beam.term {
-            return beam.get_resource_array(T, env, @This().resource.t, Array.resource.t, args[0]) catch return beam.make_error_binary(env, "fail to create array " ++ @typeName(T));
+        fn array(env: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
+            return beam.get_resource_array(T, env, @This().resource.t, Array.resource.t, args[0]) catch return PtrError.failToMakeArrayResource;
         }
         // the returned term owns the memory of the array.
         // TODO: mut array should be a dedicated resource type without reusing Ptr.resource.t
-        fn mut_array(env: beam.env, _: c_int, args: [*c]const beam.term) callconv(.C) beam.term {
-            return beam.get_resource_array(T, env, @This().resource.t, Ptr.resource.t, args[0]) catch return beam.make_error_binary(env, "fail to create mut array " ++ @typeName(T));
+        fn mut_array(env: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
+            return beam.get_resource_array(T, env, @This().resource.t, Ptr.resource.t, args[0]) catch PtrError.failToMakeMutableArrayResource;
         }
-        fn primitive(env: beam.env, _: c_int, args: [*c]const beam.term) callconv(.C) beam.term {
-            const v = resource.fetch(env, args[0]) catch return beam.make_error_binary(env, "fail to extract pritimive from " ++ @typeName(T));
-            return beam.make(T, env, v) catch return beam.make_error_binary(env, "fail to create primitive " ++ @typeName(T));
+        const PrimitiveError = error{ failToFetchPritimive, failToCreatePrimitive };
+        fn primitive(env: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
+            const v = resource.fetch(env, args[0]) catch return PrimitiveError.failToFetchPritimive;
+            return beam.make(T, env, v) catch return PrimitiveError.failToCreatePrimitive;
         }
-        fn dump(env: beam.env, _: c_int, args: [*c]const beam.term) callconv(.C) beam.term {
-            const v: T = resource.fetch(env, args[0]) catch return beam.make_error_binary(env, "fail to fetch " ++ @typeName(T));
+        fn dump(env: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
+            const v: T = resource.fetch(env, args[0]) catch return PrimitiveError.failToFetchPritimive;
             print("{?}\n", .{v});
             return beam.make_ok(env);
         }
-        fn append_to_struct(env: beam.env, _: c_int, args: [*c]const beam.term) callconv(.C) beam.term {
-            const v = resource.fetch(env, args[0]) catch return beam.make_error_binary(env, "fail to extract pritimive from " ++ @typeName(T));
-            return beam.make(T, env, v) catch return beam.make_error_binary(env, "fail to create primitive " ++ @typeName(T));
+        fn append_to_struct(env: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
+            const v = resource.fetch(env, args[0]) catch return PrimitiveError.failToFetchPritimive;
+            return beam.make(T, env, v) catch return PrimitiveError.failToCreatePrimitive;
         }
-        fn make(env: beam.env, _: c_int, args: [*c]const beam.term) callconv(.C) beam.term {
-            const v = beam.get(T, env, args[0]) catch return beam.make_error_binary(env, "Fail to fetch primitive to make a resource. Expected type: " ++ @typeName(T));
-            return resource.make(env, v) catch return beam.make_error_binary(env, "fail to create " ++ @typeName(T));
+        fn make(env: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
+            const v = beam.get(T, env, args[0]) catch return PrimitiveError.failToFetchPritimive;
+            return resource.make(env, v) catch return PrimitiveError.failToCreatePrimitive;
         }
-        fn make_from_opaque_ptr(env: beam.env, _: c_int, args: [*c]const beam.term) callconv(.C) beam.term {
+        const OpaquePtrError = error{ failToFetchResourceOpaquePtr, failToFetchOffset, failToAllocateMemoryForTupleSlice, failToMakeResourceForExtractedObject, failToMakeObjectSize };
+        fn make_from_opaque_ptr(env: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
             const ptr_to_read: Internal.OpaquePtr.T = Internal.OpaquePtr.resource.fetch(env, args[0]) catch
-                return beam.make_error_binary(env, "fail to fetch resource opaque ptr to read, expect" ++ @typeName(Internal.OpaquePtr.T));
+                return OpaquePtrError.failToFetchResourceOpaquePtr;
             const offset: Internal.USize.T = Internal.USize.resource.fetch(env, args[1]) catch
-                return beam.make_error_binary(env, "fail to fetch resource for offset, expected: " ++ @typeName(Internal.USize.T));
+                return OpaquePtrError.failToFetchOffset;
             const ptr_int = @intFromPtr(ptr_to_read) + offset;
             const obj_ptr: *ElementType = @ptrFromInt(ptr_int);
-            var tuple_slice: []beam.term = beam.allocator.alloc(beam.term, 2) catch return beam.make_error_binary(env, "fail to allocate memory for tuple slice");
+            var tuple_slice: []beam.term = beam.allocator.alloc(beam.term, 2) catch return OpaquePtrError.failToAllocateMemoryForTupleSlice;
             defer beam.allocator.free(tuple_slice);
-            tuple_slice[0] = resource.make(env, obj_ptr.*) catch return beam.make_error_binary(env, "fail to create resource for extract object");
-            tuple_slice[1] = beam.make(Internal.USize.T, env, @sizeOf(ElementType)) catch return beam.make_error_binary(env, "fail to create resource for size of object");
+            tuple_slice[0] = resource.make(env, obj_ptr.*) catch return OpaquePtrError.failToMakeResourceForExtractedObject;
+            tuple_slice[1] = beam.make(Internal.USize.T, env, @sizeOf(ElementType)) catch return OpaquePtrError.failToMakeObjectSize;
             return beam.make_tuple(env, tuple_slice);
         }
         const maker = if (@typeInfo(ElementType) == .Struct and @hasDecl(ElementType, "maker"))
@@ -149,16 +154,16 @@ pub fn ResourceKind(comptime ElementType: type, comptime module_name_: anytype) 
         else
             .{};
         pub const nifs = .{
-            e.ErlNifFunc{ .name = module_name ++ ".ptr", .arity = 1, .fptr = ptr_maker, .flags = 0 },
-            e.ErlNifFunc{ .name = module_name ++ ".ptr_to_opaque", .arity = 1, .fptr = ptr_to_opaque, .flags = 0 },
-            e.ErlNifFunc{ .name = module_name ++ ".opaque_ptr", .arity = 1, .fptr = opaque_ptr, .flags = 0 },
-            e.ErlNifFunc{ .name = module_name ++ ".array", .arity = 1, .fptr = array, .flags = 0 },
-            e.ErlNifFunc{ .name = module_name ++ ".mut_array", .arity = 1, .fptr = mut_array, .flags = 0 },
-            e.ErlNifFunc{ .name = module_name ++ ".primitive", .arity = 1, .fptr = primitive, .flags = 0 },
-            e.ErlNifFunc{ .name = module_name ++ ".make", .arity = maker[1], .fptr = maker[0], .flags = 0 },
-            e.ErlNifFunc{ .name = module_name ++ ".dump", .arity = 1, .fptr = dump, .flags = 0 },
-            e.ErlNifFunc{ .name = module_name ++ ".make_from_opaque_ptr", .arity = 2, .fptr = make_from_opaque_ptr, .flags = 0 },
-            e.ErlNifFunc{ .name = module_name ++ ".array_as_opaque", .arity = 1, .fptr = @This().Array.as_opaque, .flags = 0 },
+            result.nif(module_name ++ ".ptr", 1, ptr_maker).entry,
+            result.nif(module_name ++ ".ptr_to_opaque", 1, ptr_to_opaque).entry,
+            result.nif(module_name ++ ".opaque_ptr", 1, opaque_ptr).entry,
+            result.nif(module_name ++ ".array", 1, array).entry,
+            result.nif(module_name ++ ".mut_array", 1, mut_array).entry,
+            result.nif(module_name ++ ".primitive", 1, primitive).entry,
+            result.nif(module_name ++ ".make", maker[1], maker[0]).entry,
+            result.nif(module_name ++ ".dump", 1, dump).entry,
+            result.nif(module_name ++ ".make_from_opaque_ptr", 2, make_from_opaque_ptr).entry,
+            result.nif(module_name ++ ".array_as_opaque", 1, @This().Array.as_opaque).entry,
         } ++ extra_nifs;
         pub fn open(env: beam.env) void {
             const dtor = if (@typeInfo(ElementType) == .Struct and @hasDecl(ElementType, "destroy"))
@@ -270,15 +275,12 @@ pub fn NIFFunc(comptime Kinds: anytype, c: anytype, comptime name: anytype, attr
                 else => @compileError("too many args"),
             };
         }
-        fn ok_nif(env: beam.env, _: c_int, _: [*c]const beam.term) callconv(.C) beam.term {
-            return beam.make_ok(env);
-        }
-        const numOfNIFsPerKind = 10;
-        fn nif(env: beam.env, _: c_int, args: [*c]const beam.term) callconv(.C) beam.term {
+        fn nif(env: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
+            const Error = error{ failToMakeResourceForReturnType, failToAllocateMemoryForTupleSlice, failToFetchArgumentResource };
             var c_args: VariadicArgs() = undefined;
             inline for (FTI.params, args, 0..) |p, arg, i| {
                 const ArgKind = getKind(p.type.?);
-                c_args[i] = ArgKind.resource.fetch(env, arg) catch return beam.make_error_binary(env, "when calling function: " ++ name ++ ", fail to fetch arg resource, expect: " ++ @typeName(ArgKind));
+                c_args[i] = ArgKind.resource.fetch(env, arg) catch return Error.failToFetchArgumentResource;
             }
             const rt = FTI.return_type.?;
             if (rt == void) {
@@ -286,15 +288,15 @@ pub fn NIFFunc(comptime Kinds: anytype, c: anytype, comptime name: anytype, attr
                 return beam.make_ok(env);
             } else {
                 const RetKind = getKind(rt);
-                var tuple_slice: []beam.term = beam.allocator.alloc(beam.term, 3) catch return beam.make_error_binary(env, "fail to allocate memory for tuple slice");
+                var tuple_slice: []beam.term = beam.allocator.alloc(beam.term, 3) catch return Error.failToAllocateMemoryForTupleSlice;
                 defer beam.allocator.free(tuple_slice);
                 tuple_slice[0] = beam.make_atom(env, "kind");
                 tuple_slice[1] = beam.make_atom(env, RetKind.module_name);
-                const ret = RetKind.resource.make(env, variadic_call(c_args)) catch return beam.make_error_binary(env, "fail to make resource for return type: " ++ @typeName(RetKind.T));
+                const ret = RetKind.resource.make(env, variadic_call(c_args)) catch return Error.failToMakeResourceForReturnType;
                 tuple_slice[2] = ret;
                 return beam.make_tuple(env, tuple_slice);
             }
         }
-        const entry = e.ErlNifFunc{ .name = attrs.nif_name orelse name, .arity = FTI.params.len, .fptr = nif, .flags = flags };
+        const entry = result.nif_with_flags(attrs.nif_name orelse name, FTI.params.len, nif, flags).entry;
     }).entry;
 }
