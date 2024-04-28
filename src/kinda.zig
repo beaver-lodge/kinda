@@ -27,6 +27,7 @@ pub const Internal = struct {
     pub const OpaqueStruct: type = ResourceKind(OpaqueStructType, "Kinda.Internal.OpaqueStruct");
 };
 
+pub const numOfNIFsPerKind = 10;
 pub fn ResourceKind(comptime ElementType: type, comptime module_name_: anytype) type {
     return struct {
         pub const module_name = module_name_;
@@ -153,7 +154,7 @@ pub fn ResourceKind(comptime ElementType: type, comptime module_name_: anytype) 
             ElementType.nifs
         else
             .{};
-        pub const nifs = .{
+        pub const nifs: [numOfNIFsPerKind]e.ErlNifFunc = .{
             result.nif(module_name ++ ".ptr", 1, ptr_maker).entry,
             result.nif(module_name ++ ".ptr_to_opaque", 1, ptr_to_opaque).entry,
             result.nif(module_name ++ ".opaque_ptr", 1, opaque_ptr).entry,
