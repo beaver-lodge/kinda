@@ -1382,40 +1382,38 @@ pub fn raise_assertion_error(env_: env) term {
     return e.enif_raise_exception(env_, make_atom(env_, assert_slice));
 }
 
+fn writeStackTraceToBuffer(
+    environment: env,
+    stack_trace: std.builtin.StackTrace,
+) !term {
+    const debug_info = std.debug.getSelfDebugInfo() catch |err| {
+        std.debug.print("Unable to dump stack trace: Unable to open debug info: {s}. Will dump it to stderr\n", .{@errorName(err)});
+        std.debug.dumpStackTrace(stack_trace);
+        return err;
+    };
+    var buffer = std.ArrayList(u8).init(allocator);
+    defer buffer.deinit();
+    try std.debug.writeStackTrace(stack_trace, &buffer.writer(), allocator, debug_info, std.io.tty.detectConfig(std.io.getStdErr()));
+    return make_slice(environment, buffer.items);
+}
+
 pub fn make_exception(env_: env, exception_module: []const u8, err: anyerror, error_trace: ?*std.builtin.StackTrace) term {
+    const erl_err = make_atom(env_, @errorName(err));
     if (error_trace) |trace| {
-        const debug_info = std.debug.getSelfDebugInfo() catch return make_nil(env_);
-
-        var frame_index: usize = 0;
-        var frames_left: usize = @min(trace.index, trace.instruction_addresses.len);
-        var ert = e.enif_make_list(env_, 0);
-
-        // currently macos has a bug where the error return trace is sometimes bogus.
-        // skip returning extra stuff onto the stack if you're using macos.
-        if (builtin.os.tag != .macos) {
-            while (frames_left != 0) : ({
-                frames_left -= 1;
-                frame_index = (frame_index + 1) % trace.instruction_addresses.len;
-            }) {
-                const return_address = trace.instruction_addresses[frame_index];
-                var location = make_location(env_, debug_info, return_address - 1) catch return make_nil(env_);
-                ert = e.enif_make_list_cell(env_, location, ert);
-            }
-        }
-
+        const stack_trace = writeStackTraceToBuffer(env_, trace.*) catch make_nil(env_);
         var exception = e.enif_make_new_map(env_);
         // define the struct
         _ = e.enif_make_map_put(env_, exception, make_atom(env_, "__struct__"), make_atom(env_, exception_module), &exception);
         _ = e.enif_make_map_put(env_, exception, make_atom(env_, "__exception__"), make_bool(env_, true), &exception);
         // define the error
-        _ = e.enif_make_map_put(env_, exception, make_atom(env_, "message"), make_slice(env_, @errorName(err)), &exception);
+        _ = e.enif_make_map_put(env_, exception, make_atom(env_, "message"), erl_err, &exception);
 
         // store the error return trace
-        _ = e.enif_make_map_put(env_, exception, make_atom(env_, "error_return_trace"), ert, &exception);
+        _ = e.enif_make_map_put(env_, exception, make_atom(env_, "error_return_trace"), stack_trace, &exception);
 
         return exception;
     } else {
-        return make_nil(env_);
+        return erl_err;
     }
 }
 
@@ -1425,25 +1423,6 @@ pub fn raise_exception(env_: env, exception_module: []const u8, err: anyerror, e
     } else {
         return make_nil(env_);
     }
-}
-
-fn make_location(env_: env, debug_info: *std.debug.DebugInfo, address: usize) !term {
-    const module = debug_info.getModuleForAddress(address) catch |err| switch (err) {
-        error.MissingDebugInfo, error.InvalidDebugInfo => return make_nil(env_),
-        else => return err,
-    };
-
-    const symbol_info = try module.getSymbolAtAddress(address);
-    // the following line incurs a resource leak; this function needs to be made public.
-    // usable when: https://github.com/ziglang/zig/pull/9123
-    // defer symbol_info.deinit();
-
-    return make_tuple(env_, &[_]term{
-        make_atom(env_, symbol_info.compile_unit_name),
-        make_atom(env_, symbol_info.symbol_name),
-        make_slice(env_, symbol_info.line_info.?.file_name),
-        make(u64, env_, symbol_info.line_info.?.line),
-    });
 }
 
 /// !value
