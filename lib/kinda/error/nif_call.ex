@@ -1,4 +1,4 @@
-defmodule Kinda.NIFCallError do
+defmodule Kinda.CallError do
   defexception [:message, :error_return_trace]
 
   @impl true

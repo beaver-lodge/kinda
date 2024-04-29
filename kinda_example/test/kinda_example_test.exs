@@ -7,7 +7,7 @@ defmodule KindaExampleTest do
              |> KindaExample.Native.to_term()
 
     assert match?(
-             %Kinda.NIFCallError{message: :failToFetchArgumentResource, error_return_trace: _},
+             %Kinda.CallError{message: :failToFetchArgumentResource, error_return_trace: _},
              catch_error(KindaExample.NIF.kinda_example_add(1, "2"))
            )
   end
@@ -24,7 +24,7 @@ defmodule KindaExampleTest do
     assert match?("FunctionClauseError\n" <> _, Exception.message(e))
 
     assert match?(
-             %Kinda.NIFCallError{message: :FunctionClauseError, error_return_trace: _},
+             %Kinda.CallError{message: :FunctionClauseError, error_return_trace: _},
              catch_error(KindaExample.NIF."Elixir.KindaExample.NIF.StrInt.make"(1))
            )
 
