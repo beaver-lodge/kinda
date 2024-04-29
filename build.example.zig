@@ -2,20 +2,19 @@ const std = @import("std");
 const builtin = @import("builtin");
 const os = builtin.os.tag;
 
-pub fn build(b: *std.build.Builder) void {
+pub fn build(b: *std.Build) void {
     // Standard release options allow the person running `zig build` to select
     // between Debug, ReleaseSafe, ReleaseFast, and ReleaseSmall.
-    const target: std.zig.CrossTarget = .{};
     const lib = b.addSharedLibrary(.{
         .name = "KindaExampleNIF",
         .root_source_file = .{ .path = "src/example/main.zig" },
         .optimize = .Debug,
-        .target = target,
+        .target = b.host,
     });
-    const kinda = b.anonymousDependency(".", @import("build.zig"), .{});
-    lib.addModule("kinda", kinda.module("kinda"));
-    lib.addModule("erl_nif", kinda.module("erl_nif"));
-    lib.addModule("beam", kinda.module("beam"));
+    const kinda = b.dependencyFromBuildZig(@import("kinda"), .{});
+    lib.root_module.addImport("kinda", kinda.module("kinda"));
+    lib.root_module.addImport("erl_nif", kinda.module("erl_nif"));
+    lib.root_module.addImport("beam", kinda.module("beam"));
     if (os.isDarwin()) {
         lib.addRPath(.{ .path = "@loader_path" });
         lib.linkSystemLibrary("KindaExample");
