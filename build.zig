@@ -1,13 +1,5 @@
 const std = @import("std");
 
-fn add_mod(b: *std.Build, name: []const u8, path: []const u8) void {
-    const lib_mod = b.addModule(
-        name,
-        .{ .root_source_file = .{ .path = path } },
-    );
-    _ = lib_mod;
-}
-
 pub fn build(b: *std.Build) !void {
     const test_step = b.step("test", "Test it");
     b.default_step = test_step;
