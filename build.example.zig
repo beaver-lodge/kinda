@@ -17,11 +17,10 @@ pub fn build(b: *std.Build) void {
     lib.root_module.addImport("beam", kinda.module("beam"));
     if (os.isDarwin()) {
         lib.addRPath(.{ .path = "@loader_path" });
-        lib.linkSystemLibrary("KindaExample");
     } else {
         lib.addRPath(.{ .path = ":$ORIGIN" });
-        lib.linkSystemLibraryName("KindaExample");
     }
+    lib.linkSystemLibrary("KindaExample");
     lib.linker_allow_shlib_undefined = true;
 
     b.installArtifact(lib);
