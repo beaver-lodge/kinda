@@ -7,7 +7,7 @@ pub fn build(b: *std.Build) void {
     // between Debug, ReleaseSafe, ReleaseFast, and ReleaseSmall.
     const lib = b.addSharedLibrary(.{
         .name = "KindaExampleNIF",
-        .root_source_file = .{ .path = "src/example/main.zig" },
+        .root_source_file = .{ .path = "native/zig-src/main.zig" },
         .optimize = .Debug,
         .target = b.host,
     });
