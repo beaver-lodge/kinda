@@ -6,8 +6,10 @@ defmodule KindaExampleTest do
              KindaExample.NIF.kinda_example_add(1, 2)
              |> KindaExample.Native.to_term()
 
-    assert catch_error(KindaExample.NIF.kinda_example_add(1, "2")) ==
-             :failToFetchArgumentResource
+    assert match?(
+             %Kinda.CallError{message: :failToFetchArgumentResource, error_return_trace: _},
+             catch_error(KindaExample.NIF.kinda_example_add(1, "2"))
+           )
   end
 
   test "custom make" do
@@ -18,8 +20,21 @@ defmodule KindaExampleTest do
            )
            |> KindaExample.NIF."Elixir.KindaExample.NIF.CInt.primitive"() == 100
 
-    assert catch_error(KindaExample.NIF."Elixir.KindaExample.NIF.StrInt.make"(1)) ==
-             :FunctionClauseError
+    e = catch_error(KindaExample.NIF."Elixir.KindaExample.NIF.StrInt.make"(1))
+    assert match?("FunctionClauseError\n" <> _, Exception.message(e))
+
+    err = catch_error(KindaExample.NIF."Elixir.KindaExample.NIF.StrInt.make"(1))
+    # only test this on macOS, it will crash on Linux
+    txt = Exception.message(err)
+
+    if System.get_env("KINDA_DUMP_STACK_TRACE") == "1" do
+      assert txt =~ "src/beam.zig"
+      assert txt =~ "kinda_example/native/zig-src/main.zig"
+    else
+      assert txt =~ "to see the full stack trace, set KINDA_DUMP_STACK_TRACE=1"
+    end
+
+    assert match?(%Kinda.CallError{message: :FunctionClauseError, error_return_trace: _}, err)
 
     assert KindaExample.NIF."Elixir.KindaExample.NIF.StrInt.make"("1")
            |> KindaExample.NIF."Elixir.KindaExample.NIF.CInt.primitive"() ==
