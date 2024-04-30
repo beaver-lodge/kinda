@@ -24,12 +24,14 @@ defmodule KindaExampleTest do
     assert match?("FunctionClauseError\n" <> _, Exception.message(e))
 
     err = catch_error(KindaExample.NIF."Elixir.KindaExample.NIF.StrInt.make"(1))
-
     # only test this on macOS, it will crash on Linux
+    txt = Exception.message(err)
+
     if System.get_env("KINDA_DUMP_STACK_TRACE") == "1" do
-      txt = Exception.message(err)
       assert txt =~ "src/beam.zig"
       assert txt =~ "kinda_example/native/zig-src/main.zig"
+    else
+      assert txt =~ "to see the full stack trace, set KINDA_DUMP_STACK_TRACE=1"
     end
 
     assert match?(%Kinda.CallError{message: :FunctionClauseError, error_return_trace: _}, err)
