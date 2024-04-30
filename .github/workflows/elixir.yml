@@ -16,13 +16,14 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-    name: OTP ${{matrix.otp}} / Elixir ${{matrix.elixir}}
+    name: otp${{matrix.otp}}-ex${{matrix.elixir}} / ${{matrix.runs-on}}
+    runs-on: ${{matrix.runs-on}}
     strategy:
-      matrix:
-        otp: ["25.0"]
-        elixir: ["1.14.0"]
       fail-fast: false
+      matrix:
+        runs-on: ["ubuntu-latest"]
+        otp: ["24.2", "25.0"]
+        elixir: ["1.13.0", "1.16.2"]
     steps:
       - uses: actions/checkout@v2
       - uses: erlef/setup-beam@v1
