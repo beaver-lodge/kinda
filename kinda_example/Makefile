@@ -6,10 +6,9 @@ ZIG_CACHE_DIR = ${MIX_APP_PATH}/zig_cache
 all: zig_build
 
 zig_build: cmake_build
-	cd .. && zig build --cache-dir ${ZIG_CACHE_DIR} \
-		--build-file build.example.zig \
+	zig build --cache-dir ${ZIG_CACHE_DIR} \
 	  --prefix ${NATIVE_INSTALL_DIR} \
-		--search-prefix kinda_example/native/c-src \
+		--search-prefix native/c-src \
 		--search-prefix ${NATIVE_INSTALL_DIR} \
 		--search-prefix ${ERTS_INCLUDE_DIR}/.. \
 		-freference-trace

@@ -229,8 +229,8 @@ fn large_beam_resize(
 }
 
 fn alignedAlloc(len: usize, alignment: u29, _: u29, _: usize) ![*]u8 {
-    var safe_len = safeLen(len, alignment);
-    var alloc_slice: []u8 = try allocator.allocAdvanced(u8, MAX_ALIGN, safe_len, std.mem.Allocator.Exact.exact);
+    const safe_len = safeLen(len, alignment);
+    const alloc_slice: []u8 = try allocator.allocAdvanced(u8, MAX_ALIGN, safe_len, std.mem.Allocator.Exact.exact);
 
     const unaligned_addr = @intFromPtr(alloc_slice.ptr);
     const aligned_addr = reAlign(unaligned_addr, alignment);
@@ -240,7 +240,7 @@ fn alignedAlloc(len: usize, alignment: u29, _: u29, _: usize) ![*]u8 {
 }
 
 fn alignedFree(buf: []u8, alignment: u29) usize {
-    var ptr = getPtrPtr(buf.ptr).*;
+    const ptr = getPtrPtr(buf.ptr).*;
     allocator.free(@as([*]u8, @ptrFromInt(ptr))[0..safeLen(buf.len, alignment)]);
     return 0;
 }
@@ -1035,7 +1035,7 @@ pub fn make_slice(environment: env, val: []const u8) term {
 /// is responsible for the resulting binary.  You are responsible for managing
 /// the allocation of the slice.
 pub fn make_c_string(environment: env, val: [*c]const u8) term {
-    var result: e.ErlNifTerm = undefined;
+    const result: e.ErlNifTerm = undefined;
     var len: usize = 0;
 
     // first get the length of the c string.
@@ -1462,7 +1462,7 @@ pub fn fetch_resource(comptime T: type, environment: env, res_typ: resource_type
         return try get(T, environment, res_trm);
     }
     if (obj != null) {
-        var val: *T = @ptrCast(@alignCast(obj));
+        const val: *T = @ptrCast(@alignCast(obj));
         return val.*;
     } else {
         print("fail to get resource of type: {}\n", .{T});
@@ -1536,7 +1536,7 @@ pub fn get_resource_array_from_binary(environment: env, resource_type_array: res
     if (0 == e.enif_inspect_binary(environment, binary_term, &bin)) {
         return Error.FunctionClauseError;
     }
-    var ptr: ?*anyopaque = e.enif_alloc_resource(resource_type_array, @sizeOf(RType) + bin.size);
+    const ptr: ?*anyopaque = e.enif_alloc_resource(resource_type_array, @sizeOf(RType) + bin.size);
     var obj: *RType = undefined;
     var real_binary: RType = undefined;
     if (ptr == null) {
@@ -1547,7 +1547,7 @@ pub fn get_resource_array_from_binary(environment: env, resource_type_array: res
         real_binary += @sizeOf(RType);
         obj.* = real_binary;
     }
-    mem.copy(u8, real_binary[0..bin.size], bin.data[0..bin.size]);
+    mem.copyForwards(u8, real_binary[0..bin.size], bin.data[0..bin.size]);
     return e.enif_make_resource(environment, ptr);
 }
 
@@ -1581,7 +1581,7 @@ pub fn get_resource_ptr_from_term(comptime ElementType: type, environment: env, 
 
 pub fn make_resource(environment: env, value: anytype, rst: resource_type) !term {
     const RType = @TypeOf(value);
-    var ptr: ?*anyopaque = e.enif_alloc_resource(rst, @sizeOf(RType));
+    const ptr: ?*anyopaque = e.enif_alloc_resource(rst, @sizeOf(RType));
     var obj: *RType = undefined;
     if (ptr == null) {
         return Error.FunctionClauseError;
