@@ -7,6 +7,7 @@ defmodule Kinda.CallError do
 
     """
     #{t.message}
+    #{IO.ANSI.reset()}
     #{t.error_return_trace || notice}
     """
   end

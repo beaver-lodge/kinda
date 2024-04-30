@@ -21,7 +21,7 @@ defmodule KindaExampleTest do
            |> KindaExample.NIF."Elixir.KindaExample.NIF.CInt.primitive"() == 100
 
     e = catch_error(KindaExample.NIF."Elixir.KindaExample.NIF.StrInt.make"(1))
-    assert match?("FunctionClauseError\n" <> _, Exception.message(e))
+    assert Exception.message(e) =~ "FunctionClauseError\n#{IO.ANSI.reset()}"
 
     err = catch_error(KindaExample.NIF."Elixir.KindaExample.NIF.StrInt.make"(1))
     # only test this on macOS, it will crash on Linux
