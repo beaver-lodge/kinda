@@ -83,7 +83,7 @@ pub fn ResourceKind(comptime ElementType: type, comptime module_name_: anytype) 
             };
             // get the array adress as a opaque array
             pub fn as_opaque(env: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
-                var array_ptr: ArrayType = @This().resource.fetch(env, args[0]) catch
+                const array_ptr: ArrayType = @This().resource.fetch(env, args[0]) catch
                     return Error.failToFetchResourceForArray;
                 return Internal.OpaqueArray.resource.make(env, @ptrCast(array_ptr)) catch
                     return Error.failToMakeResourceForOpaqueArray;
