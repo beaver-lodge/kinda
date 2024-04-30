@@ -1400,7 +1400,9 @@ fn writeStackTraceToBuffer(
 pub fn make_exception(env_: env, exception_module: []const u8, err: anyerror, error_trace: ?*std.builtin.StackTrace) term {
     const erl_err = make_atom(env_, @errorName(err));
     if (error_trace) |trace| {
-        const stack_trace = writeStackTraceToBuffer(env_, trace.*) catch make_nil(env_);
+        const stack_trace = make_nil(env_);
+        // const stack_trace = writeStackTraceToBuffer(env_, trace.*) catch make_nil(env_);
+        std.debug.dumpStackTrace(trace.*);
         var exception = e.enif_make_new_map(env_);
         // define the struct
         _ = e.enif_make_map_put(env_, exception, make_atom(env_, "__struct__"), make_atom(env_, exception_module), &exception);
