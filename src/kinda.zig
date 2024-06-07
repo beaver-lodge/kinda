@@ -1,7 +1,6 @@
 const beam = @import("beam");
 const e = @import("erl_nif");
 const std = @import("std");
-const print = @import("std").debug.print;
 pub const result = @import("result.zig");
 
 // a function to make a resource term from a u8 slice.
@@ -117,8 +116,14 @@ pub fn ResourceKind(comptime ElementType: type, comptime module_name_: anytype) 
         }
         fn dump(env: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
             const v: T = resource.fetch(env, args[0]) catch return PrimitiveError.failToFetchPrimitive;
-            print("{?}\n", .{v});
-            return beam.make_ok(env);
+            var buffer = try std.ArrayList(u8).initCapacity(std.heap.page_allocator, 100);
+            defer buffer.deinit();
+            const format_string = switch (@typeInfo(T)) {
+                .Pointer => "{*}\n",
+                else => "{?}\n",
+            };
+            try std.fmt.format(buffer.writer(), format_string, .{v});
+            return beam.make_slice(env, buffer.items);
         }
         fn append_to_struct(env: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
             const v = resource.fetch(env, args[0]) catch return PrimitiveError.failToFetchPrimitive;
