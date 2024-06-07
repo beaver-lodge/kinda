@@ -1,7 +1,6 @@
 const beam = @import("beam");
 const e = @import("erl_nif");
 const std = @import("std");
-const print = @import("std").debug.print;
 pub const result = @import("result.zig");
 
 // a function to make a resource term from a u8 slice.
@@ -117,8 +116,14 @@ pub fn ResourceKind(comptime ElementType: type, comptime module_name_: anytype) 
         }
         fn dump(env: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
             const v: T = resource.fetch(env, args[0]) catch return PrimitiveError.failToFetchPrimitive;
-            print("{?}\n", .{v});
-            return beam.make_ok(env);
+            var buffer = try std.ArrayList(u8).initCapacity(std.heap.page_allocator, 100);
+            defer buffer.deinit();
+            const format_string = switch (@typeInfo(T)) {
+                .Pointer => "{*}\n",
+                else => "{?}\n",
+            };
+            try std.fmt.format(buffer.writer(), format_string, .{v});
+            return beam.make_slice(env, buffer.items);
         }
         fn append_to_struct(env: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
             const v = resource.fetch(env, args[0]) catch return PrimitiveError.failToFetchPrimitive;
@@ -215,24 +220,25 @@ pub fn NIFFunc(comptime Kinds: anytype, c: anytype, comptime name: anytype, attr
     const flags = attrs.flags;
     return (struct {
         fn getKind(comptime t: type) type {
-            switch (@typeInfo(t)) {
-                .Pointer => {
-                    for (Kinds) |kind| {
+            for (Kinds) |kind| {
+                switch (@typeInfo(t)) {
+                    .Pointer => {
                         if (t == kind.Ptr.T) {
                             return kind.Ptr;
                         }
                         if (t == kind.Array.T) {
                             return kind.Array;
                         }
-                    }
-                },
-                else => {
-                    for (Kinds) |kind| {
                         if (t == kind.T) {
                             return kind;
                         }
-                    }
-                },
+                    },
+                    else => {
+                        if (t == kind.T) {
+                            return kind;
+                        }
+                    },
+                }
             }
             @compileError("resouce kind not found " ++ @typeName(t));
         }
@@ -253,6 +259,10 @@ pub fn NIFFunc(comptime Kinds: anytype, c: anytype, comptime name: anytype, attr
                 11 => struct { P[0].type.?, P[1].type.?, P[2].type.?, P[3].type.?, P[4].type.?, P[5].type.?, P[6].type.?, P[7].type.?, P[8].type.?, P[9].type.?, P[10].type.? },
                 12 => struct { P[0].type.?, P[1].type.?, P[2].type.?, P[3].type.?, P[4].type.?, P[5].type.?, P[6].type.?, P[7].type.?, P[8].type.?, P[9].type.?, P[10].type.?, P[11].type.? },
                 13 => struct { P[0].type.?, P[1].type.?, P[2].type.?, P[3].type.?, P[4].type.?, P[5].type.?, P[6].type.?, P[7].type.?, P[8].type.?, P[9].type.?, P[10].type.?, P[11].type.?, P[12].type.? },
+                14 => struct { P[0].type.?, P[1].type.?, P[2].type.?, P[3].type.?, P[4].type.?, P[5].type.?, P[6].type.?, P[7].type.?, P[8].type.?, P[9].type.?, P[10].type.?, P[11].type.?, P[12].type.?, P[13].type.? },
+                15 => struct { P[0].type.?, P[1].type.?, P[2].type.?, P[3].type.?, P[4].type.?, P[5].type.?, P[6].type.?, P[7].type.?, P[8].type.?, P[9].type.?, P[10].type.?, P[11].type.?, P[12].type.?, P[13].type.?, P[14].type.? },
+                16 => struct { P[0].type.?, P[1].type.?, P[2].type.?, P[3].type.?, P[4].type.?, P[5].type.?, P[6].type.?, P[7].type.?, P[8].type.?, P[9].type.?, P[10].type.?, P[11].type.?, P[12].type.?, P[13].type.?, P[14].type.?, P[15].type.? },
+                17 => struct { P[0].type.?, P[1].type.?, P[2].type.?, P[3].type.?, P[4].type.?, P[5].type.?, P[6].type.?, P[7].type.?, P[8].type.?, P[9].type.?, P[10].type.?, P[11].type.?, P[12].type.?, P[13].type.?, P[14].type.?, P[15].type.?, P[16].type.? },
                 else => @compileError("too many args"),
             };
         }
@@ -273,6 +283,10 @@ pub fn NIFFunc(comptime Kinds: anytype, c: anytype, comptime name: anytype, attr
                 11 => f(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10]),
                 12 => f(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11]),
                 13 => f(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12]),
+                14 => f(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12], args[13]),
+                15 => f(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12], args[13], args[14]),
+                16 => f(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12], args[13], args[14], args[15]),
+                17 => f(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12], args[13], args[14], args[15], args[16]),
                 else => @compileError("too many args"),
             };
         }
