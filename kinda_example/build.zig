@@ -7,7 +7,7 @@ pub fn build(b: *std.Build) void {
     // between Debug, ReleaseSafe, ReleaseFast, and ReleaseSmall.
     const lib = b.addSharedLibrary(.{
         .name = "KindaExampleNIF",
-        .root_source_file = .{ .path = "native/zig-src/main.zig" },
+        .root_source_file = b.path("native/zig-src/main.zig"),
         .optimize = .Debug,
         .target = b.host,
     });
@@ -16,9 +16,9 @@ pub fn build(b: *std.Build) void {
     lib.root_module.addImport("erl_nif", kinda.module("erl_nif"));
     lib.root_module.addImport("beam", kinda.module("beam"));
     if (os.isDarwin()) {
-        lib.addRPath(.{ .path = "@loader_path" });
+        lib.root_module.addRPathSpecial("@loader_path");
     } else {
-        lib.addRPath(.{ .path = ":$ORIGIN" });
+        lib.root_module.addRPathSpecial("$ORIGIN");
     }
     lib.linkSystemLibrary("KindaExample");
     lib.linker_allow_shlib_undefined = true;
