@@ -28,3 +28,4 @@ kinda-*.tar
 .elixir_ls
 /kinda_example/mix.lock
 zig-cache
+.zig-cache
