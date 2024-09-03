@@ -4,22 +4,25 @@ defmodule Kinda.ResourceKind do
     fields = Keyword.get(opts, :fields) || []
     gen_spec = Keyword.get(opts, :gen_spec, true)
 
-    quote bind_quoted: [
-            forward_module: forward_module,
-            fields: fields,
-            gen_spec: gen_spec
-          ] do
-      defstruct [ref: nil, bag: MapSet.new()] ++ fields
-
+    spec =
       if gen_spec do
-        @type t() :: %__MODULE__{}
+        quote do
+          @type t() :: %__MODULE__{}
+        end
       end
+
+    quote do
+      defstruct [ref: nil] ++ unquote(fields)
+
+      unquote(spec)
 
       def make(value) do
         %__MODULE__{
           ref: unquote(forward_module).forward(__MODULE__, "make", [value])
         }
       end
+
+      defoverridable(make: 1)
     end
   end
 end
