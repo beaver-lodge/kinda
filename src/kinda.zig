@@ -263,6 +263,7 @@ pub fn NIFFunc(comptime Kinds: anytype, c: anytype, comptime name: anytype, attr
                 15 => struct { P[0].type.?, P[1].type.?, P[2].type.?, P[3].type.?, P[4].type.?, P[5].type.?, P[6].type.?, P[7].type.?, P[8].type.?, P[9].type.?, P[10].type.?, P[11].type.?, P[12].type.?, P[13].type.?, P[14].type.? },
                 16 => struct { P[0].type.?, P[1].type.?, P[2].type.?, P[3].type.?, P[4].type.?, P[5].type.?, P[6].type.?, P[7].type.?, P[8].type.?, P[9].type.?, P[10].type.?, P[11].type.?, P[12].type.?, P[13].type.?, P[14].type.?, P[15].type.? },
                 17 => struct { P[0].type.?, P[1].type.?, P[2].type.?, P[3].type.?, P[4].type.?, P[5].type.?, P[6].type.?, P[7].type.?, P[8].type.?, P[9].type.?, P[10].type.?, P[11].type.?, P[12].type.?, P[13].type.?, P[14].type.?, P[15].type.?, P[16].type.? },
+                18 => struct { P[0].type.?, P[1].type.?, P[2].type.?, P[3].type.?, P[4].type.?, P[5].type.?, P[6].type.?, P[7].type.?, P[8].type.?, P[9].type.?, P[10].type.?, P[11].type.?, P[12].type.?, P[13].type.?, P[14].type.?, P[15].type.?, P[16].type.?, P[17].type.? },
                 else => @compileError("too many args"),
             };
         }
@@ -287,6 +288,7 @@ pub fn NIFFunc(comptime Kinds: anytype, c: anytype, comptime name: anytype, attr
                 15 => f(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12], args[13], args[14]),
                 16 => f(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12], args[13], args[14], args[15]),
                 17 => f(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12], args[13], args[14], args[15], args[16]),
+                18 => f(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12], args[13], args[14], args[15], args[16], args[17]),
                 else => @compileError("too many args"),
             };
         }
