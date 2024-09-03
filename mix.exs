@@ -4,7 +4,7 @@ defmodule Kinda.MixProject do
   def project do
     [
       app: :kinda,
-      version: "0.9.1-dev",
+      version: "0.9.2-dev",
       elixir: "~> 1.9",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
