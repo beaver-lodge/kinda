@@ -8,11 +8,10 @@ const Kinds = struct {
     const CInt = kinda.ResourceKind(c_int, root_module ++ ".CInt");
     const StrInt = kinda.ResourceKind(extern struct {
         i: c_int = 0,
-        const Error = error{failToMakeInt};
         fn make(env: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
             var s: beam.binary = try beam.get_binary(env, args[0]);
             const integer = try std.fmt.parseInt(i32, s.data[0..s.size], 10);
-            return CInt.resource.make(env, integer) catch return Error.failToMakeInt;
+            return CInt.resource.make(env, integer) catch return beam.Error.failToMakeResource;
         }
         pub const maker = .{ make, 1 };
     }, root_module ++ ".StrInt");

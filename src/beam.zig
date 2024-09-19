@@ -269,7 +269,7 @@ pub var general_purpose_allocator = general_purpose_allocator_instance.allocator
 ///////////////////////////////////////////////////////////////////////////////
 
 /// errors for nif translation
-pub const Error = error{ FunctionClauseError, failToFetchResource, failToFetchResourcePtr, failToFetchResourceForArray, failToFetchResourceListElement, failToMakeResourceForOpaqueArray, failToFetchPrimitive, failToCreatePrimitive, failToMakeResourceForReturnType, failToAllocateMemoryForTupleSlice, failToFetchArgumentResource, failToMakePtrResource, failToFetchPtrResource, failToMakeResourceForOpaquePtr, failToMakeArrayResource, failToMakeMutableArrayResource, failToFetchResourceOpaquePtr, failToFetchOffset, failToMakeResourceForExtractedObject, failToMakeObjectSize };
+pub const Error = error{ FunctionClauseError, failToMakeResource, failToFetchResource, failToFetchResourcePtr, failToFetchResourceForArray, failToFetchResourceListElement, failToMakeResourceForOpaqueArray, failToFetchPrimitive, failToCreatePrimitive, failToMakeResourceForReturnType, failToAllocateMemoryForTupleSlice, failToFetchArgumentResource, failToMakePtrResource, failToFetchPtrResource, failToMakeResourceForOpaquePtr, failToMakeArrayResource, failToMakeMutableArrayResource, failToFetchResourceOpaquePtr, failToFetchOffset, failToMakeResourceForExtractedObject, failToMakeObjectSize };
 
 /// errors for launching nif errors
 /// LaunchError Occurs when there's a problem launching a threaded nif.
@@ -1577,7 +1577,7 @@ pub fn make_resource(environment: env, value: anytype, rst: resource_type) !term
     const ptr: ?*anyopaque = e.enif_alloc_resource(rst, @sizeOf(RType));
     var obj: *RType = undefined;
     if (ptr == null) {
-        return Error.FunctionClauseError;
+        return Error.failToMakeResource;
     } else {
         obj = @ptrCast(@alignCast(ptr));
         obj.* = value;
