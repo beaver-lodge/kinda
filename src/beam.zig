@@ -101,7 +101,6 @@
 const e = @import("erl_nif");
 const std = @import("std");
 const builtin = @import("builtin");
-pub const print = @import("std").debug.print;
 
 ///////////////////////////////////////////////////////////////////////////////
 // BEAM allocator definitions
@@ -270,17 +269,7 @@ pub var general_purpose_allocator = general_purpose_allocator_instance.allocator
 ///////////////////////////////////////////////////////////////////////////////
 
 /// errors for nif translation
-pub const Error = error{
-    /// Translates to Elixir `FunctionClauseError`.
-    ///
-    /// This is the default mechanism for reporting that a Zigler nif function has
-    /// been incorrectly passed a value from the Elixir BEAM runtime.  This is very
-    /// important, as Zig is statically typed.
-    ///
-    /// support for users to be able to throw this value in their own Zig functions
-    /// is forthcoming.
-    FunctionClauseError,
-};
+pub const Error = error{ FunctionClauseError, failToFetchResource, failToFetchResourcePtr, failToFetchResourceForArray, failToFetchResourceListElement, failToMakeResourceForOpaqueArray, failToFetchPrimitive, failToCreatePrimitive, failToMakeResourceForReturnType, failToAllocateMemoryForTupleSlice, failToFetchArgumentResource, failToMakePtrResource, failToFetchPtrResource, failToMakeResourceForOpaquePtr, failToMakeArrayResource, failToMakeMutableArrayResource, failToFetchResourceOpaquePtr, failToFetchOffset, failToMakeResourceForExtractedObject, failToMakeObjectSize };
 
 /// errors for launching nif errors
 /// LaunchError Occurs when there's a problem launching a threaded nif.
@@ -1472,8 +1461,7 @@ pub fn fetch_resource(comptime T: type, environment: env, res_typ: resource_type
         const val: *T = @ptrCast(@alignCast(obj));
         return val.*;
     } else {
-        print("fail to get resource of type: {}\n", .{T});
-        return Error.FunctionClauseError;
+        return Error.failToFetchResource;
     }
 }
 
@@ -1488,13 +1476,12 @@ pub fn fetch_ptr_resource_wrapped(comptime T: type, environment: env, arg: term)
 pub fn fetch_resource_ptr(comptime T: type, environment: env, res_typ: resource_type, res_trm: term) !*T {
     var obj: ?*T = undefined;
     if (0 == e.enif_get_resource(environment, res_trm, res_typ, @ptrCast(&obj))) {
-        return Error.FunctionClauseError;
+        return Error.failToFetchResourcePtr;
     }
     if (obj != null) {
         return obj.?;
     } else {
-        print("fail to get ptr of resource of type: {}\n", .{T});
-        return Error.FunctionClauseError;
+        return Error.failToFetchResourcePtr;
     }
 }
 
@@ -1526,9 +1513,8 @@ pub fn get_resource_array_from_list(comptime ElementType: type, environment: env
         head = try get_head_and_iter(environment, &movable_list);
         if (fetch_resource(ElementType, environment, resource_type_element, head)) |value| {
             data_ptr[idx] = value;
-        } else |err| {
-            print("[Beaver] fail to get element #{} in list, expect resource of type: {s}\n", .{ idx, @typeName(ElementType) });
-            return err;
+        } else |_| {
+            return Error.failToFetchResourceListElement;
         }
         idx += 1;
     }
