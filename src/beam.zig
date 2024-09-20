@@ -101,7 +101,6 @@
 const e = @import("erl_nif");
 const std = @import("std");
 const builtin = @import("builtin");
-pub const print = @import("std").debug.print;
 
 ///////////////////////////////////////////////////////////////////////////////
 // BEAM allocator definitions
@@ -270,17 +269,7 @@ pub var general_purpose_allocator = general_purpose_allocator_instance.allocator
 ///////////////////////////////////////////////////////////////////////////////
 
 /// errors for nif translation
-pub const Error = error{
-    /// Translates to Elixir `FunctionClauseError`.
-    ///
-    /// This is the default mechanism for reporting that a Zigler nif function has
-    /// been incorrectly passed a value from the Elixir BEAM runtime.  This is very
-    /// important, as Zig is statically typed.
-    ///
-    /// support for users to be able to throw this value in their own Zig functions
-    /// is forthcoming.
-    FunctionClauseError,
-};
+pub const Error = error{ FunctionClauseError, failToMakeResource, failToFetchResource, failToFetchResourcePtr, failToFetchResourceForArray, failToFetchResourceListElement, failToMakeResourceForOpaqueArray, failToFetchPrimitive, failToCreatePrimitive, failToMakeResourceForReturnType, failToAllocateMemoryForTupleSlice, failToFetchArgumentResource, failToMakePtrResource, failToFetchPtrResource, failToMakeResourceForOpaquePtr, failToMakeArrayResource, failToMakeMutableArrayResource, failToFetchResourceOpaquePtr, failToFetchOffset, failToMakeResourceForExtractedObject, failToMakeObjectSize, failToInspectResourceBinary, failToGetBoolean };
 
 /// errors for launching nif errors
 /// LaunchError Occurs when there's a problem launching a threaded nif.
@@ -344,7 +333,6 @@ pub fn get(comptime T: type, env_: env, value: term) !T {
 /// Takes a BEAM int term and returns a `c_int` value.  Should only be used for
 /// C interop with Zig functions.
 ///
-/// Raises `beam.Error.FunctionClauseError` if the term is not `t:integer/0`
 pub fn get_c_int(environment: env, src_term: term) !c_int {
     var result: c_int = undefined;
     if (0 != e.enif_get_int(environment, src_term, &result)) {
@@ -357,7 +345,6 @@ pub fn get_c_int(environment: env, src_term: term) !c_int {
 /// Takes a BEAM int term and returns a `c_uint` value.  Should only be used for
 /// C interop with Zig functions.
 ///
-/// Raises `beam.Error.FunctionClauseError` if the term is not `t:integer/0`
 pub fn get_c_uint(environment: env, src_term: term) !c_uint {
     var result: c_uint = undefined;
     if (0 != e.enif_get_uint(environment, src_term, &result)) {
@@ -370,7 +357,6 @@ pub fn get_c_uint(environment: env, src_term: term) !c_uint {
 /// Takes a BEAM int term and returns a `c_long` value.  Should only be used
 /// for C interop with Zig functions.
 ///
-/// Raises `beam.Error.FunctionClauseError` if the term is not `t:integer/0`
 pub fn get_c_long(environment: env, src_term: term) !c_long {
     var result: c_long = undefined;
     if (0 != e.enif_get_long(environment, src_term, &result)) {
@@ -383,7 +369,6 @@ pub fn get_c_long(environment: env, src_term: term) !c_long {
 /// Takes a BEAM int term and returns a `c_ulong` value.  Should only be used
 /// for C interop with Zig functions.
 ///
-/// Raises `beam.Error.FunctionClauseError` if the term is not `t:integer/0`
 pub fn get_c_ulong(environment: env, src_term: term) !c_ulong {
     var result: c_ulong = undefined;
     if (0 != e.enif_get_ulong(environment, src_term, &result)) {
@@ -396,7 +381,6 @@ pub fn get_c_ulong(environment: env, src_term: term) !c_ulong {
 /// Takes a BEAM int term and returns a `isize` value.  Should only be used
 /// for C interop.
 ///
-/// Raises `beam.Error.FunctionClauseError` if the term is not `t:integer/0`
 pub fn get_isize(environment: env, src_term: term) !isize {
     var result: i64 = undefined;
     if (0 != e.enif_get_long(environment, src_term, @ptrCast(&result))) {
@@ -409,7 +393,6 @@ pub fn get_isize(environment: env, src_term: term) !isize {
 /// Takes a BEAM int term and returns a `usize` value.  Zig idiomatically uses
 /// `usize` for its size values, so typically you should be using this function.
 ///
-/// Raises `beam.Error.FunctionClauseError` if the term is not `t:integer/0`
 pub fn get_usize(environment: env, src_term: term) !usize {
     var result: i64 = undefined;
     if (0 != e.enif_get_long(environment, src_term, @ptrCast(&result))) {
@@ -424,7 +407,6 @@ pub fn get_usize(environment: env, src_term: term) !usize {
 /// Note that this conversion function checks to make sure it's in range
 /// (`0..255`).
 ///
-/// Raises `beam.Error.FunctionClauseError` if the term is not `t:integer/0`
 pub fn get_u8(environment: env, src_term: term) !u8 {
     var result: c_int = undefined;
     if (0 != e.enif_get_int(environment, src_term, &result)) {
@@ -443,7 +425,6 @@ pub fn get_u8(environment: env, src_term: term) !u8 {
 /// Note that this conversion function checks to make sure it's in range
 /// (`0..65535`).
 ///
-/// Raises `beam.Error.FunctionClauseError` if the term is not `t:integer/0`
 pub fn get_u16(environment: env, src_term: term) !u16 {
     var result: c_int = undefined;
     if (0 != e.enif_get_int(environment, src_term, &result)) {
@@ -459,7 +440,6 @@ pub fn get_u16(environment: env, src_term: term) !u16 {
 
 /// Takes a BEAM int term and returns a `u32` value.
 ///
-/// Raises `beam.Error.FunctionClauseError` if the term is not `t:integer/0`
 pub fn get_u32(environment: env, src_term: term) !u32 {
     var result: c_uint = undefined;
     if (0 != e.enif_get_uint(environment, src_term, &result)) {
@@ -471,7 +451,6 @@ pub fn get_u32(environment: env, src_term: term) !u32 {
 
 /// Takes a BEAM int term and returns a `u64` value.
 ///
-/// Raises `beam.Error.FunctionClauseError` if the term is not `t:integer/0`
 pub fn get_u64(environment: env, src_term: term) !u64 {
     var result: c_ulong = undefined;
     if (0 != e.enif_get_ulong(environment, src_term, &result)) {
@@ -485,7 +464,6 @@ pub fn get_u64(environment: env, src_term: term) !u64 {
 ///
 /// Note that this conversion function does not currently do range checking.
 ///
-/// Raises `beam.Error.FunctionClauseError` if the term is not `t:integer/0`
 pub fn get_i32(environment: env, src_term: term) !i32 {
     var result: c_int = undefined;
     if (0 != e.enif_get_int(environment, src_term, &result)) {
@@ -499,7 +477,6 @@ pub fn get_i32(environment: env, src_term: term) !i32 {
 ///
 /// Note that this conversion function does not currently do range checking.
 ///
-/// Raises `beam.Error.FunctionClauseError` if the term is not `t:integer/0`
 pub fn get_i64(environment: env, src_term: term) !i64 {
     var result: i64 = undefined;
     if (0 != e.enif_get_long(environment, src_term, @ptrCast(&result))) {
@@ -516,7 +493,6 @@ pub fn get_i64(environment: env, src_term: term) !i64 {
 ///
 /// Note that this conversion function does not currently do range checking.
 ///
-/// Raises `beam.Error.FunctionClauseError` if the term is not `t:float/0`
 pub fn get_f16(environment: env, src_term: term) !f16 {
     var result: f64 = undefined;
     if (0 != e.enif_get_double(environment, src_term, &result)) {
@@ -530,7 +506,6 @@ pub fn get_f16(environment: env, src_term: term) !f16 {
 ///
 /// Note that this conversion function does not currently do range checking.
 ///
-/// Raises `beam.Error.FunctionClauseError` if the term is not `t:float/0`
 pub fn get_f32(environment: env, src_term: term) !f32 {
     var result: f64 = undefined;
     if (0 != e.enif_get_double(environment, src_term, &result)) {
@@ -542,7 +517,6 @@ pub fn get_f32(environment: env, src_term: term) !f32 {
 
 /// Takes a BEAM float term and returns an `f64` value.
 ///
-/// Raises `beam.Error.FunctionClauseError` if the term is not `t:float/0`
 pub fn get_f64(environment: env, src_term: term) !f64 {
     var result: f64 = undefined;
     if (0 != e.enif_get_double(environment, src_term, &result)) {
@@ -568,7 +542,6 @@ const __latin1 = e.ERL_NIF_LATIN1;
 /// Uses the standard `beam.allocator` allocator.  If you require a custom
 /// allocator, use `get_atom_slice_alloc/3`
 ///
-/// Raises `beam.Error.FunctionClauseError` if the term is not `t:atom/0`
 pub fn get_atom_slice(environment: env, src_term: atom) ![]u8 {
     return get_atom_slice_alloc(allocator, environment, src_term);
 }
@@ -576,7 +549,6 @@ pub fn get_atom_slice(environment: env, src_term: atom) ![]u8 {
 /// Takes a BEAM atom term and retrieves it as a slice `[]u8` value, with
 /// any allocator.
 ///
-/// Raises `beam.Error.FunctionClauseError` if the term is not `t:atom/0`
 pub fn get_atom_slice_alloc(a: Allocator, environment: env, src_term: atom) ![]u8 {
     var len: c_uint = undefined;
     var result: []u8 = undefined;
@@ -611,7 +583,6 @@ pub const binary = e.ErlNifBinary;
 /// contains any zero byte values.  Always use `get_char_slice/2` when
 /// C-interop is not necessary.
 ///
-/// Raises `beam.Error.FunctionClauseError` if the term is not `t:binary/0`
 pub fn get_c_string(environment: env, src_term: term) ![*c]u8 {
     var bin: binary = undefined;
     if (0 != e.enif_inspect_binary(environment, src_term, &bin)) {
@@ -624,7 +595,6 @@ pub fn get_c_string(environment: env, src_term: term) ![*c]u8 {
 /// Takes an BEAM `t:binary/0` term and retrieves it as a Zig character slice
 /// (`[]u8`)  No memory is allocated for this operation.
 ///
-/// Raises `beam.Error.FunctionClauseError` if the term is not `t:binary/0`
 pub fn get_char_slice(environment: env, src_term: term) ![]u8 {
     var bin: binary = undefined;
 
@@ -638,7 +608,6 @@ pub fn get_char_slice(environment: env, src_term: term) ![]u8 {
 /// Takes an BEAM `t:binary/0` term and returns the corresponding
 /// `binary` struct.
 ///
-/// Raises `beam.Error.FunctionClauseError` if the term is not `t:binary/0`
 pub fn get_binary(environment: env, src_term: term) !binary {
     var bin: binary = undefined;
     if (0 != e.enif_inspect_binary(environment, src_term, &bin)) {
@@ -661,7 +630,6 @@ pub const pid = e.ErlNifPid;
 /// own as to what you can do with this (for now), except as a argument
 /// for the `e.enif_send` function.
 ///
-/// Raises `beam.Error.FunctionClauseError` if the term is not `t:pid/0`
 pub fn get_pid(environment: env, src_term: term) !pid {
     var result: pid = undefined;
     if (0 != e.enif_get_local_pid(environment, src_term, &result)) {
@@ -674,9 +642,6 @@ pub fn get_pid(environment: env, src_term: term) !pid {
 /// shortcut for `e.enif_self`, marshalling into zig error style.
 ///
 /// returns the pid value if it's env is a process-bound environment, otherwise
-/// returns `beam.Error.FunctionClauseError`.
-///
-/// if you're in a threaded nif, it returns the correct `self` for the process
 /// running the wrapped function.  That way, `beam.self()` is safe to use when
 /// you swap between different execution modes.
 ///
@@ -734,7 +699,6 @@ pub fn send_advanced(c_env: env, to_pid: pid, m_env: env, msg: term) bool {
 /// Takes an Beam `t:tuple/0` term and returns it as a slice of `term` structs.
 /// Does *not* allocate memory for this operation.
 ///
-/// Raises `beam.Error.FunctionClauseError` if the term is not `t:tuple/0`
 pub fn get_tuple(environment: env, src_term: term) ![]term {
     var length: c_int = 0;
     var term_list: [*c]term = null;
@@ -750,7 +714,6 @@ pub fn get_tuple(environment: env, src_term: term) ![]term {
 
 /// Takes a BEAM `t:list/0` term and returns its length.
 ///
-/// Raises `beam.Error.FunctionClauseError` if the term is not `t:list/0`
 pub fn get_list_length(environment: env, list: term) !usize {
     var result: c_uint = undefined;
     if (0 != e.enif_get_list_length(environment, list, &result)) {
@@ -765,7 +728,6 @@ pub fn get_list_length(environment: env, list: term) !usize {
 /// In this function, the `list` value will be modified to the `tl` of the
 /// BEAM list, and the return value will be the BEAM term.
 ///
-/// Raises `beam.Error.FunctionClauseError` if the term is not `t:list/0`
 pub fn get_head_and_iter(environment: env, list: *term) !term {
     var head: term = undefined;
     if (0 != e.enif_get_list_cell(environment, list.*, &head, list)) {
@@ -781,10 +743,6 @@ pub fn get_head_and_iter(environment: env, list: *term) !term {
 /// The resulting slice will be allocated using the beam allocator, with
 /// ownership passed to the caller.  If you need to use a different allocator,
 /// use `get_slice_of_alloc/4`
-///
-/// Raises `beam.Error.FunctionClauseError` if the term is not `t:list/0`.
-/// Also raises `beam.Error.FunctionClauseError` if any of the terms is
-/// incompatible with the internal type
 ///
 /// supported internal types:
 /// - `c_int`
@@ -805,10 +763,6 @@ pub fn get_slice_of(comptime T: type, environment: env, list: term) ![]T {
 /// using any allocator you wish.
 ///
 /// ownership is passed to the caller.
-///
-/// Raises `beam.Error.FunctionClauseError` if the term is not `t:list/0`.
-/// Also raises `beam.Error.FunctionClauseError` if any of the terms is
-/// incompatible with the internal type.
 ///
 /// supported internal types:
 /// - `c_int`
@@ -861,7 +815,6 @@ const true_slice = "true"[0..];
 const false_slice = "false"[0..];
 /// Converts an BEAM `t:boolean/0` into a Zig `bool`.
 ///
-/// Raises `beam.Error.FunctionClauseError` if the term is not `t:boolean/0`.
 /// May potentially raise an out of memory error, as it must make an allocation
 /// to perform its conversion.
 pub fn get_bool(environment: env, val: term) !bool {
@@ -874,7 +827,7 @@ pub fn get_bool(environment: env, val: term) !bool {
     } else if (str_cmp(false_slice, str)) {
         return false;
     } else {
-        return Error.FunctionClauseError;
+        return Error.failToGetBoolean;
     }
 }
 
@@ -1264,8 +1217,7 @@ pub fn make_error_term(environment: env, val: term) term {
 ///////////////////////////////////////////////////////////////////////////////
 // refs
 
-/// Encapsulates `e.enif_make_ref` and allows it to return a
-/// FunctionClauseError.
+/// Encapsulates `e.enif_make_ref`
 pub fn make_ref(environment: env) term {
     return e.enif_make_ref(environment);
 }
@@ -1472,8 +1424,7 @@ pub fn fetch_resource(comptime T: type, environment: env, res_typ: resource_type
         const val: *T = @ptrCast(@alignCast(obj));
         return val.*;
     } else {
-        print("fail to get resource of type: {}\n", .{T});
-        return Error.FunctionClauseError;
+        return Error.failToFetchResource;
     }
 }
 
@@ -1488,13 +1439,12 @@ pub fn fetch_ptr_resource_wrapped(comptime T: type, environment: env, arg: term)
 pub fn fetch_resource_ptr(comptime T: type, environment: env, res_typ: resource_type, res_trm: term) !*T {
     var obj: ?*T = undefined;
     if (0 == e.enif_get_resource(environment, res_trm, res_typ, @ptrCast(&obj))) {
-        return Error.FunctionClauseError;
+        return Error.failToFetchResourcePtr;
     }
     if (obj != null) {
         return obj.?;
     } else {
-        print("fail to get ptr of resource of type: {}\n", .{T});
-        return Error.FunctionClauseError;
+        return Error.failToFetchResourcePtr;
     }
 }
 
@@ -1526,9 +1476,8 @@ pub fn get_resource_array_from_list(comptime ElementType: type, environment: env
         head = try get_head_and_iter(environment, &movable_list);
         if (fetch_resource(ElementType, environment, resource_type_element, head)) |value| {
             data_ptr[idx] = value;
-        } else |err| {
-            print("[Beaver] fail to get element #{} in list, expect resource of type: {s}\n", .{ idx, @typeName(ElementType) });
-            return err;
+        } else |_| {
+            return Error.failToFetchResourceListElement;
         }
         idx += 1;
     }
@@ -1541,7 +1490,7 @@ pub fn get_resource_array_from_binary(environment: env, resource_type_array: res
     const RType = [*c]u8;
     var bin: binary = undefined;
     if (0 == e.enif_inspect_binary(environment, binary_term, &bin)) {
-        return Error.FunctionClauseError;
+        return Error.failToInspectResourceBinary;
     }
     const ptr: ?*anyopaque = e.enif_alloc_resource(resource_type_array, @sizeOf(RType) + bin.size);
     var obj: *RType = undefined;
@@ -1591,7 +1540,7 @@ pub fn make_resource(environment: env, value: anytype, rst: resource_type) !term
     const ptr: ?*anyopaque = e.enif_alloc_resource(rst, @sizeOf(RType));
     var obj: *RType = undefined;
     if (ptr == null) {
-        return Error.FunctionClauseError;
+        return Error.failToMakeResource;
     } else {
         obj = @ptrCast(@alignCast(ptr));
         obj.* = value;
