@@ -7,7 +7,7 @@ defmodule KindaExampleTest do
              |> KindaExample.Native.to_term()
 
     assert match?(
-             %Kinda.CallError{message: :failToFetchArgumentResource, error_return_trace: _},
+             %Kinda.CallError{message: "Fail to fetch argument #2", error_return_trace: _},
              catch_error(KindaExample.NIF.kinda_example_add(1, "2"))
            )
   end
@@ -34,7 +34,7 @@ defmodule KindaExampleTest do
       assert txt =~ "to see the full stack trace, set KINDA_DUMP_STACK_TRACE=1"
     end
 
-    assert match?(%Kinda.CallError{message: :FunctionClauseError, error_return_trace: _}, err)
+    assert match?(%Kinda.CallError{message: "FunctionClauseError", error_return_trace: _}, err)
 
     assert KindaExample.NIF."Elixir.KindaExample.NIF.StrInt.make"("1")
            |> KindaExample.NIF."Elixir.KindaExample.NIF.CInt.primitive"() ==

@@ -1371,7 +1371,7 @@ fn writeStackTraceToBuffer(
 }
 
 pub fn make_exception(env_: env, exception_module: []const u8, err: anyerror, error_trace: ?*std.builtin.StackTrace) term {
-    const erl_err = make_atom(env_, @errorName(err));
+    const erl_err = make_slice(env_, @errorName(err));
     if (error_trace) |trace| {
         var stack_trace = make_nil(env_);
         if (std.posix.getenv("KINDA_DUMP_STACK_TRACE")) |KINDA_DUMP_STACK_TRACE| {
