@@ -31,6 +31,10 @@ pub fn ResourceKind(comptime ElementType: type, comptime module_name_: anytype) 
     return struct {
         pub const module_name = module_name_;
         pub const T = ElementType;
+        const PtrType = if (@typeInfo(ElementType) == .Struct and @hasDecl(ElementType, "PtrType"))
+            ElementType.PtrType
+        else
+            [*c]ElementType; // translate-c pointer type
         pub const resource = struct {
             pub var t: beam.resource_type = undefined;
             pub const name = @typeName(ElementType);
@@ -40,14 +44,10 @@ pub fn ResourceKind(comptime ElementType: type, comptime module_name_: anytype) 
             pub fn fetch(env: beam.env, arg: beam.term) !T {
                 return beam.fetch_resource(T, env, t, arg);
             }
-            pub fn fetch_ptr(env: beam.env, arg: beam.term) !*T {
-                return beam.fetch_resource_ptr(T, env, t, arg);
+            pub fn fetch_ptr(env: beam.env, arg: beam.term) !PtrType {
+                return beam.fetch_resource_ptr(PtrType, env, t, arg);
             }
         };
-        const PtrType = if (@typeInfo(ElementType) == .Struct and @hasDecl(ElementType, "PtrType"))
-            ElementType.PtrType
-        else
-            [*c]ElementType;
         pub const Ptr = struct {
             pub const module_name = module_name_ ++ ".Ptr";
             pub const T = PtrType;
@@ -65,7 +65,7 @@ pub fn ResourceKind(comptime ElementType: type, comptime module_name_: anytype) 
         const ArrayType = if (@typeInfo(ElementType) == .Struct and @hasDecl(ElementType, "ArrayType"))
             ElementType.ArrayType
         else
-            [*c]const ElementType;
+            [*c]const ElementType; // translate-c Array type
         pub const Array = struct {
             pub const module_name = module_name_ ++ ".Array";
             pub const T = ArrayType;
@@ -82,37 +82,37 @@ pub fn ResourceKind(comptime ElementType: type, comptime module_name_: anytype) 
             // get the array adress as a opaque array
             pub fn as_opaque(env: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
                 const array_ptr: ArrayType = @This().resource.fetch(env, args[0]) catch
-                    return beam.Error.failToFetchResourceForArray;
+                    return beam.Error.@"Fail to fetch resource for array";
                 return Internal.OpaqueArray.resource.make(env, @ptrCast(array_ptr)) catch
-                    return beam.Error.failToMakeResourceForOpaqueArray;
+                    return beam.Error.@"Fail to make resource for opaque array";
             }
         };
         fn ptr(env: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
-            return beam.get_resource_ptr_from_term(T, env, @This().resource.t, Ptr.resource.t, args[0]) catch return beam.Error.failToMakePtrResource;
+            return beam.get_resource_ptr_from_term(env, @This().PtrType, @This().resource.t, Ptr.resource.t, args[0]) catch return beam.Error.@"Fail to make ptr resource";
         }
         fn ptr_to_opaque(env: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
-            const typed_ptr: Ptr.T = Ptr.resource.fetch(env, args[0]) catch return beam.Error.failToFetchPtrResource;
-            return Internal.OpaquePtr.resource.make(env, @ptrCast(typed_ptr)) catch return beam.Error.failToMakeResourceForOpaquePtr;
+            const typed_ptr: Ptr.T = Ptr.resource.fetch(env, args[0]) catch return beam.Error.@"Fail to fetch ptr resource";
+            return Internal.OpaquePtr.resource.make(env, @ptrCast(typed_ptr)) catch return beam.Error.@"Fail to make resource for opaque ptr";
         }
         pub fn opaque_ptr(env: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
-            const ptr_to_resource_memory: Ptr.T = beam.fetch_resource_ptr(T, env, @This().resource.t, args[0]) catch return beam.Error.failToFetchPtrResource;
-            return Internal.OpaquePtr.resource.make(env, @ptrCast(ptr_to_resource_memory)) catch return beam.Error.failToMakeResourceForOpaquePtr;
+            const ptr_to_resource_memory: Ptr.T = beam.fetch_resource_ptr(@This().PtrType, env, @This().resource.t, args[0]) catch return beam.Error.@"Fail to fetch ptr resource";
+            return Internal.OpaquePtr.resource.make(env, @ptrCast(ptr_to_resource_memory)) catch return beam.Error.@"Fail to make resource for opaque ptr";
         }
         // the returned term owns the memory of the array.
         fn array(env: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
-            return beam.get_resource_array(T, env, @This().resource.t, Array.resource.t, args[0]) catch return beam.Error.failToMakeArrayResource;
+            return beam.get_resource_array(T, env, @This().resource.t, Array.resource.t, args[0]) catch return beam.Error.@"Fail to make array resource";
         }
         // the returned term owns the memory of the array.
         // TODO: mut array should be a dedicated resource type without reusing Ptr.resource.t
         fn mut_array(env: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
-            return beam.get_resource_array(T, env, @This().resource.t, Ptr.resource.t, args[0]) catch beam.Error.failToMakeMutableArrayResource;
+            return beam.get_resource_array(T, env, @This().resource.t, Ptr.resource.t, args[0]) catch beam.Error.@"Fail to make mutable array resource";
         }
         fn primitive(env: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
-            const v = resource.fetch(env, args[0]) catch return beam.Error.failToFetchPrimitive;
-            return beam.make(T, env, v) catch return beam.Error.failToCreatePrimitive;
+            const v = resource.fetch(env, args[0]) catch return beam.Error.@"Fail to fetch primitive";
+            return beam.make(T, env, v) catch return beam.Error.@"Fail to create primitive";
         }
         fn dump(env: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
-            const v: T = resource.fetch(env, args[0]) catch return beam.Error.failToFetchPrimitive;
+            const v: T = resource.fetch(env, args[0]) catch return beam.Error.@"Fail to fetch primitive";
             var buffer = try std.ArrayList(u8).initCapacity(std.heap.page_allocator, 100);
             defer buffer.deinit();
             const format_string = switch (@typeInfo(T)) {
@@ -123,25 +123,25 @@ pub fn ResourceKind(comptime ElementType: type, comptime module_name_: anytype) 
             return beam.make_slice(env, buffer.items);
         }
         fn append_to_struct(env: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
-            const v = resource.fetch(env, args[0]) catch return beam.Error.failToFetchPrimitive;
-            return beam.make(T, env, v) catch return beam.Error.failToCreatePrimitive;
+            const v = resource.fetch(env, args[0]) catch return beam.Error.@"Fail to fetch primitive";
+            return beam.make(T, env, v) catch return beam.Error.@"Fail to create primitive";
         }
         fn make(env: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
-            const v = beam.get(T, env, args[0]) catch return beam.Error.failToFetchPrimitive;
-            return resource.make(env, v) catch return beam.Error.failToCreatePrimitive;
+            const v = beam.get(T, env, args[0]) catch return beam.Error.@"Fail to fetch primitive";
+            return resource.make(env, v) catch return beam.Error.@"Fail to create primitive";
         }
-        const OpaquePtrError = error{ failToFetchResourceOpaquePtr, failToFetchOffset, failToAllocateMemoryForTupleSlice, failToMakeResourceForExtractedObject, failToMakeObjectSize };
+        const OpaquePtrError = error{ @"Fail to fetch resource opaque ptr", failToFetchOffset, @"Fail to allocate memory for tuple slice", @"Fail to make resource for extracted object", @"Fail to make object size" };
         fn make_from_opaque_ptr(env: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
             const ptr_to_read: Internal.OpaquePtr.T = Internal.OpaquePtr.resource.fetch(env, args[0]) catch
-                return beam.Error.failToFetchResourceOpaquePtr;
+                return beam.Error.@"Fail to fetch resource opaque ptr";
             const offset: Internal.USize.T = Internal.USize.resource.fetch(env, args[1]) catch
-                return beam.Error.failToFetchOffset;
+                return beam.Error.@"Fail to fetch offset";
             const ptr_int = @intFromPtr(ptr_to_read) + offset;
             const obj_ptr: *ElementType = @ptrFromInt(ptr_int);
-            var tuple_slice: []beam.term = beam.allocator.alloc(beam.term, 2) catch return beam.Error.failToAllocateMemoryForTupleSlice;
+            var tuple_slice: []beam.term = beam.allocator.alloc(beam.term, 2) catch return beam.Error.@"Fail to allocate memory for tuple slice";
             defer beam.allocator.free(tuple_slice);
-            tuple_slice[0] = resource.make(env, obj_ptr.*) catch return beam.Error.failToMakeResourceForExtractedObject;
-            tuple_slice[1] = beam.make(Internal.USize.T, env, @sizeOf(ElementType)) catch return beam.Error.failToMakeObjectSize;
+            tuple_slice[0] = resource.make(env, obj_ptr.*) catch return beam.Error.@"Fail to make resource for extracted object";
+            tuple_slice[1] = beam.make(Internal.USize.T, env, @sizeOf(ElementType)) catch return beam.Error.@"Fail to make object size";
             return beam.make_tuple(env, tuple_slice);
         }
         const maker = if (@typeInfo(ElementType) == .Struct and @hasDecl(ElementType, "maker"))
@@ -293,7 +293,7 @@ pub fn NIFFunc(comptime Kinds: anytype, c: anytype, comptime name: anytype, attr
             var c_args: VariadicArgs() = undefined;
             inline for (FTI.params, args, 0..) |p, arg, i| {
                 const ArgKind = getKind(p.type.?);
-                c_args[i] = ArgKind.resource.fetch(env, arg) catch return beam.Error.failToFetchArgumentResource;
+                c_args[i] = ArgKind.resource.fetch(env, arg) catch return @field(beam.ArgumentError, "Fail to fetch argument #" ++ std.fmt.comptimePrint("{?}", .{i + 1}));
             }
             const rt = FTI.return_type.?;
             if (rt == void) {
@@ -301,11 +301,11 @@ pub fn NIFFunc(comptime Kinds: anytype, c: anytype, comptime name: anytype, attr
                 return beam.make_ok(env);
             } else {
                 const RetKind = getKind(rt);
-                var tuple_slice: []beam.term = beam.allocator.alloc(beam.term, 3) catch return beam.Error.failToAllocateMemoryForTupleSlice;
+                var tuple_slice: []beam.term = beam.allocator.alloc(beam.term, 3) catch return beam.Error.@"Fail to allocate memory for tuple slice";
                 defer beam.allocator.free(tuple_slice);
                 tuple_slice[0] = beam.make_atom(env, "kind");
                 tuple_slice[1] = beam.make_atom(env, RetKind.module_name);
-                const ret = RetKind.resource.make(env, variadic_call(c_args)) catch return beam.Error.failToMakeResourceForReturnType;
+                const ret = RetKind.resource.make(env, variadic_call(c_args)) catch return beam.Error.@"Fail to make resource for return type";
                 tuple_slice[2] = ret;
                 return beam.make_tuple(env, tuple_slice);
             }

@@ -269,7 +269,29 @@ pub var general_purpose_allocator = general_purpose_allocator_instance.allocator
 ///////////////////////////////////////////////////////////////////////////////
 
 /// errors for nif translation
-pub const Error = error{ FunctionClauseError, failToMakeResource, failToFetchResource, failToFetchResourcePtr, failToFetchResourceForArray, failToFetchResourceListElement, failToMakeResourceForOpaqueArray, failToFetchPrimitive, failToCreatePrimitive, failToMakeResourceForReturnType, failToAllocateMemoryForTupleSlice, failToFetchArgumentResource, failToMakePtrResource, failToFetchPtrResource, failToMakeResourceForOpaquePtr, failToMakeArrayResource, failToMakeMutableArrayResource, failToFetchResourceOpaquePtr, failToFetchOffset, failToMakeResourceForExtractedObject, failToMakeObjectSize, failToInspectResourceBinary, failToGetBoolean };
+pub const Error =
+    error{ @"Function clause error", @"Fail to make resource", @"Fail to fetch resource", @"Fail to fetch resource ptr", @"Fail to fetch resource for array", @"Fail to fetch resource list element", @"Fail to make resource for opaque array", @"Fail to fetch primitive", @"Fail to create primitive", @"Fail to make resource for return type", @"Fail to allocate memory for tuple slice", @"Fail to make ptr resource", @"Fail to fetch ptr resource", @"Fail to make resource for opaque ptr", @"Fail to make array resource", @"Fail to make mutable array resource", @"Fail to fetch resource opaque ptr", @"Fail to fetch offset", @"Fail to make resource for extracted object", @"Fail to make object size", @"Fail to inspect resource binary", @"Fail to get boolean" };
+
+pub const ArgumentError = error{
+    @"Fail to fetch argument #1",
+    @"Fail to fetch argument #2",
+    @"Fail to fetch argument #3",
+    @"Fail to fetch argument #4",
+    @"Fail to fetch argument #5",
+    @"Fail to fetch argument #6",
+    @"Fail to fetch argument #7",
+    @"Fail to fetch argument #8",
+    @"Fail to fetch argument #9",
+    @"Fail to fetch argument #10",
+    @"Fail to fetch argument #11",
+    @"Fail to fetch argument #12",
+    @"Fail to fetch argument #13",
+    @"Fail to fetch argument #14",
+    @"Fail to fetch argument #15",
+    @"Fail to fetch argument #16",
+    @"Fail to fetch argument #17",
+    @"Fail to fetch argument #18",
+};
 
 /// errors for launching nif errors
 /// LaunchError Occurs when there's a problem launching a threaded nif.
@@ -323,7 +345,7 @@ pub fn get(comptime T: type, env_: env, value: term) !T {
         f32 => return get_f32(env_, value),
         f64 => return get_f64(env_, value),
         bool => return get_bool(env_, value),
-        else => return Error.FunctionClauseError,
+        else => return Error.@"Function clause error",
     }
 }
 
@@ -338,7 +360,7 @@ pub fn get_c_int(environment: env, src_term: term) !c_int {
     if (0 != e.enif_get_int(environment, src_term, &result)) {
         return result;
     } else {
-        return Error.FunctionClauseError;
+        return Error.@"Function clause error";
     }
 }
 
@@ -350,7 +372,7 @@ pub fn get_c_uint(environment: env, src_term: term) !c_uint {
     if (0 != e.enif_get_uint(environment, src_term, &result)) {
         return result;
     } else {
-        return Error.FunctionClauseError;
+        return Error.@"Function clause error";
     }
 }
 
@@ -362,7 +384,7 @@ pub fn get_c_long(environment: env, src_term: term) !c_long {
     if (0 != e.enif_get_long(environment, src_term, &result)) {
         return result;
     } else {
-        return Error.FunctionClauseError;
+        return Error.@"Function clause error";
     }
 }
 
@@ -374,7 +396,7 @@ pub fn get_c_ulong(environment: env, src_term: term) !c_ulong {
     if (0 != e.enif_get_ulong(environment, src_term, &result)) {
         return result;
     } else {
-        return Error.FunctionClauseError;
+        return Error.@"Function clause error";
     }
 }
 
@@ -386,7 +408,7 @@ pub fn get_isize(environment: env, src_term: term) !isize {
     if (0 != e.enif_get_long(environment, src_term, @ptrCast(&result))) {
         return @intCast(result);
     } else {
-        return Error.FunctionClauseError;
+        return Error.@"Function clause error";
     }
 }
 
@@ -398,7 +420,7 @@ pub fn get_usize(environment: env, src_term: term) !usize {
     if (0 != e.enif_get_long(environment, src_term, @ptrCast(&result))) {
         return @intCast(result);
     } else {
-        return Error.FunctionClauseError;
+        return Error.@"Function clause error";
     }
 }
 
@@ -413,10 +435,10 @@ pub fn get_u8(environment: env, src_term: term) !u8 {
         if ((result >= 0) and (result <= 0xFF)) {
             return @intCast(result);
         } else {
-            return Error.FunctionClauseError;
+            return Error.@"Function clause error";
         }
     } else {
-        return Error.FunctionClauseError;
+        return Error.@"Function clause error";
     }
 }
 
@@ -431,10 +453,10 @@ pub fn get_u16(environment: env, src_term: term) !u16 {
         if ((result >= 0) and (result <= 0xFFFF)) {
             return @intCast(result);
         } else {
-            return Error.FunctionClauseError;
+            return Error.@"Function clause error";
         }
     } else {
-        return Error.FunctionClauseError;
+        return Error.@"Function clause error";
     }
 }
 
@@ -445,7 +467,7 @@ pub fn get_u32(environment: env, src_term: term) !u32 {
     if (0 != e.enif_get_uint(environment, src_term, &result)) {
         return @intCast(result);
     } else {
-        return Error.FunctionClauseError;
+        return Error.@"Function clause error";
     }
 }
 
@@ -456,7 +478,7 @@ pub fn get_u64(environment: env, src_term: term) !u64 {
     if (0 != e.enif_get_ulong(environment, src_term, &result)) {
         return @intCast(result);
     } else {
-        return Error.FunctionClauseError;
+        return Error.@"Function clause error";
     }
 }
 
@@ -469,7 +491,7 @@ pub fn get_i32(environment: env, src_term: term) !i32 {
     if (0 != e.enif_get_int(environment, src_term, &result)) {
         return @intCast(result);
     } else {
-        return Error.FunctionClauseError;
+        return Error.@"Function clause error";
     }
 }
 
@@ -482,7 +504,7 @@ pub fn get_i64(environment: env, src_term: term) !i64 {
     if (0 != e.enif_get_long(environment, src_term, @ptrCast(&result))) {
         return result;
     } else {
-        return Error.FunctionClauseError;
+        return Error.@"Function clause error";
     }
 }
 
@@ -498,7 +520,7 @@ pub fn get_f16(environment: env, src_term: term) !f16 {
     if (0 != e.enif_get_double(environment, src_term, &result)) {
         return @floatCast(result);
     } else {
-        return Error.FunctionClauseError;
+        return Error.@"Function clause error";
     }
 }
 
@@ -511,7 +533,7 @@ pub fn get_f32(environment: env, src_term: term) !f32 {
     if (0 != e.enif_get_double(environment, src_term, &result)) {
         return @floatCast(result);
     } else {
-        return Error.FunctionClauseError;
+        return Error.@"Function clause error";
     }
 }
 
@@ -522,7 +544,7 @@ pub fn get_f64(environment: env, src_term: term) !f64 {
     if (0 != e.enif_get_double(environment, src_term, &result)) {
         return result;
     } else {
-        return Error.FunctionClauseError;
+        return Error.@"Function clause error";
     }
 }
 
@@ -563,7 +585,7 @@ pub fn get_atom_slice_alloc(a: Allocator, environment: env, src_term: atom) ![]u
             unreachable;
         }
     } else {
-        return Error.FunctionClauseError;
+        return Error.@"Function clause error";
     }
 }
 
@@ -588,7 +610,7 @@ pub fn get_c_string(environment: env, src_term: term) ![*c]u8 {
     if (0 != e.enif_inspect_binary(environment, src_term, &bin)) {
         return bin.data;
     } else {
-        return Error.FunctionClauseError;
+        return Error.@"Function clause error";
     }
 }
 
@@ -601,7 +623,7 @@ pub fn get_char_slice(environment: env, src_term: term) ![]u8 {
     if (0 != e.enif_inspect_binary(environment, src_term, &bin)) {
         return bin.data[0..bin.size];
     } else {
-        return Error.FunctionClauseError;
+        return Error.@"Function clause error";
     }
 }
 
@@ -613,7 +635,7 @@ pub fn get_binary(environment: env, src_term: term) !binary {
     if (0 != e.enif_inspect_binary(environment, src_term, &bin)) {
         return bin;
     } else {
-        return Error.FunctionClauseError;
+        return Error.@"Function clause error";
     }
 }
 
@@ -635,7 +657,7 @@ pub fn get_pid(environment: env, src_term: term) !pid {
     if (0 != e.enif_get_local_pid(environment, src_term, &result)) {
         return result;
     } else {
-        return Error.FunctionClauseError;
+        return Error.@"Function clause error";
     }
 }
 
@@ -657,7 +679,7 @@ fn generic_self(environment: env) !pid {
     if (e.enif_self(environment, @ptrCast(&p))) |self_val| {
         return self_val.*;
     } else {
-        return Error.FunctionClauseError;
+        return Error.@"Function clause error";
     }
 }
 
@@ -705,7 +727,7 @@ pub fn get_tuple(environment: env, src_term: term) ![]term {
     if (0 != e.enif_get_tuple(environment, src_term, &length, &term_list)) {
         return term_list[0..(length - 1)];
     } else {
-        return Error.FunctionClauseError;
+        return Error.@"Function clause error";
     }
 }
 
@@ -719,7 +741,7 @@ pub fn get_list_length(environment: env, list: term) !usize {
     if (0 != e.enif_get_list_length(environment, list, &result)) {
         return @intCast(result);
     } else {
-        return Error.FunctionClauseError;
+        return Error.@"Function clause error";
     }
 }
 
@@ -733,7 +755,7 @@ pub fn get_head_and_iter(environment: env, list: *term) !term {
     if (0 != e.enif_get_list_cell(environment, list.*, &head, list)) {
         return head;
     } else {
-        return Error.FunctionClauseError;
+        return Error.@"Function clause error";
     }
 }
 
@@ -871,7 +893,7 @@ pub fn make(comptime T: type, environment: env, val: T) !term {
         f32 => return make_f32(environment, val),
         f64 => return make_f64(environment, val),
         ?*anyopaque => return make_u64(environment, @intFromPtr(val)),
-        else => return Error.FunctionClauseError,
+        else => return Error.@"Function clause error",
     }
 }
 
@@ -1350,7 +1372,7 @@ fn writeStackTraceToBuffer(
 }
 
 pub fn make_exception(env_: env, exception_module: []const u8, err: anyerror, error_trace: ?*std.builtin.StackTrace) term {
-    const erl_err = make_atom(env_, @errorName(err));
+    const erl_err = make_slice(env_, @errorName(err));
     if (error_trace) |trace| {
         var stack_trace = make_nil(env_);
         if (std.posix.getenv("KINDA_DUMP_STACK_TRACE")) |KINDA_DUMP_STACK_TRACE| {
@@ -1424,7 +1446,7 @@ pub fn fetch_resource(comptime T: type, environment: env, res_typ: resource_type
         const val: *T = @ptrCast(@alignCast(obj));
         return val.*;
     } else {
-        return Error.failToFetchResource;
+        return Error.@"Fail to fetch resource";
     }
 }
 
@@ -1436,16 +1458,12 @@ pub fn fetch_ptr_resource_wrapped(comptime T: type, environment: env, arg: term)
     return fetch_resource(*T, environment, T.resource_type, arg);
 }
 
-pub fn fetch_resource_ptr(comptime T: type, environment: env, res_typ: resource_type, res_trm: term) !*T {
-    var obj: ?*T = undefined;
+pub fn fetch_resource_ptr(comptime PtrT: type, environment: env, res_typ: resource_type, res_trm: term) !PtrT {
+    var obj: PtrT = undefined;
     if (0 == e.enif_get_resource(environment, res_trm, res_typ, @ptrCast(&obj))) {
-        return Error.failToFetchResourcePtr;
+        return Error.@"Fail to fetch resource ptr";
     }
-    if (obj != null) {
-        return obj.?;
-    } else {
-        return Error.failToFetchResourcePtr;
-    }
+    return obj;
 }
 
 // res_typ should be opened resource type of the array resource
@@ -1453,6 +1471,14 @@ pub fn get_resource_array_from_list(comptime ElementType: type, environment: env
     const size = try get_list_length(environment, list);
 
     const U8Ptr = [*c]u8;
+    switch (@typeInfo(ElementType)) {
+        .Struct => |s| {
+            if (s.layout != .@"extern") {
+                return Error.@"Fail to fetch resource list element";
+            }
+        },
+        else => {},
+    }
     const ArrayPtr = [*c]ElementType;
     const ptr: ?*anyopaque = e.enif_alloc_resource(resource_type_array, @sizeOf(ArrayPtr) + size * @sizeOf(ElementType));
     var data_ptr: ArrayPtr = undefined;
@@ -1477,7 +1503,7 @@ pub fn get_resource_array_from_list(comptime ElementType: type, environment: env
         if (fetch_resource(ElementType, environment, resource_type_element, head)) |value| {
             data_ptr[idx] = value;
         } else |_| {
-            return Error.failToFetchResourceListElement;
+            return Error.@"Fail to fetch resource list element";
         }
         idx += 1;
     }
@@ -1490,7 +1516,7 @@ pub fn get_resource_array_from_binary(environment: env, resource_type_array: res
     const RType = [*c]u8;
     var bin: binary = undefined;
     if (0 == e.enif_inspect_binary(environment, binary_term, &bin)) {
-        return Error.failToInspectResourceBinary;
+        return Error.@"Fail to inspect resource binary";
     }
     const ptr: ?*anyopaque = e.enif_alloc_resource(resource_type_array, @sizeOf(RType) + bin.size);
     var obj: *RType = undefined;
@@ -1518,19 +1544,18 @@ pub fn get_resource_array(comptime ElementType: type, environment: env, resource
         if (get_resource_array_from_binary(environment, resource_type_array, data)) |value| {
             return value;
         } else |_| {
-            return Error.FunctionClauseError;
+            return Error.@"Function clause error";
         }
     }
 }
-pub fn get_resource_ptr_from_term(comptime ElementType: type, environment: env, resource_type_element: resource_type, resource_type_ptr: resource_type, element: term) !term {
-    const RType = [*c]ElementType;
-    const ptr: ?*anyopaque = e.enif_alloc_resource(resource_type_ptr, @sizeOf(RType));
-    var obj: *RType = undefined;
+pub fn get_resource_ptr_from_term(environment: env, comptime PtrType: type, element_resource_type: resource_type, ptr_resource_type: resource_type, element: term) !term {
+    const ptr: ?*anyopaque = e.enif_alloc_resource(ptr_resource_type, @sizeOf(PtrType));
+    var obj: *PtrType = undefined;
     obj = @ptrCast(@alignCast(ptr));
     if (ptr == null) {
         unreachable();
     } else {
-        obj.* = try fetch_resource_ptr(ElementType, environment, resource_type_element, element);
+        obj.* = try fetch_resource_ptr(PtrType, environment, element_resource_type, element);
     }
     return e.enif_make_resource(environment, ptr);
 }
@@ -1540,7 +1565,7 @@ pub fn make_resource(environment: env, value: anytype, rst: resource_type) !term
     const ptr: ?*anyopaque = e.enif_alloc_resource(rst, @sizeOf(RType));
     var obj: *RType = undefined;
     if (ptr == null) {
-        return Error.failToMakeResource;
+        return Error.@"Fail to make resource";
     } else {
         obj = @ptrCast(@alignCast(ptr));
         obj.* = value;
