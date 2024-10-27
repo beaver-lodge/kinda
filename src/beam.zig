@@ -849,7 +849,7 @@ pub fn get_bool(environment: env, val: term) !bool {
     } else if (str_cmp(false_slice, str)) {
         return false;
     } else {
-        return Error.failToGetBoolean;
+        return Error.@"Fail to get boolean";
     }
 }
 
