@@ -269,7 +269,28 @@ pub var general_purpose_allocator = general_purpose_allocator_instance.allocator
 ///////////////////////////////////////////////////////////////////////////////
 
 /// errors for nif translation
-pub const Error = error{ FunctionClauseError, failToMakeResource, failToFetchResource, failToFetchResourcePtr, failToFetchResourceForArray, failToFetchResourceListElement, failToMakeResourceForOpaqueArray, failToFetchPrimitive, failToCreatePrimitive, failToMakeResourceForReturnType, failToAllocateMemoryForTupleSlice, failToFetchArgumentResource, failToMakePtrResource, failToFetchPtrResource, failToMakeResourceForOpaquePtr, failToMakeArrayResource, failToMakeMutableArrayResource, failToFetchResourceOpaquePtr, failToFetchOffset, failToMakeResourceForExtractedObject, failToMakeObjectSize, failToInspectResourceBinary, failToGetBoolean };
+pub const Error = error{ FunctionClauseError, failToMakeResource, failToFetchResource, failToFetchResourcePtr, failToFetchResourceForArray, failToFetchResourceListElement, failToFetchResourceListElementFromZigArray, failToMakeResourceForOpaqueArray, failToFetchPrimitive, failToCreatePrimitive, failToMakeResourceForReturnType, failToAllocateMemoryForTupleSlice, failToFetchArgumentResource, failToMakePtrResource, failToFetchPtrResource, failToMakeResourceForOpaquePtr, failToMakeArrayResource, failToMakeMutableArrayResource, failToFetchResourceOpaquePtr, failToFetchOffset, failToMakeResourceForExtractedObject, failToMakeObjectSize, failToInspectResourceBinary, failToGetBoolean };
+
+pub const ArgumentError = error{
+    @"Fail to fetch argument #1",
+    @"Fail to fetch argument #2",
+    @"Fail to fetch argument #3",
+    @"Fail to fetch argument #4",
+    @"Fail to fetch argument #5",
+    @"Fail to fetch argument #6",
+    @"Fail to fetch argument #7",
+    @"Fail to fetch argument #8",
+    @"Fail to fetch argument #9",
+    @"Fail to fetch argument #10",
+    @"Fail to fetch argument #11",
+    @"Fail to fetch argument #12",
+    @"Fail to fetch argument #13",
+    @"Fail to fetch argument #14",
+    @"Fail to fetch argument #15",
+    @"Fail to fetch argument #16",
+    @"Fail to fetch argument #17",
+    @"Fail to fetch argument #18",
+ };
 
 /// errors for launching nif errors
 /// LaunchError Occurs when there's a problem launching a threaded nif.
@@ -1436,16 +1457,12 @@ pub fn fetch_ptr_resource_wrapped(comptime T: type, environment: env, arg: term)
     return fetch_resource(*T, environment, T.resource_type, arg);
 }
 
-pub fn fetch_resource_ptr(comptime T: type, environment: env, res_typ: resource_type, res_trm: term) !*T {
-    var obj: ?*T = undefined;
+pub fn fetch_resource_ptr(comptime PtrT: type, environment: env, res_typ: resource_type, res_trm: term) !PtrT {
+    var obj: PtrT = undefined;
     if (0 == e.enif_get_resource(environment, res_trm, res_typ, @ptrCast(&obj))) {
         return Error.failToFetchResourcePtr;
     }
-    if (obj != null) {
-        return obj.?;
-    } else {
-        return Error.failToFetchResourcePtr;
-    }
+    return obj;
 }
 
 // res_typ should be opened resource type of the array resource
@@ -1453,6 +1470,14 @@ pub fn get_resource_array_from_list(comptime ElementType: type, environment: env
     const size = try get_list_length(environment, list);
 
     const U8Ptr = [*c]u8;
+    switch (@typeInfo(ElementType)) {
+        .Struct => |s| {
+            if (s.layout != .@"extern") {
+                return Error.failToFetchResourceListElement;
+            }
+        },
+        else => {},
+    }
     const ArrayPtr = [*c]ElementType;
     const ptr: ?*anyopaque = e.enif_alloc_resource(resource_type_array, @sizeOf(ArrayPtr) + size * @sizeOf(ElementType));
     var data_ptr: ArrayPtr = undefined;
@@ -1522,15 +1547,14 @@ pub fn get_resource_array(comptime ElementType: type, environment: env, resource
         }
     }
 }
-pub fn get_resource_ptr_from_term(comptime ElementType: type, environment: env, resource_type_element: resource_type, resource_type_ptr: resource_type, element: term) !term {
-    const RType = [*c]ElementType;
-    const ptr: ?*anyopaque = e.enif_alloc_resource(resource_type_ptr, @sizeOf(RType));
-    var obj: *RType = undefined;
+pub fn get_resource_ptr_from_term(environment: env, comptime PtrType: type, element_resource_type: resource_type, ptr_resource_type: resource_type, element: term) !term {
+    const ptr: ?*anyopaque = e.enif_alloc_resource(ptr_resource_type, @sizeOf(PtrType));
+    var obj: *PtrType = undefined;
     obj = @ptrCast(@alignCast(ptr));
     if (ptr == null) {
         unreachable();
     } else {
-        obj.* = try fetch_resource_ptr(ElementType, environment, resource_type_element, element);
+        obj.* = try fetch_resource_ptr(PtrType, environment, element_resource_type, element);
     }
     return e.enif_make_resource(environment, ptr);
 }

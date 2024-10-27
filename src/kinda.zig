@@ -31,6 +31,10 @@ pub fn ResourceKind(comptime ElementType: type, comptime module_name_: anytype) 
     return struct {
         pub const module_name = module_name_;
         pub const T = ElementType;
+        const PtrType = if (@typeInfo(ElementType) == .Struct and @hasDecl(ElementType, "PtrType"))
+            ElementType.PtrType
+        else
+            [*c]ElementType; // translate-c pointer type
         pub const resource = struct {
             pub var t: beam.resource_type = undefined;
             pub const name = @typeName(ElementType);
@@ -40,14 +44,10 @@ pub fn ResourceKind(comptime ElementType: type, comptime module_name_: anytype) 
             pub fn fetch(env: beam.env, arg: beam.term) !T {
                 return beam.fetch_resource(T, env, t, arg);
             }
-            pub fn fetch_ptr(env: beam.env, arg: beam.term) !*T {
-                return beam.fetch_resource_ptr(T, env, t, arg);
+            pub fn fetch_ptr(env: beam.env, arg: beam.term) !PtrType {
+                return beam.fetch_resource_ptr(PtrType, env, t, arg);
             }
         };
-        const PtrType = if (@typeInfo(ElementType) == .Struct and @hasDecl(ElementType, "PtrType"))
-            ElementType.PtrType
-        else
-            [*c]ElementType;
         pub const Ptr = struct {
             pub const module_name = module_name_ ++ ".Ptr";
             pub const T = PtrType;
@@ -65,7 +65,7 @@ pub fn ResourceKind(comptime ElementType: type, comptime module_name_: anytype) 
         const ArrayType = if (@typeInfo(ElementType) == .Struct and @hasDecl(ElementType, "ArrayType"))
             ElementType.ArrayType
         else
-            [*c]const ElementType;
+            [*c]const ElementType; // translate-c Array type
         pub const Array = struct {
             pub const module_name = module_name_ ++ ".Array";
             pub const T = ArrayType;
@@ -88,14 +88,14 @@ pub fn ResourceKind(comptime ElementType: type, comptime module_name_: anytype) 
             }
         };
         fn ptr(env: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
-            return beam.get_resource_ptr_from_term(T, env, @This().resource.t, Ptr.resource.t, args[0]) catch return beam.Error.failToMakePtrResource;
+            return beam.get_resource_ptr_from_term(env, @This().PtrType, @This().resource.t, Ptr.resource.t, args[0]) catch return beam.Error.failToMakePtrResource;
         }
         fn ptr_to_opaque(env: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
             const typed_ptr: Ptr.T = Ptr.resource.fetch(env, args[0]) catch return beam.Error.failToFetchPtrResource;
             return Internal.OpaquePtr.resource.make(env, @ptrCast(typed_ptr)) catch return beam.Error.failToMakeResourceForOpaquePtr;
         }
         pub fn opaque_ptr(env: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
-            const ptr_to_resource_memory: Ptr.T = beam.fetch_resource_ptr(T, env, @This().resource.t, args[0]) catch return beam.Error.failToFetchPtrResource;
+            const ptr_to_resource_memory: Ptr.T = beam.fetch_resource_ptr(@This().PtrType, env, @This().resource.t, args[0]) catch return beam.Error.failToFetchPtrResource;
             return Internal.OpaquePtr.resource.make(env, @ptrCast(ptr_to_resource_memory)) catch return beam.Error.failToMakeResourceForOpaquePtr;
         }
         // the returned term owns the memory of the array.
@@ -293,7 +293,7 @@ pub fn NIFFunc(comptime Kinds: anytype, c: anytype, comptime name: anytype, attr
             var c_args: VariadicArgs() = undefined;
             inline for (FTI.params, args, 0..) |p, arg, i| {
                 const ArgKind = getKind(p.type.?);
-                c_args[i] = ArgKind.resource.fetch(env, arg) catch return beam.Error.failToFetchArgumentResource;
+                c_args[i] = ArgKind.resource.fetch(env, arg) catch return @field(beam.ArgumentError, "Fail to fetch argument #" ++ std.fmt.comptimePrint("{?}", .{i+1}));
             }
             const rt = FTI.return_type.?;
             if (rt == void) {
