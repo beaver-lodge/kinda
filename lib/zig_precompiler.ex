@@ -40,6 +40,7 @@ defmodule Kinda.Precompiler do
     ~w(
       aarch64-apple-darwin
       x86_64-linux-gnu
+      aarch64-linux-gnu
     )
   end
 
