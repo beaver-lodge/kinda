@@ -32,7 +32,24 @@ defmodule Kinda.Precompiler do
 
   @impl ElixirMake.Precompiler
   def current_target do
-    current_target(:os.type())
+    current_target_from_env = current_target_from_env()
+
+    if current_target_from_env do
+      # overwrite current target triplet
+      {:ok, current_target_from_env}
+    else
+      current_target(:os.type())
+    end
+  end
+
+  defp current_target_from_env do
+    arch = System.get_env("TARGET_ARCH")
+    os = System.get_env("TARGET_OS")
+    abi = System.get_env("TARGET_ABI")
+
+    if !Enum.all?([arch, os, abi], &Kernel.is_nil/1) do
+      "#{arch}-#{os}-#{abi}"
+    end
   end
 
   @impl ElixirMake.Precompiler
