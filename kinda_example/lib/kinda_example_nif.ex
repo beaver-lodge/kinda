@@ -2,8 +2,7 @@ defmodule KindaExample.NIF do
   use Kinda.CodeGen, with: KindaExample.CodeGen, root: __MODULE__, forward: KindaExample.Native
 
   defmodule CInt do
-    use Kinda.ResourceKind,
-      forward_module: KindaExample.Native
+    use Kinda.ResourceKind, forward_module: KindaExample.Native
   end
 
   for path <-
@@ -12,6 +11,10 @@ defmodule KindaExample.NIF do
           Path.wildcard("../src/**/*.zig") ++
           ["../build.zig", "../build.example.zig"] do
     @external_resource path
+  end
+
+  defmodule StrInt do
+    use Kinda.ResourceKind, forward_module: KindaExample.Native
   end
 
   @on_load :load_nif

@@ -16,7 +16,7 @@ defmodule Kinda.CodeGen do
     end
   end
 
-  @callback kinds() :: KindDecl.t()
+  @callback kinds() :: [KindDecl.t()]
   @callback nifs() :: [{atom(), integer()}]
   def kinds(), do: []
 
