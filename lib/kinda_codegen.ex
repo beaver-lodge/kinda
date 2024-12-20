@@ -10,9 +10,9 @@ defmodule Kinda.CodeGen do
       mod = Keyword.fetch!(unquote(opts), :with)
       root = Keyword.fetch!(unquote(opts), :root)
       forward = Keyword.fetch!(unquote(opts), :forward)
-
-      Kinda.CodeGen.nif_ast(mod.kinds(), mod.nifs(), root, forward)
-      |> then(&Module.eval_quoted(__MODULE__, &1))
+      {ast, mf} = Kinda.CodeGen.nif_ast(mod.kinds(), mod.nifs(), root, forward)
+      ast |> Code.eval_quoted([], __ENV__)
+      mf
     end
   end
 
@@ -27,7 +27,9 @@ defmodule Kinda.CodeGen do
       |> Enum.map(&NIFDecl.from_resource_kind/1)
       |> List.flatten()
 
-    for nif <- nifs ++ extra_kind_nifs do
+    nifs = nifs ++ extra_kind_nifs
+
+    for nif <- nifs do
       nif =
         case nif do
           {wrapper_name, arity} when is_atom(wrapper_name) and is_integer(arity) ->
@@ -43,7 +45,7 @@ defmodule Kinda.CodeGen do
 
       args_ast = Macro.generate_unique_arguments(nif.arity, __MODULE__)
 
-      %NIFDecl{wrapper_name: wrapper_name, nif_name: nif_name} = nif
+      %NIFDecl{wrapper_name: wrapper_name, nif_name: nif_name, arity: arity} = nif
 
       wrapper_name =
         if is_bitstring(wrapper_name) do
@@ -52,21 +54,26 @@ defmodule Kinda.CodeGen do
           wrapper_name
         end
 
+      wrapper_ast =
+        if nif_name != wrapper_name do
+          quote do
+            def unquote(wrapper_name)(unquote_splicing(args_ast)) do
+              refs = Kinda.unwrap_ref([unquote_splicing(args_ast)])
+              ret = apply(__MODULE__, unquote(nif_name), refs)
+              unquote(forward_module).check!(ret)
+            end
+          end
+        end
+
       quote do
         @doc false
         def unquote(nif_name)(unquote_splicing(args_ast)),
-          do:
-            raise(
-              "NIF for resource kind is not implemented, or failed to load NIF library. Function: :\"#{unquote(nif_name)}\"/#{unquote(nif.arity)}"
-            )
+          do: :erlang.nif_error(:not_loaded)
 
-        def unquote(wrapper_name)(unquote_splicing(args_ast)) do
-          refs = Kinda.unwrap_ref([unquote_splicing(args_ast)])
-          ret = apply(__MODULE__, unquote(nif_name), refs)
-          unquote(forward_module).check!(ret)
-        end
+        unquote(wrapper_ast)
       end
+      |> then(&{&1, {nif_name, arity}})
     end
-    |> List.flatten()
+    |> Enum.unzip()
   end
 end
