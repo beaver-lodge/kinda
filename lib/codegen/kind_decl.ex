@@ -1,7 +1,7 @@
 defmodule Kinda.CodeGen.KindDecl do
   require Logger
 
-  @primitive_types for t <- ~w{
+  @primitive_types ~w{
     bool
     c_int
     c_uint
@@ -17,8 +17,7 @@ defmodule Kinda.CodeGen.KindDecl do
     u64
     u8
     usize
-  },
-                       do: String.to_atom(t)
+  }a
 
   @opaque_ptr {:optional_type, {:ref, [:*, :anyopaque]}}
   @opaque_array {:optional_type, {:ref, [:*, :const, :anyopaque]}}
