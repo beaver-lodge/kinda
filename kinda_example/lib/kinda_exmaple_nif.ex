@@ -1,6 +1,8 @@
 defmodule KindaExample.NIF do
-  use Kinda.CodeGen, with: KindaExample.CodeGen, root: __MODULE__, forward: KindaExample.Native
-
+  @nifs use Kinda.CodeGen,
+          with: KindaExample.CodeGen,
+          root: __MODULE__,
+          forward: KindaExample.Native
   defmodule CInt do
     use Kinda.ResourceKind,
       forward_module: KindaExample.Native
