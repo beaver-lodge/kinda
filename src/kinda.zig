@@ -210,12 +210,14 @@ pub fn open_internal_resource_types(env: beam.env) void {
 }
 
 const NIFFuncAttrs = struct { flags: u32 = 0, nif_name: ?[*c]const u8 = null };
-pub fn NIFFunc(comptime Kinds: anytype, c: anytype, comptime name: anytype, attrs: NIFFuncAttrs) e.ErlNifFunc {
+
+// wrap a c function to a bang nif
+pub fn BangFunc(comptime Kinds: anytype, c: anytype, comptime name: anytype) type {
     @setEvalBranchQuota(5000);
     const cfunction = @field(c, name);
     const FTI = @typeInfo(@TypeOf(cfunction)).Fn;
-    const flags = attrs.flags;
     return (struct {
+        pub const arity = FTI.params.len;
         fn getKind(comptime t: type) type {
             for (Kinds) |kind| {
                 switch (@typeInfo(t)) {
@@ -289,7 +291,7 @@ pub fn NIFFunc(comptime Kinds: anytype, c: anytype, comptime name: anytype, attr
                 else => @compileError("too many args"),
             };
         }
-        fn nif(env: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
+        pub fn nif(env: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
             var c_args: VariadicArgs() = undefined;
             inline for (FTI.params, args, 0..) |p, arg, i| {
                 const ArgKind = getKind(p.type.?);
@@ -310,6 +312,10 @@ pub fn NIFFunc(comptime Kinds: anytype, c: anytype, comptime name: anytype, attr
                 return beam.make_tuple(env, tuple_slice);
             }
         }
-        const entry = result.nif_with_flags(attrs.nif_name orelse name, FTI.params.len, nif, flags).entry;
-    }).entry;
+    });
+}
+
+pub fn NIFFunc(comptime Kinds: anytype, c: anytype, comptime name: anytype, attrs: NIFFuncAttrs) e.ErlNifFunc {
+    const bang = BangFunc(Kinds, c, name);
+    return result.nif_with_flags(attrs.nif_name orelse name, bang.arity, bang.nif, attrs.flags).entry;
 }
