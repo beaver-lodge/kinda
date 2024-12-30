@@ -291,6 +291,17 @@ pub fn BangFunc(comptime Kinds: anytype, c: anytype, comptime name: anytype) typ
                 else => @compileError("too many args"),
             };
         }
+        pub fn make_return(env: beam.env, rv: anytype) !beam.term {
+            const rt = FTI.return_type.?;
+            const RetKind = getKind(rt);
+            var tuple_slice: []beam.term = beam.allocator.alloc(beam.term, 3) catch return beam.Error.@"Fail to allocate memory for tuple slice";
+            defer beam.allocator.free(tuple_slice);
+            tuple_slice[0] = beam.make_atom(env, "kind");
+            tuple_slice[1] = beam.make_atom(env, RetKind.module_name);
+            const ret = RetKind.resource.make(env, rv) catch return beam.Error.@"Fail to make resource for return type";
+            tuple_slice[2] = ret;
+            return beam.make_tuple(env, tuple_slice);
+        }
         pub fn nif(env: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
             var c_args: VariadicArgs() = undefined;
             inline for (FTI.params, args, 0..) |p, arg, i| {
@@ -302,20 +313,13 @@ pub fn BangFunc(comptime Kinds: anytype, c: anytype, comptime name: anytype) typ
                 variadic_call(c_args);
                 return beam.make_ok(env);
             } else {
-                const RetKind = getKind(rt);
-                var tuple_slice: []beam.term = beam.allocator.alloc(beam.term, 3) catch return beam.Error.@"Fail to allocate memory for tuple slice";
-                defer beam.allocator.free(tuple_slice);
-                tuple_slice[0] = beam.make_atom(env, "kind");
-                tuple_slice[1] = beam.make_atom(env, RetKind.module_name);
-                const ret = RetKind.resource.make(env, variadic_call(c_args)) catch return beam.Error.@"Fail to make resource for return type";
-                tuple_slice[2] = ret;
-                return beam.make_tuple(env, tuple_slice);
+                return make_return(env, variadic_call(c_args));
             }
         }
     });
 }
 
-pub fn NIFFunc(comptime Kinds: anytype, c: anytype, comptime name: anytype, attrs: NIFFuncAttrs) e.ErlNifFunc {
+pub fn NIFFunc(comptime Kinds: anytype, c: anytype, comptime name: anytype, comptime attrs: NIFFuncAttrs) e.ErlNifFunc {
     const bang = BangFunc(Kinds, c, name);
     return result.nif_with_flags(attrs.nif_name orelse name, bang.arity, bang.nif, attrs.flags).entry;
 }
