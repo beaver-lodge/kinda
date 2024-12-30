@@ -291,14 +291,14 @@ pub fn BangFunc(comptime Kinds: anytype, c: anytype, comptime name: anytype) typ
                 else => @compileError("too many args"),
             };
         }
-        pub fn make_return(env: beam.env, rv: anytype) !beam.term {
+        pub fn wrap_ret_call(env: beam.env, args: anytype) !beam.term {
             const rt = FTI.return_type.?;
             const RetKind = getKind(rt);
             var tuple_slice: []beam.term = beam.allocator.alloc(beam.term, 3) catch return beam.Error.@"Fail to allocate memory for tuple slice";
             defer beam.allocator.free(tuple_slice);
             tuple_slice[0] = beam.make_atom(env, "kind");
             tuple_slice[1] = beam.make_atom(env, RetKind.module_name);
-            const ret = RetKind.resource.make(env, rv) catch return beam.Error.@"Fail to make resource for return type";
+            const ret = RetKind.resource.make(env, @call(.auto, variadic_call, .{args})) catch return beam.Error.@"Fail to make resource for return type";
             tuple_slice[2] = ret;
             return beam.make_tuple(env, tuple_slice);
         }
@@ -313,7 +313,7 @@ pub fn BangFunc(comptime Kinds: anytype, c: anytype, comptime name: anytype) typ
                 variadic_call(c_args);
                 return beam.make_ok(env);
             } else {
-                return make_return(env, variadic_call(c_args));
+                return wrap_ret_call(env, c_args);
             }
         }
     });
