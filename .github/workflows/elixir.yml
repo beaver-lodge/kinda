@@ -21,7 +21,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runs-on: ["ubuntu-latest"]
+        runs-on: ["ubuntu-22.04"]
         otp: ["24.2", "25.0"]
         elixir: ["1.13.0", "1.16.2", "1.18.0"]
         exclude:
