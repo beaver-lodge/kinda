@@ -31,7 +31,7 @@ pub fn ResourceKind(comptime ElementType: type, comptime module_name_: anytype) 
     return struct {
         pub const module_name = module_name_;
         pub const T = ElementType;
-        const PtrType = if (@typeInfo(ElementType) == .Struct and @hasDecl(ElementType, "PtrType"))
+        const PtrType = if (@typeInfo(ElementType) == .@"struct" and @hasDecl(ElementType, "PtrType"))
             ElementType.PtrType
         else
             [*c]ElementType; // translate-c pointer type
@@ -62,7 +62,7 @@ pub fn ResourceKind(comptime ElementType: type, comptime module_name_: anytype) 
                 }
             };
         };
-        const ArrayType = if (@typeInfo(ElementType) == .Struct and @hasDecl(ElementType, "ArrayType"))
+        const ArrayType = if (@typeInfo(ElementType) == .@"struct" and @hasDecl(ElementType, "ArrayType"))
             ElementType.ArrayType
         else
             [*c]const ElementType; // translate-c Array type
@@ -116,7 +116,7 @@ pub fn ResourceKind(comptime ElementType: type, comptime module_name_: anytype) 
             var buffer = try std.ArrayList(u8).initCapacity(std.heap.page_allocator, 100);
             defer buffer.deinit();
             const format_string = switch (@typeInfo(T)) {
-                .Pointer => "{*}\n",
+                .@"pointer" => "{*}\n",
                 else => "{?}\n",
             };
             try std.fmt.format(buffer.writer(), format_string, .{v});
@@ -144,19 +144,19 @@ pub fn ResourceKind(comptime ElementType: type, comptime module_name_: anytype) 
             tuple_slice[1] = beam.make(Internal.USize.T, env, @sizeOf(ElementType)) catch return beam.Error.@"Fail to make object size";
             return beam.make_tuple(env, tuple_slice);
         }
-        const maker = if (@typeInfo(ElementType) == .Struct and @hasDecl(ElementType, "maker"))
+        const maker = if (@typeInfo(ElementType) == .@"struct" and @hasDecl(ElementType, "maker"))
             ElementType.maker
         else
             .{ make, 1 };
-        const ptr_maker = if (@typeInfo(ElementType) == .Struct and @hasDecl(ElementType, "ptr"))
+        const ptr_maker = if (@typeInfo(ElementType) == .@"struct" and @hasDecl(ElementType, "ptr"))
             ElementType.ptr
         else
             ptr;
-        const extra_nifs = if (@typeInfo(ElementType) == .Struct and @hasDecl(ElementType, "nifs"))
+        const extra_nifs = if (@typeInfo(ElementType) == .@"struct" and @hasDecl(ElementType, "nifs"))
             ElementType.nifs
         else
             .{};
-        pub const nifs: [numOfNIFsPerKind + @typeInfo(@TypeOf(extra_nifs)).Struct.fields.len]e.ErlNifFunc = .{
+        pub const nifs: [numOfNIFsPerKind + @typeInfo(@TypeOf(extra_nifs)).@"struct".fields.len]e.ErlNifFunc = .{
             result.nif(module_name ++ ".ptr", 1, ptr_maker).entry,
             result.nif(module_name ++ ".ptr_to_opaque", 1, ptr_to_opaque).entry,
             result.nif(module_name ++ ".opaque_ptr", 1, opaque_ptr).entry,
@@ -169,12 +169,12 @@ pub fn ResourceKind(comptime ElementType: type, comptime module_name_: anytype) 
             result.nif(module_name ++ ".array_as_opaque", 1, @This().Array.as_opaque).entry,
         } ++ extra_nifs;
         pub fn open(env: beam.env) void {
-            const dtor = if (@typeInfo(ElementType) == .Struct and @hasDecl(ElementType, "destroy"))
+            const dtor = if (@typeInfo(ElementType) == .@"struct" and @hasDecl(ElementType, "destroy"))
                 ElementType.destroy
             else
                 beam.destroy_do_nothing;
             @This().resource.t = e.enif_open_resource_type(env, null, @This().resource.name, dtor, e.ERL_NIF_RT_CREATE | e.ERL_NIF_RT_TAKEOVER, null);
-            if (@typeInfo(ElementType) == .Struct and @hasDecl(ElementType, "resource_type")) {
+            if (@typeInfo(ElementType) == .@"struct" and @hasDecl(ElementType, "resource_type")) {
                 ElementType.resource_type = @This().resource.t;
             }
         }
@@ -215,13 +215,13 @@ const NIFFuncAttrs = struct { flags: u32 = 0, nif_name: ?[*c]const u8 = null };
 pub fn BangFunc(comptime Kinds: anytype, c: anytype, comptime name: anytype) type {
     @setEvalBranchQuota(5000);
     const cfunction = @field(c, name);
-    const FTI = @typeInfo(@TypeOf(cfunction)).Fn;
+    const FTI = @typeInfo(@TypeOf(cfunction)).@"fn";
     return (struct {
         pub const arity = FTI.params.len;
         fn getKind(comptime t: type) type {
             for (Kinds) |kind| {
                 switch (@typeInfo(t)) {
-                    .Pointer => {
+                    .@"pointer" => {
                         if (t == kind.Ptr.T) {
                             return kind.Ptr;
                         }

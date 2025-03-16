@@ -1,6 +1,7 @@
 .{
-    .name = "kinda_example",
+    .name = .kinda_example,
     .version = "0.0.0",
+    .fingerprint = 0xbd855cbe3871e932,
     .dependencies = .{
         .kinda = .{
             .path = "..",
