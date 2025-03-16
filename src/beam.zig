@@ -143,27 +143,23 @@ const Allocator = std.mem.Allocator;
 /// not threadsafe.  for a threadsafe allocator, use `beam.general_purpose_allocator`
 pub const allocator = raw_beam_allocator;
 
-pub const MAX_ALIGN = 8;
+pub const MAX_ALIGN: mem.Alignment = .@"8";
 
 const raw_beam_allocator = Allocator{
     .ptr = undefined,
     .vtable = &raw_beam_allocator_vtable,
 };
-const raw_beam_allocator_vtable = Allocator.VTable{
-    .alloc = raw_beam_alloc,
-    .resize = raw_beam_resize,
-    .free = raw_beam_free,
-};
+const raw_beam_allocator_vtable = Allocator.VTable{ .alloc = raw_beam_alloc, .resize = raw_beam_resize, .free = raw_beam_free, .remap = remap };
 
-fn raw_beam_alloc(_: *anyopaque, len: usize, ptr_align: u8, _: usize) ?[*]u8 {
-    if (ptr_align > MAX_ALIGN) {
+fn raw_beam_alloc(_: *anyopaque, len: usize, ptr_align: mem.Alignment, _: usize) ?[*]u8 {
+    if (ptr_align.compare(.gt, MAX_ALIGN)) {
         return null;
     }
     const ptr = e.enif_alloc(len) orelse return null;
     return @as([*]u8, @ptrCast(ptr));
 }
 
-fn raw_beam_resize(_: *anyopaque, buf: []u8, _: u8, new_len: usize, _: usize) bool {
+fn raw_beam_resize(_: *anyopaque, buf: []u8, _: mem.Alignment, new_len: usize, _: usize) bool {
     if (new_len == 0) {
         e.enif_free(buf.ptr);
         return true;
@@ -174,7 +170,7 @@ fn raw_beam_resize(_: *anyopaque, buf: []u8, _: u8, new_len: usize, _: usize) bo
     return false;
 }
 
-fn raw_beam_free(_: *anyopaque, buf: []u8, _: u8, _: usize) void {
+fn raw_beam_free(_: *anyopaque, buf: []u8, _: mem.Alignment, _: usize) void {
     e.enif_free(buf.ptr);
 }
 
@@ -193,11 +189,12 @@ const large_beam_allocator = Allocator{
     .ptr = undefined,
     .vtable = &large_beam_allocator_vtable,
 };
-const large_beam_allocator_vtable = Allocator.VTable{
-    .alloc = large_beam_alloc,
-    .resize = large_beam_resize,
-    .free = Allocator.NoOpFree(anyopaque).noOpFree,
-};
+const large_beam_allocator_vtable = Allocator.VTable{ .alloc = large_beam_alloc, .resize = large_beam_resize, .free = Allocator.NoOpFree(anyopaque).noOpFree, .remap = remap };
+
+fn remap(context: *anyopaque, memory: []u8, alignment: std.mem.Alignment, new_len: usize, return_address: usize) ?[*]u8 {
+    // can't use realloc directly because it might not respect alignment.
+    return if (raw_beam_resize(context, memory, alignment, new_len, return_address)) memory.ptr else null;
+}
 
 fn large_beam_alloc(_: *anyopaque, len: usize, alignment: u29, len_align: u29, return_address: usize) error{OutOfMemory}![]u8 {
     var ptr = try alignedAlloc(len, alignment, len_align, return_address);
@@ -1367,7 +1364,7 @@ fn writeStackTraceToBuffer(
     };
     var buffer = std.ArrayList(u8).init(allocator);
     defer buffer.deinit();
-    try std.debug.writeStackTrace(stack_trace, &buffer.writer(), allocator, debug_info, std.io.tty.detectConfig(std.io.getStdErr()));
+    try std.debug.writeStackTrace(stack_trace, &buffer.writer(), debug_info, std.io.tty.detectConfig(std.io.getStdErr()));
     return make_slice(environment, buffer.items);
 }
 
@@ -1466,7 +1463,7 @@ pub fn get_resource_array_from_list(comptime ElementType: type, environment: env
 
     const U8Ptr = [*c]u8;
     switch (@typeInfo(ElementType)) {
-        .Struct => |s| {
+        .@"struct" => |s| {
             if (s.layout != .@"extern") {
                 return Error.@"Fail to fetch resource list element";
             }

@@ -9,7 +9,7 @@ pub fn build(b: *std.Build) void {
         .name = "KindaExampleNIF",
         .root_source_file = b.path("native/zig-src/main.zig"),
         .optimize = .Debug,
-        .target = b.host,
+        .target = b.standardTargetOptions(.{}),
     });
     const kinda = b.dependencyFromBuildZig(@import("kinda"), .{});
     lib.root_module.addImport("kinda", kinda.module("kinda"));
