@@ -4,9 +4,9 @@ defmodule Kinda.CodeGen.NIFDecl do
   @type t() :: %__MODULE__{
           wrapper_name: nil | String.t(),
           nif_name: nil | String.t(),
-          arity: integer()
+          params: [String.t()] | integer()
         }
-  defstruct nif_name: nil, arity: 0, wrapper_name: nil
+  defstruct nif_name: nil, arity: 0, wrapper_name: nil, params: nil
 
   # TODO: make this extensible
   def from_resource_kind(%KindDecl{module_name: module_name, kind_functions: kind_functions}) do
@@ -26,7 +26,7 @@ defmodule Kinda.CodeGen.NIFDecl do
       %__MODULE__{
         nif_name: Module.concat(module_name, f),
         wrapper_name: Module.concat(module_name, f),
-        arity: a
+        params: a
       }
     end
   end
