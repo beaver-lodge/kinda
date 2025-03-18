@@ -36,16 +36,28 @@ defmodule Kinda.CodeGen do
             %NIFDecl{
               wrapper_name: wrapper_name,
               nif_name: Module.concat(root_module, wrapper_name),
-              arity: arity
+              params: arity
+            }
+
+          {wrapper_name, params} when is_atom(wrapper_name) and is_list(params) ->
+            %NIFDecl{
+              wrapper_name: wrapper_name,
+              nif_name: Module.concat(root_module, wrapper_name),
+              params: params
             }
 
           %NIFDecl{} ->
             nif
         end
 
-      args_ast = Macro.generate_unique_arguments(nif.arity, __MODULE__)
+      {args_ast, arity} =
+        if is_list(nif.params) do
+          {Enum.map(nif.params, &Macro.var(&1, __MODULE__)), length(nif.params)}
+        else
+          {Macro.generate_unique_arguments(nif.params, __MODULE__), nif.params}
+        end
 
-      %NIFDecl{wrapper_name: wrapper_name, nif_name: nif_name, arity: arity} = nif
+      %NIFDecl{wrapper_name: wrapper_name, nif_name: nif_name} = nif
 
       wrapper_name =
         if is_bitstring(wrapper_name) do
