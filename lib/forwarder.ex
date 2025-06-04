@@ -4,5 +4,4 @@ defmodule Kinda.Forwarder do
   @callback array() :: :ok | :error
   @callback to_term() :: :ok | :error
   @callback opaque_ptr() :: :ok | :error
-  @callback bag() :: :ok | :error
 end

@@ -336,6 +336,8 @@ pub fn get(comptime T: type, env_: env, value: term) !T {
         u16 => return get_u16(env_, value),
         u32 => return get_u32(env_, value),
         u64 => return get_u64(env_, value),
+        i8 => return get_i8(env_, value),
+        i16 => return get_i16(env_, value),
         i32 => return get_i32(env_, value),
         i64 => return get_i64(env_, value),
         f16 => return get_f16(env_, value),
@@ -474,6 +476,42 @@ pub fn get_u64(environment: env, src_term: term) !u64 {
     var result: c_ulong = undefined;
     if (0 != e.enif_get_ulong(environment, src_term, &result)) {
         return @intCast(result);
+    } else {
+        return Error.@"Function clause error";
+    }
+}
+
+/// Takes a BEAM int term and returns an `i8` value.
+///
+/// Note that this conversion function checks to make sure it's in range
+/// (`-128..127`).
+///
+pub fn get_i8(environment: env, src_term: term) !i8 {
+    var result: c_int = undefined;
+    if (0 != e.enif_get_int(environment, src_term, &result)) {
+        if ((result >= -128) and (result <= 127)) {
+            return @intCast(result);
+        } else {
+            return Error.@"Function clause error";
+        }
+    } else {
+        return Error.@"Function clause error";
+    }
+}
+
+/// Takes a BEAM int term and returns an `i16` value.
+///
+/// Note that this conversion function checks to make sure it's in range
+/// (`-32768..32767`).
+///
+pub fn get_i16(environment: env, src_term: term) !i16 {
+    var result: c_int = undefined;
+    if (0 != e.enif_get_int(environment, src_term, &result)) {
+        if ((result >= -32768) and (result <= 32767)) {
+            return @intCast(result);
+        } else {
+            return Error.@"Function clause error";
+        }
     } else {
         return Error.@"Function clause error";
     }
@@ -884,6 +922,8 @@ pub fn make(comptime T: type, environment: env, val: T) !term {
         c_ulong => return make_c_ulong(environment, val),
         isize => return make_isize(environment, val),
         usize => return make_usize(environment, val),
+        i8 => return make_i8(environment, val),
+        i16 => return make_i16(environment, val),
         i32 => return make_i32(environment, val),
         i64 => return make_i64(environment, val),
         f16 => return make_f16(environment, val),
@@ -932,6 +972,16 @@ pub fn make_c_long(environment: env, val: c_long) term {
 /// converts a `c_ulong` value into a BEAM `t:integer/0`.
 pub fn make_c_ulong(environment: env, val: c_ulong) term {
     return e.enif_make_ulong(environment, val);
+}
+
+/// converts an `i8` value into a BEAM `t:integer/0`.
+pub fn make_i8(environment: env, val: i8) term {
+    return e.enif_make_int(environment, @intCast(val));
+}
+
+/// converts an `i16` value into a BEAM `t:integer/0`.
+pub fn make_i16(environment: env, val: i16) term {
+    return e.enif_make_int(environment, @intCast(val));
 }
 
 /// converts an `isize` value into a BEAM `t:integer/0`.
