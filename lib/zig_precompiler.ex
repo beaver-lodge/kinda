@@ -39,6 +39,7 @@ defmodule Kinda.Precompiler do
   def all_supported_targets(:fetch) do
     ~w(
       aarch64-apple-darwin
+      x86_64-apple-darwin
       x86_64-linux-gnu
       aarch64-linux-gnu
     )
