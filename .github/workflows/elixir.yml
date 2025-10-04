@@ -82,7 +82,7 @@ jobs:
         run: |
           mix test
         env:
-          KINDA_PRINT_STACKTRACE: 1
+          KINDA_DUMP_STACK_TRACE: 1
       - name: Precompile
         working-directory: ./kinda_example
         env:
