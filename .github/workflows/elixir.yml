@@ -67,11 +67,13 @@ jobs:
         run: |
           zig fmt --check src
           zig fmt --check kinda_example/native/zig-src
+      - name: Install gdb
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gdb
       - name: Run tests (example with gdb)
         working-directory: ./kinda_example
         run: |
-          sudo apt update
-          sudo apt install -y gdb
           bash ../scripts/gdb.sh test
       - name: Run tests (example)
         working-directory: ./kinda_example
@@ -81,6 +83,12 @@ jobs:
         working-directory: ./kinda_example
         run: |
           mix test
+        env:
+          KINDA_DUMP_STACK_TRACE: 1
+      - name: Run tests (example with gdb and stacktrace)
+        working-directory: ./kinda_example
+        run: |
+          bash ../scripts/gdb.sh test
         env:
           KINDA_DUMP_STACK_TRACE: 1
       - name: Precompile
