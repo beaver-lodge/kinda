@@ -117,7 +117,7 @@ pub fn ResourceKind(comptime ElementType: type, comptime module_name_: anytype) 
             var buffer = try std.array_list.Managed(u8).initCapacity(std.heap.page_allocator, 100);
             defer buffer.deinit();
             const format_string = switch (@typeInfo(T)) {
-                .@"pointer" => "{*}\n",
+                .pointer => "{*}\n",
                 else => "{any}\n",
             };
             try std.fmt.format(buffer.writer(), format_string, .{v});
@@ -222,7 +222,7 @@ pub fn BangFunc(comptime Kinds: anytype, c: anytype, comptime name: anytype) typ
         fn getKind(comptime t: type) type {
             for (Kinds) |kind| {
                 switch (@typeInfo(t)) {
-                    .@"pointer" => {
+                    .pointer => {
                         if (t == kind.Ptr.T) {
                             return kind.Ptr;
                         }

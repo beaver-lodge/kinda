@@ -63,6 +63,10 @@ jobs:
       - name: Check formatting of Elixir
         working-directory: ./kinda_example
         run: mix format --check-formatted
+      - name: Check formatting of Zig
+        run: |
+          zig fmt --check src
+          zig fmt --check kinda_example/native/zig-src
       - name: Run tests (example with gdb)
         working-directory: ./kinda_example
         run: |

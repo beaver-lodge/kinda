@@ -1403,8 +1403,6 @@ pub fn raise_assertion_error(env_: env) term {
     return e.enif_raise_exception(env_, make_atom(env_, assert_slice));
 }
 
-
-
 pub fn make_exception(env_: env, exception_module: []const u8, err: anyerror, error_trace: ?*std.builtin.StackTrace) term {
     const erl_err = make_slice(env_, @errorName(err));
     if (error_trace) |trace| {
