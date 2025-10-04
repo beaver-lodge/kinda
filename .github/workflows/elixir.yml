@@ -66,6 +66,7 @@ jobs:
       - name: Run tests (example with gdb)
         working-directory: ./kinda_example
         run: |
+          apt install -y gdb
           bash ../scripts/gdb.sh test
       - name: Run tests (example)
         working-directory: ./kinda_example
