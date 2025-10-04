@@ -63,6 +63,10 @@ jobs:
       - name: Check formatting of Elixir
         working-directory: ./kinda_example
         run: mix format --check-formatted
+      - name: Run tests (example with gdb)
+        working-directory: ./kinda_example
+        run: |
+          bash scripts/gdb.sh test
       - name: Run tests (example)
         working-directory: ./kinda_example
         run: |
