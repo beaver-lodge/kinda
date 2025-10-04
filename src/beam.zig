@@ -1408,7 +1408,8 @@ pub fn raise_assertion_error(env_: env) term {
 pub fn make_exception(env_: env, exception_module: []const u8, err: anyerror, error_trace: ?*std.builtin.StackTrace) term {
     const erl_err = make_slice(env_, @errorName(err));
     if (error_trace) |trace| {
-        if (std.posix.getenv("KINDA_DUMP_STACK_TRACE") != null) {
+        const KINDA_DUMP_STACK_TRACE = std.process.getEnvVarOwned(allocator, "KINDA_DUMP_STACK_TRACE") catch null;
+        if (KINDA_DUMP_STACK_TRACE != null) {
             std.debug.dumpStackTrace(trace.*);
         }
     }
