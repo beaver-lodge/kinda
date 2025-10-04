@@ -1,8 +1,8 @@
 const std = @import("std");
-const beam = @import("beam");
 const kinda = @import("kinda");
-const e = @import("erl_nif");
-const capi = @import("prelude.zig");
+const beam = kinda.beam;
+const e = kinda.erl_nif;
+const capi = @import("prelude.zig").c;
 const root_module = "Elixir.KindaExample.NIF";
 const Kinds = struct {
     const CInt = kinda.ResourceKind(c_int, root_module ++ ".CInt");

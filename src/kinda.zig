@@ -1,5 +1,6 @@
-const beam = @import("beam");
-const e = @import("erl_nif");
+pub const beam = @import("beam");
+pub const erl_nif = @import("erl_nif").c;
+const e = erl_nif;
 const std = @import("std");
 pub const result = @import("result.zig");
 
@@ -113,11 +114,11 @@ pub fn ResourceKind(comptime ElementType: type, comptime module_name_: anytype) 
         }
         fn dump(env: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
             const v: T = resource.fetch(env, args[0]) catch return beam.Error.@"Fail to fetch primitive";
-            var buffer = try std.ArrayList(u8).initCapacity(std.heap.page_allocator, 100);
+            var buffer = try std.array_list.Managed(u8).initCapacity(std.heap.page_allocator, 100);
             defer buffer.deinit();
             const format_string = switch (@typeInfo(T)) {
                 .@"pointer" => "{*}\n",
-                else => "{?}\n",
+                else => "{}\n",
             };
             try std.fmt.format(buffer.writer(), format_string, .{v});
             return beam.make_slice(env, buffer.items);
@@ -306,7 +307,7 @@ pub fn BangFunc(comptime Kinds: anytype, c: anytype, comptime name: anytype) typ
             var c_args: VariadicArgs() = undefined;
             inline for (FTI.params, args, 0..) |p, arg, i| {
                 const ArgKind = getKind(p.type.?);
-                c_args[i] = ArgKind.resource.fetch(env, arg) catch return @field(beam.ArgumentError, "Fail to fetch argument #" ++ std.fmt.comptimePrint("{?}", .{i + 1}));
+                c_args[i] = ArgKind.resource.fetch(env, arg) catch return @field(beam.ArgumentError, "Fail to fetch argument #" ++ std.fmt.comptimePrint("{d}", .{i + 1}));
             }
             const rt = FTI.return_type.?;
             if (rt == void) {

@@ -5,16 +5,20 @@ const os = builtin.os.tag;
 pub fn build(b: *std.Build) void {
     // Standard release options allow the person running `zig build` to select
     // between Debug, ReleaseSafe, ReleaseFast, and ReleaseSmall.
-    const lib = b.addSharedLibrary(.{
+    const target = b.standardTargetOptions(.{});
+    const optimize = b.standardOptimizeOption(.{});
+
+    const lib = b.addLibrary(.{
         .name = "KindaExampleNIF",
-        .root_source_file = b.path("native/zig-src/main.zig"),
-        .optimize = .Debug,
-        .target = b.standardTargetOptions(.{}),
+        .linkage = .dynamic,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("native/zig-src/main.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
     });
     const kinda = b.dependencyFromBuildZig(@import("kinda"), .{});
     lib.root_module.addImport("kinda", kinda.module("kinda"));
-    lib.root_module.addImport("erl_nif", kinda.module("erl_nif"));
-    lib.root_module.addImport("beam", kinda.module("beam"));
     if (os.isDarwin()) {
         lib.root_module.addRPathSpecial("@loader_path");
     } else {

@@ -98,7 +98,7 @@
 //!
 //! ```
 
-const e = @import("erl_nif");
+const e = @import("erl_nif").c;
 const std = @import("std");
 const builtin = @import("builtin");
 
@@ -299,8 +299,8 @@ pub const ThreadError = error{LaunchError};
 /// pointer to an opaque struct around without accessing it.
 pub const env = ?*e.ErlNifEnv;
 
-/// syntactic sugar for the BEAM term struct (`e.ErlNifTerm`)
-pub const term = e.ErlNifTerm;
+/// syntactic sugar for the BEAM term struct (`e.ERL_NIF_TERM`)
+pub const term = e.ERL_NIF_TERM;
 
 ///////////////////////////////////////////////////////////////////////////////
 // syntactic sugar: gets
@@ -1039,7 +1039,7 @@ pub fn make_atom(environment: env, atom_str: []const u8) term {
 /// is responsible for the resulting binary.  You are responsible for managing
 /// the allocation of the slice.
 pub fn make_slice(environment: env, val: []const u8) term {
-    var result: e.ErlNifTerm = undefined;
+    var result: e.ERL_NIF_TERM = undefined;
 
     var bin: [*]u8 = @ptrCast(e.enif_make_new_binary(environment, val.len, &result));
 
@@ -1057,7 +1057,7 @@ pub fn make_slice(environment: env, val: []const u8) term {
 /// is responsible for the resulting binary.  You are responsible for managing
 /// the allocation of the slice.
 pub fn make_c_string(environment: env, val: [*c]const u8) term {
-    const result: e.ErlNifTerm = undefined;
+    const result: e.ERL_NIF_TERM = undefined;
     var len: usize = 0;
 
     // first get the length of the c string.
@@ -1403,31 +1403,13 @@ pub fn raise_assertion_error(env_: env) term {
     return e.enif_raise_exception(env_, make_atom(env_, assert_slice));
 }
 
-fn writeStackTraceToBuffer(
-    environment: env,
-    stack_trace: std.builtin.StackTrace,
-) !term {
-    const debug_info = std.debug.getSelfDebugInfo() catch |err| {
-        std.debug.print("Unable to dump stack trace: Unable to open debug info: {s}. Will dump it to stderr\n", .{@errorName(err)});
-        std.debug.dumpStackTrace(stack_trace);
-        return err;
-    };
-    var buffer = std.ArrayList(u8).init(allocator);
-    defer buffer.deinit();
-    try std.debug.writeStackTrace(stack_trace, &buffer.writer(), debug_info, std.io.tty.detectConfig(std.io.getStdErr()));
-    return make_slice(environment, buffer.items);
-}
+
 
 pub fn make_exception(env_: env, exception_module: []const u8, err: anyerror, error_trace: ?*std.builtin.StackTrace) term {
     const erl_err = make_slice(env_, @errorName(err));
-    var stack_trace = make_nil(env_);
     if (error_trace) |trace| {
-        if (std.posix.getenv("KINDA_DUMP_STACK_TRACE")) |KINDA_DUMP_STACK_TRACE| {
-            if (std.mem.eql(u8, KINDA_DUMP_STACK_TRACE, "1")) {
-                stack_trace = writeStackTraceToBuffer(env_, trace.*) catch make_nil(env_);
-            } else if (std.mem.eql(u8, KINDA_DUMP_STACK_TRACE, "stderr")) {
-                std.debug.dumpStackTrace(trace.*);
-            }
+        if (std.posix.getenv("KINDA_DUMP_STACK_TRACE") != null) {
+            std.debug.dumpStackTrace(trace.*);
         }
     }
     var exception = e.enif_make_new_map(env_);
@@ -1436,9 +1418,6 @@ pub fn make_exception(env_: env, exception_module: []const u8, err: anyerror, er
     _ = e.enif_make_map_put(env_, exception, make_atom(env_, "__exception__"), make_bool(env_, true), &exception);
     // define the error
     _ = e.enif_make_map_put(env_, exception, make_atom(env_, "message"), erl_err, &exception);
-
-    // store the error return trace
-    _ = e.enif_make_map_put(env_, exception, make_atom(env_, "error_return_trace"), stack_trace, &exception);
 
     return exception;
 }

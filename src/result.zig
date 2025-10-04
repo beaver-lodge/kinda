@@ -1,11 +1,11 @@
 const beam = @import("beam");
-const e = @import("erl_nif");
+const e = @import("erl_nif").c;
 const std = @import("std");
 
 pub fn nif_with_flags(comptime name: [*c]const u8, comptime arity: usize, comptime f: anytype, comptime flags: u32) type {
     const ns = "Elixir.";
     return struct {
-        fn exported(env: beam.env, n: c_int, args: [*c]const beam.term) callconv(.C) beam.term {
+        fn exported(env: beam.env, n: c_int, args: [*c]const beam.term) callconv(.c) beam.term {
             return f(env, n, args) catch |err| {
                 const ert = @errorReturnTrace();
                 return beam.raise_exception(env, ns ++ "Kinda.CallError", err, ert);

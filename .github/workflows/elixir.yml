@@ -57,6 +57,11 @@ jobs:
       - name: Run tests
         run: |
           mix test
+      - name: Run tests with stacktrace
+        run: |
+          mix test
+        env:
+          KINDA_PRINT_STACKTRACE: 1
       - name: Install dependencies (example)
         working-directory: ./kinda_example
         run: mix deps.get
