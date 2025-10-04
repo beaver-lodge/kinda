@@ -8,7 +8,7 @@ defmodule KindaExampleTest do
              NIF.kinda_example_add(1, 2) |> Native.to_term()
 
     assert match?(
-             %Kinda.CallError{message: "Fail to fetch argument #2", error_return_trace: _},
+             %Kinda.CallError{message: "Fail to fetch argument #2"},
              catch_error(NIF.kinda_example_add(1, "2"))
            )
   end
@@ -19,20 +19,15 @@ defmodule KindaExampleTest do
              |> NIF."Elixir.KindaExample.NIF.CInt.primitive"()
 
     e = catch_error(NIF."Elixir.KindaExample.NIF.StrInt.make"(1))
-    assert Exception.message(e) =~ "Function clause error\n#{IO.ANSI.reset()}"
+    assert Exception.message(e) =~ "Function clause error\n"
 
     err = catch_error(NIF."Elixir.KindaExample.NIF.StrInt.make"(1))
     # only test this on macOS, it will crash on Linux
     txt = Exception.message(err)
 
-    if System.get_env("KINDA_DUMP_STACK_TRACE") == "1" do
-      assert txt =~ "src/beam.zig"
-      assert txt =~ "kinda_example/native/zig-src/main.zig"
-    else
-      assert txt =~ "to see the full stack trace, set KINDA_DUMP_STACK_TRACE=1"
-    end
+    assert txt =~ "to see the full stack trace, set KINDA_DUMP_STACK_TRACE=1"
 
-    assert match?(%Kinda.CallError{message: "Function clause error", error_return_trace: _}, err)
+    assert match?(%Kinda.CallError{message: "Function clause error"}, err)
 
     assert 1 ==
              NIF."Elixir.KindaExample.NIF.StrInt.make"("1")

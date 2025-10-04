@@ -36,7 +36,7 @@ jobs:
       - name: Set up Zig
         uses: goto-bus-stop/setup-zig@v1
         with:
-          version: 0.14.1
+          version: 0.15.1
       - uses: seanmiddleditch/gha-setup-ninja@master
       - name: Restore dependencies cache
         uses: actions/cache@v3
@@ -63,10 +63,26 @@ jobs:
       - name: Check formatting of Elixir
         working-directory: ./kinda_example
         run: mix format --check-formatted
+      - name: Check formatting of Zig
+        run: |
+          zig fmt --check src
+          zig fmt --check kinda_example/native/zig-src
+      - name: Run tests (example with gdb)
+        working-directory: ./kinda_example
+        run: |
+          sudo apt update
+          sudo apt install -y gdb
+          bash ../scripts/gdb.sh test
       - name: Run tests (example)
         working-directory: ./kinda_example
         run: |
           mix test --force
+      - name: Run tests (example with stacktrace)
+        working-directory: ./kinda_example
+        run: |
+          mix test
+        env:
+          KINDA_PRINT_STACKTRACE: 1
       - name: Precompile
         working-directory: ./kinda_example
         env:

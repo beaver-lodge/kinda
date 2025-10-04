@@ -1,5 +1,5 @@
 defmodule Kinda.CallError do
-  defexception [:message, :error_return_trace]
+  defexception [:message]
 
   @impl true
   def message(t) do
@@ -7,8 +7,7 @@ defmodule Kinda.CallError do
 
     """
     #{t.message}
-    #{IO.ANSI.reset()}
-    #{t.error_return_trace || notice}
+    #{notice}
     """
   end
 end
