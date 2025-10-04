@@ -10,13 +10,13 @@ pub const OpaqueStructType = struct {
     const Accessor: type = struct { maker: OpaqueMaker, offset: usize };
     const ArrayType = ?*anyopaque;
     const PtrType = ?*anyopaque;
-    storage: std.ArrayList(u8) = std.ArrayList(u8).init(beam.allocator),
+    storage: std.array_list.AlignedManaged(u8, null) = std.array_list.Managed(u8).init(beam.allocator),
     finalized: bool, // if it is finalized, can't append more fields to it. Only finalized struct can be addressed.
     accessors: std.ArrayList(Accessor),
 };
 
 pub const OpaqueField = extern struct {
-    storage: std.ArrayList(u8),
+    storage: std.array_list.AlignedManaged(u8, null),
     maker: type = OpaqueMaker,
 };
 
@@ -118,7 +118,7 @@ pub fn ResourceKind(comptime ElementType: type, comptime module_name_: anytype) 
             defer buffer.deinit();
             const format_string = switch (@typeInfo(T)) {
                 .@"pointer" => "{*}\n",
-                else => "{}\n",
+                else => "{any}\n",
             };
             try std.fmt.format(buffer.writer(), format_string, .{v});
             return beam.make_slice(env, buffer.items);
