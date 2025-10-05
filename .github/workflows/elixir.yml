@@ -11,9 +11,6 @@ concurrency:
   group: manx-build-and-test-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  KINDA_PRINT_LINKAGES: 1
-
 jobs:
   build:
     name: otp${{matrix.otp}}-ex${{matrix.elixir}} / ${{matrix.runs-on}}
