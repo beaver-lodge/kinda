@@ -85,6 +85,12 @@ jobs:
         working-directory: ./kinda_example
         run: |
           mix test --force
+      - name: Run tests (example with stack trace)
+        working-directory: ./kinda_example
+        run: |
+          mix test --force
+        env:
+          KINDA_DUMP_STACK_TRACE: "1"
       - name: Precompile
         working-directory: ./kinda_example
         env:
