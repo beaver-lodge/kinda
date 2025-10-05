@@ -14,9 +14,8 @@ fn formatTraceItem(writer: anytype, debug_info: *SelfInfo, address: usize) !void
         try formatEmptyTraceItem(writer);
         return;
     };
-    //defer module.deinit(debug_info_allocator.?);
 
-    const symbol_info = module.getSymbolAtAddress(std.heap.c_allocator, address) catch {
+    const symbol_info = module.getSymbolAtAddress(beam.allocator, address) catch {
         try formatEmptyTraceItem(writer);
         return;
     };
