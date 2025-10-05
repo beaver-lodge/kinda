@@ -1403,27 +1403,19 @@ pub fn raise_assertion_error(env_: env) term {
     return e.enif_raise_exception(env_, make_atom(env_, assert_slice));
 }
 
-pub fn make_exception(env_: env, exception_module: []const u8, err: anyerror, error_trace: ?*std.builtin.StackTrace) term {
+pub fn make_exception(env_: env, exception_module: []const u8, err: anyerror) term {
     const erl_err = make_slice(env_, @errorName(err));
-    if (error_trace) |trace| {
-        var value: [256]u8 = undefined;
-        var value_size: usize = value.len;
-        if (e.enif_getenv("KINDA_DUMP_STACK_TRACE", &value[0], &value_size) == 0) {
-            std.debug.dumpStackTrace(trace.*);
-        }
-    }
     var exception = e.enif_make_new_map(env_);
     // define the struct
     _ = e.enif_make_map_put(env_, exception, make_atom(env_, "__struct__"), make_atom(env_, exception_module), &exception);
     _ = e.enif_make_map_put(env_, exception, make_atom(env_, "__exception__"), make_bool(env_, true), &exception);
     // define the error
     _ = e.enif_make_map_put(env_, exception, make_atom(env_, "message"), erl_err, &exception);
-
     return exception;
 }
 
-pub fn raise_exception(env_: env, exception_module: []const u8, err: anyerror, error_trace: ?*std.builtin.StackTrace) term {
-    return e.enif_raise_exception(env_, make_exception(env_, exception_module, err, error_trace));
+pub fn raise_exception(env_: env, exception_module: []const u8, err: anyerror) term {
+    return e.enif_raise_exception(env_, make_exception(env_, exception_module, err));
 }
 
 /// !value
