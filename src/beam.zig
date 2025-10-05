@@ -1420,7 +1420,7 @@ fn writeStackTraceToBuffer(
     var buffer = std.array_list.Managed(u8).init(allocator);
     defer buffer.deinit();
     var adapted = buffer.writer().adaptToNewApi(&.{});
-    try stack_trace.format(&adapted.new_interface);
+    try format_stack_trace(stack_trace, &adapted.new_interface);
     return make_slice(environment, buffer.items);
 }
 
