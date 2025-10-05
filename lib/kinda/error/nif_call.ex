@@ -1,13 +1,10 @@
 defmodule Kinda.CallError do
-  defexception [:message]
+  defexception [:message, :error_return_trace]
 
   @impl true
-  def message(t) do
-    notice = "to see the full stack trace, set KINDA_DUMP_STACK_TRACE=1"
+  def message(%{message: msg, error_return_trace: nil}), do: msg
 
-    """
-    #{t.message}
-    #{notice}
-    """
+  def message(%{message: msg, error_return_trace: trace}) do
+    "#{msg}\n#{IO.ANSI.reset()}#{trace}"
   end
 end

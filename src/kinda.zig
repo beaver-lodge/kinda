@@ -10,13 +10,13 @@ pub const OpaqueStructType = struct {
     const Accessor: type = struct { maker: OpaqueMaker, offset: usize };
     const ArrayType = ?*anyopaque;
     const PtrType = ?*anyopaque;
-    storage: std.array_list.AlignedManaged(u8, null) = std.array_list.Managed(u8).init(beam.allocator),
+    storage: std.array_list.Managed(u8) = std.array_list.Managed(u8).init(beam.allocator),
     finalized: bool, // if it is finalized, can't append more fields to it. Only finalized struct can be addressed.
     accessors: std.ArrayList(Accessor),
 };
 
 pub const OpaqueField = extern struct {
-    storage: std.array_list.AlignedManaged(u8, null),
+    storage: std.array_list.Managed(u8),
     maker: type = OpaqueMaker,
 };
 

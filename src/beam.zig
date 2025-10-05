@@ -1403,14 +1403,22 @@ pub fn raise_assertion_error(env_: env) term {
     return e.enif_raise_exception(env_, make_atom(env_, assert_slice));
 }
 
+fn writeStackTraceToBuffer(
+    environment: env,
+    stack_trace: std.builtin.StackTrace,
+) !term {
+    var buffer = std.array_list.Managed(u8).init(allocator);
+    defer buffer.deinit();
+    var adapted = buffer.writer().adaptToNewApi(&.{});
+    try stack_trace.format(&adapted.new_interface);
+    return make_slice(environment, buffer.items);
+}
+
 pub fn make_exception(env_: env, exception_module: []const u8, err: anyerror, error_trace: ?*std.builtin.StackTrace) term {
     const erl_err = make_slice(env_, @errorName(err));
+    var stack_trace = make_nil(env_);
     if (error_trace) |trace| {
-        var value: [256]u8 = undefined;
-        var value_size: usize = value.len;
-        if (e.enif_getenv("KINDA_DUMP_STACK_TRACE", &value[0], &value_size) == 0) {
-            std.debug.dumpStackTrace(trace.*);
-        }
+        stack_trace = writeStackTraceToBuffer(env_, trace.*) catch make_nil(env_);
     }
     var exception = e.enif_make_new_map(env_);
     // define the struct
@@ -1418,6 +1426,7 @@ pub fn make_exception(env_: env, exception_module: []const u8, err: anyerror, er
     _ = e.enif_make_map_put(env_, exception, make_atom(env_, "__exception__"), make_bool(env_, true), &exception);
     // define the error
     _ = e.enif_make_map_put(env_, exception, make_atom(env_, "message"), erl_err, &exception);
+    _ = e.enif_make_map_put(env_, exception, make_atom(env_, "error_return_trace"), stack_trace, &exception);
 
     return exception;
 }
