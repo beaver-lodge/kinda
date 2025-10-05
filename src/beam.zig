@@ -1403,6 +1403,16 @@ pub fn raise_assertion_error(env_: env) term {
     return e.enif_raise_exception(env_, make_atom(env_, assert_slice));
 }
 
+pub fn format_stack_trace(st: std.builtin.StackTrace, writer: *std.io.Writer) std.io.Writer.Error!void {
+    if (builtin.os.tag == .freestanding) return;
+    const debug_info = std.debug.getSelfDebugInfo() catch |err| {
+        return writer.print("\nUnable to print stack trace: Unable to open debug info: {s}\n", .{@errorName(err)});
+    };
+    // we don't detect TTY here, because Zig's implementation of that use getenv which can lead to segfaults on glibc linux
+    std.debug.writeStackTrace(st, writer, debug_info, .{ .no_color = true }) catch |err| {
+        try writer.print("Unable to print stack trace: {s}\n", .{@errorName(err)});
+    };
+}
 fn writeStackTraceToBuffer(
     environment: env,
     stack_trace: std.builtin.StackTrace,
