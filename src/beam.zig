@@ -1408,10 +1408,7 @@ pub fn format_stack_trace(st: std.builtin.StackTrace, writer: *std.io.Writer) st
     const debug_info = std.debug.getSelfDebugInfo() catch |err| {
         return writer.print("\nUnable to print stack trace: Unable to open debug info: {s}\n", .{@errorName(err)});
     };
-    // we don't detect TTY here, because Zig's implementation of that use getenv which can lead to segfaults on glibc linux
-    std.debug.writeStackTrace(st, writer, debug_info, .no_color) catch |err| {
-        try writer.print("Unable to print stack trace: {s}\n", .{@errorName(err)});
-    };
+    try @import("debug.zig").formatStackTrace(writer, st, debug_info, "  ");
 }
 fn writeStackTraceToBuffer(
     environment: env,
