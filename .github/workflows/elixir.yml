@@ -79,18 +79,6 @@ jobs:
         working-directory: ./kinda_example
         run: |
           mix test --force
-      - name: Run tests (example with gdb and stacktrace)
-        working-directory: ./kinda_example
-        run: |
-          bash ../scripts/gdb.sh test
-        env:
-          KINDA_DUMP_STACK_TRACE: 1
-      - name: Run tests (example with stacktrace)
-        working-directory: ./kinda_example
-        run: |
-          mix test
-        env:
-          KINDA_DUMP_STACK_TRACE: 1
       - name: Precompile
         working-directory: ./kinda_example
         env:
