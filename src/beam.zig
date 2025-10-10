@@ -98,7 +98,7 @@
 //!
 //! ```
 
-const e = @import("erl_nif.zig").c;
+const e = @import("kinda.zig").erl_nif;
 const std = @import("std");
 const builtin = @import("builtin");
 
