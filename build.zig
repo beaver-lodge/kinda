@@ -1,19 +1,17 @@
 const std = @import("std");
 
 pub fn build(b: *std.Build) !void {
-    const erl_nif = b.addModule(
-        "erl_nif",
-        .{ .root_source_file = b.path("src/erl_nif.zig") },
-    );
-    const beam = b.addModule(
-        "beam",
-        .{ .root_source_file = b.path("src/beam.zig") },
-    );
-    beam.addImport("erl_nif", erl_nif);
     const kinda = b.addModule(
         "kinda",
         .{ .root_source_file = b.path("src/kinda.zig") },
     );
-    kinda.addImport("erl_nif", erl_nif);
-    kinda.addImport("beam", beam);
+
+    // Get Erlang include directory
+    const elixir_cmd = b.addSystemCommand(&.{
+        "elixir",
+        "--eval",
+        ":code.root_dir() |> Path.join(~s[erts-#{:erlang.system_info(:version)}]) |> Path.join(~s[include]) |> dbg |> IO.puts()",
+    });
+    const erl_include_dir = elixir_cmd.captureStdOut();
+    kinda.addIncludePath(erl_include_dir);
 }

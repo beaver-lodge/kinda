@@ -1,5 +1,5 @@
-const beam = @import("beam");
-const e = @import("erl_nif").c;
+const beam = @import("beam.zig");
+const e = @import("erl_nif.zig").c;
 const std = @import("std");
 
 pub fn is_stack_trace_enabled() bool {

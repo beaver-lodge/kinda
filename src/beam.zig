@@ -98,7 +98,7 @@
 //!
 //! ```
 
-const e = @import("erl_nif").c;
+const e = @import("erl_nif.zig").c;
 const std = @import("std");
 const builtin = @import("builtin");
 
