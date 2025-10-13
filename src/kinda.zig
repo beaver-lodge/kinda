@@ -1,5 +1,7 @@
-pub const beam = @import("beam");
-pub const erl_nif = @import("erl_nif").c;
+pub const beam = @import("beam.zig");
+pub const erl_nif = @cImport({
+    @cInclude("erl_nif.h");
+});
 const e = erl_nif;
 const std = @import("std");
 pub const result = @import("result.zig");
