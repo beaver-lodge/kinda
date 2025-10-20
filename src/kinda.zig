@@ -44,6 +44,15 @@ pub fn ResourceKind(comptime ElementType: type, comptime module_name_: anytype) 
             pub fn make(env: beam.env, value: T) !beam.term {
                 return beam.make_resource(env, value, t);
             }
+            pub fn make_kind(env: beam.env, value: T) !beam.term {
+                var tuple_slice: []beam.term = beam.allocator.alloc(beam.term, 3) catch return beam.Error.@"Fail to allocate memory for tuple slice";
+                defer beam.allocator.free(tuple_slice);
+                tuple_slice[0] = beam.make_atom(env, "kind");
+                tuple_slice[1] = beam.make_atom(env, module_name);
+                const ret = resource.make(env, value) catch return beam.Error.@"Fail to make resource for return type";
+                tuple_slice[2] = ret;
+                return beam.make_tuple(env, tuple_slice);
+            }
             pub fn fetch(env: beam.env, arg: beam.term) !T {
                 return beam.fetch_resource(T, env, t, arg);
             }
