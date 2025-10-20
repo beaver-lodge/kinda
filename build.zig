@@ -6,7 +6,7 @@ pub fn build(b: *std.Build) !void {
         .{ .root_source_file = b.path("src/kinda.zig") },
     );
     // For ZLS integration, add the ERTS include path if not building with elixir_make
-    if (!(try std.process.hasEnvVar(b.allocator, "ERTS_INCLUDE_DIR")))  {
+    if (!(try std.process.hasEnvVar(b.allocator, "ERTS_INCLUDE_DIR"))) {
         const argv = [_][]const u8{
             "erl",
             "-eval",
