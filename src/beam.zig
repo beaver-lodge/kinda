@@ -703,7 +703,6 @@ pub fn get_pid(environment: env, src_term: term) !pid {
 /// you swap between different execution modes.
 ///
 /// if you need the process mailbox for the actual spawned thread, use `e.enif_self`
-
 pub fn self(environment: env) !pid {
     var p: pid = undefined;
     if (e.enif_self(environment, @ptrCast(&p))) |self_val| {
