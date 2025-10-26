@@ -267,7 +267,7 @@ pub var general_purpose_allocator = general_purpose_allocator_instance.allocator
 
 /// errors for nif translation
 pub const Error =
-    error{ @"Function clause error", @"Fail to make resource", @"Fail to fetch resource", @"Fail to fetch resource ptr", @"Fail to fetch resource for array", @"Fail to fetch resource list element", @"Fail to make resource for opaque array", @"Fail to fetch primitive", @"Fail to create primitive", @"Fail to make resource for return type", @"Fail to allocate memory for tuple slice", @"Fail to make ptr resource", @"Fail to fetch ptr resource", @"Fail to make resource for opaque ptr", @"Fail to make array resource", @"Fail to make mutable array resource", @"Fail to fetch resource opaque ptr", @"Fail to fetch offset", @"Fail to make resource for extracted object", @"Fail to make object size", @"Fail to inspect resource binary", @"Fail to get boolean" };
+    error{ @"Function clause error", @"Fail to make resource", @"Fail to fetch resource", @"Fail to fetch resource ptr", @"Fail to fetch resource for array", @"Fail to fetch resource list element", @"Fail to make resource for opaque array", @"Fail to fetch primitive", @"Fail to create primitive", @"Fail to make resource for return type", @"Fail to allocate memory for tuple slice", @"Fail to make ptr resource", @"Fail to fetch ptr resource", @"Fail to make resource for opaque ptr", @"Fail to make array resource", @"Fail to make mutable array resource", @"Fail to fetch resource opaque ptr", @"Fail to fetch offset", @"Fail to make resource for extracted object", @"Fail to make object size", @"Fail to inspect resource binary", @"Fail to get boolean", @"Fail to get calling process" };
 
 pub const ArgumentError = error{
     @"Fail to fetch argument #1",
@@ -703,31 +703,14 @@ pub fn get_pid(environment: env, src_term: term) !pid {
 /// you swap between different execution modes.
 ///
 /// if you need the process mailbox for the actual spawned thread, use `e.enif_self`
-pub threadlocal var self: fn (env) Error!pid = generic_self;
 
-pub fn set_generic_self() void {
-    self = generic_self;
-}
-
-fn generic_self(environment: env) !pid {
+pub fn self(environment: env) !pid {
     var p: pid = undefined;
     if (e.enif_self(environment, @ptrCast(&p))) |self_val| {
         return self_val.*;
     } else {
-        return Error.@"Function clause error";
+        return Error.@"Fail to get calling process";
     }
-}
-
-// internal-use only.
-pub fn set_threaded_self() void {
-    self = threaded_self;
-}
-
-fn threaded_self(environment: env) !pid {
-    if (environment == yield_info.?.environment) {
-        return yield_info.?.parent;
-    }
-    return generic_self(environment);
 }
 
 /// shortcut for `e.enif_send`
@@ -1295,61 +1278,6 @@ pub fn make_ref(environment: env) term {
 // resources
 
 pub const resource_type = ?*e.ErlNifResourceType;
-
-///////////////////////////////////////////////////////////////////////////////
-// yielding NIFs
-
-/// transparently passes information into the yield statement.
-pub threadlocal var yield_info: ?*YieldInfo = null;
-
-pub fn Frame(function: anytype) type {
-    return struct {
-        yield_info: YieldInfo,
-        zig_frame: *@Frame(function),
-    };
-}
-
-pub const YieldError = error{
-    LaunchError,
-    Cancelled,
-};
-
-/// this function is called to tell zigler's scheduler that future rescheduling
-/// *or* cancellation is possible at this point.  For threaded nifs, it also
-/// serves as a potential cancellation point.
-pub fn yield() !void {
-    // only suspend if we are inside of a yielding nif
-    if (yield_info) |info| { // null, for synchronous nifs.
-        if (info.threaded) {
-            const should_cancel = @atomicLoad(YieldState, &info.state, .Monotonic) == .Cancelled;
-            if (should_cancel) {
-                return YieldError.Cancelled;
-            }
-        } else {
-            // must be yielding
-            suspend {
-                if (info.state == .Cancelled) return YieldError.Cancelled;
-                info.yield_frame = @frame();
-            }
-        }
-    }
-}
-
-pub const YieldState = enum { Running, Finished, Cancelled, Abandoned };
-
-pub const YieldInfo = struct {
-    yield_frame: ?anyframe = null,
-    state: YieldState = .Running,
-    threaded: bool = false,
-    errored: bool = false,
-    response: term = undefined,
-    parent: pid = undefined,
-    environment: env,
-};
-
-pub fn set_yield_response(what: term) void {
-    yield_info.?.response = what;
-}
 
 ///////////////////////////////////////////////////////////////////////////////
 // errors, etc.
