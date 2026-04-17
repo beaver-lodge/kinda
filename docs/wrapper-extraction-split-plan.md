@@ -27,6 +27,8 @@ What is already true:
   - `Kinda.Wrapper.Manifest`
   - `Kinda.Wrapper.Extract`
   - `Kinda.Wrapper.Generate`
+  - `Kinda.Wrapper.Policy`
+  - `Kinda.Wrapper.CallbackBridge`
 - `beaver` now ships:
   - `Beaver.MLIR.WrapperPolicy`
 - `beaver`'s [gen_stub.exs](/Users/tsai/oss/beaver/native/tools/wrapper/gen_stub.exs:1)
@@ -38,10 +40,13 @@ What is already true:
 
 What is not yet true:
 
-- `Kinda.Wrapper.Policy` does not exist yet
 - `beaver` still owns final emission policy
 - callback-heavy MLIR APIs are still documented as unsupported backlog, not yet
   bridged
+- but they are no longer only a flat reason atom
+  - they now have a framework-owned callback-bridge metadata shape
+  - and `Kinda.Wrapper.Generate` now exposes a callback-bridge backlog report
+    surface
 
 ## Current State
 
@@ -303,6 +308,7 @@ the result" wrappers. They need one or more of:
 The right future move is:
 
 - keep generic extraction/generation in `kinda`
+- keep callback-bridge metadata in `kinda`
 - add a later callback-bridge layer in `kinda`
 - then migrate these APIs out of the flat `unsupported_nifs` bucket
 

@@ -3,10 +3,15 @@ defmodule Kinda.Wrapper.Generate do
   Generic emission helpers for wrapper manifests.
   """
 
+  alias Kinda.Wrapper.CallbackBridge
+  alias Kinda.Wrapper.Function
   alias Kinda.Wrapper.Manifest
+  alias Kinda.Wrapper.Policy
 
   @spec elixir_functions(Manifest.t(), module()) :: [{atom(), [atom()]}]
   def elixir_functions(%Manifest{functions: functions}, policy) do
+    assert_policy!(policy)
+
     Enum.flat_map(functions, fn function ->
       name = String.to_atom(function.name)
       params = Enum.map(function.params, &String.to_atom/1)
@@ -26,12 +31,38 @@ defmodule Kinda.Wrapper.Generate do
 
   @spec zig_entries(Manifest.t(), module()) :: [String.t()]
   def zig_entries(%Manifest{functions: functions}, policy) do
+    assert_policy!(policy)
+
     Enum.flat_map(functions, fn function ->
       function.name
       |> String.to_atom()
       |> policy.variants()
       |> Enum.map(&policy.zig_entry/1)
     end)
+  end
+
+  @type callback_bridge_backlog_entry :: %{
+          function: Function.t(),
+          callback_bridge: CallbackBridge.t()
+        }
+
+  @spec callback_bridge_backlog(Manifest.t(), module()) :: [callback_bridge_backlog_entry()]
+  def callback_bridge_backlog(%Manifest{functions: functions}, policy) do
+    assert_policy!(policy)
+
+    Enum.flat_map(functions, fn function ->
+      case policy.callback_bridge(String.to_atom(function.name)) do
+        nil -> []
+        callback_bridge -> [%{function: function, callback_bridge: callback_bridge}]
+      end
+    end)
+  end
+
+  @spec render_callback_bridge_report(Manifest.t(), module()) :: String.t()
+  def render_callback_bridge_report(manifest, policy) do
+    manifest
+    |> callback_bridge_backlog(policy)
+    |> inspect(pretty: true, limit: :infinity, printable_limit: :infinity)
   end
 
   @spec render_zig_nif_entries(Manifest.t(), module()) :: String.t()
@@ -70,6 +101,15 @@ defmodule Kinda.Wrapper.Generate do
     :ok
   end
 
+  @spec write_callback_bridge_report(Manifest.t(), module(), nil | String.t()) :: :ok
+  def write_callback_bridge_report(_manifest, _policy, nil), do: :ok
+
+  def write_callback_bridge_report(manifest, policy, path) do
+    path
+    |> Path.expand()
+    |> write_file(render_callback_bridge_report(manifest, policy))
+  end
+
   defp write_file(dst, txt) do
     tmp_dir = System.get_env("MIX_APP_PATH") || System.tmp_dir() || make_tmp_dir()
     tmp = Path.join(tmp_dir, "tmp-#{System.pid()}--#{Path.basename(dst)}")
@@ -90,5 +130,14 @@ defmodule Kinda.Wrapper.Generate do
     tmp_dir = Path.expand("./tmp")
     File.mkdir_p!(tmp_dir)
     tmp_dir
+  end
+
+  defp assert_policy!(policy) do
+    behaviours = policy.module_info(:attributes)[:behaviour] || []
+
+    if Policy not in behaviours do
+      raise ArgumentError,
+            "expected #{inspect(policy)} to implement #{inspect(Policy)}"
+    end
   end
 end
