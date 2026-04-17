@@ -26,18 +26,20 @@ What is already true:
   - `Kinda.Wrapper.Function`
   - `Kinda.Wrapper.Manifest`
   - `Kinda.Wrapper.Extract`
+  - `Kinda.Wrapper.Generate`
 - `beaver` now ships:
   - `Beaver.MLIR.WrapperPolicy`
 - `beaver`'s [gen_stub.exs](/Users/tsai/oss/beaver/native/tools/wrapper/gen_stub.exs:1)
   no longer walks Clang AST directly
 - it now consumes:
   - `Kinda.Wrapper.Extract.from_clang_ast/1`
+  - `Kinda.Wrapper.Generate.write_elixir_manifest/3`
+  - `Kinda.Wrapper.Generate.write_zig_nif_entries/3`
 
 What is not yet true:
 
-- `Kinda.Wrapper.Generate` does not exist yet
 - `Kinda.Wrapper.Policy` does not exist yet
-- `beaver` still owns final emission policy and output formatting
+- `beaver` still owns final emission policy
 - callback-heavy MLIR APIs are still documented as unsupported backlog, not yet
   bridged
 
