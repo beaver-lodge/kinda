@@ -54,9 +54,9 @@ jobs:
         run: mix deps.get
       - name: Check formatting of Elixir
         run: mix format --check-formatted
-      - name: Run tests
+      - name: Run root verifier
         run: |
-          mix test
+          mix kinda.verify
       - name: Install dependencies (example)
         working-directory: ./kinda_example
         run: mix deps.get
