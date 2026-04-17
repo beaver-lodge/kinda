@@ -46,6 +46,22 @@ defmodule Kinda.Wrapper.Generate do
           callback_bridge: CallbackBridge.t()
         }
 
+  @type callback_bridge_manifest_function :: %{
+          String.t() => String.t() | non_neg_integer() | [String.t()]
+        }
+
+  @type callback_bridge_manifest_metadata :: %{
+          String.t() => String.t() | [String.t()]
+        }
+
+  @type callback_bridge_manifest_entry :: %{
+          String.t() => callback_bridge_manifest_function() | callback_bridge_manifest_metadata()
+        }
+
+  @type callback_bridge_manifest :: %{
+          String.t() => pos_integer() | [callback_bridge_manifest_entry()]
+        }
+
   @spec callback_bridge_backlog(Manifest.t(), module()) :: [callback_bridge_backlog_entry()]
   def callback_bridge_backlog(%Manifest{functions: functions}, policy) do
     assert_policy!(policy)
@@ -63,6 +79,29 @@ defmodule Kinda.Wrapper.Generate do
     manifest
     |> callback_bridge_backlog(policy)
     |> inspect(pretty: true, limit: :infinity, printable_limit: :infinity)
+  end
+
+  @spec callback_bridge_manifest(Manifest.t(), module()) :: callback_bridge_manifest()
+  def callback_bridge_manifest(manifest, policy) do
+    %{
+      "version" => 1,
+      "entries" =>
+        Enum.map(callback_bridge_backlog(manifest, policy), fn %{function: function, callback_bridge: bridge} ->
+          %{
+            "function" => %{
+              "name" => function.name,
+              "arity" => function.arity,
+              "params" => function.params
+            },
+            "callback_bridge" => %{
+              "function" => Atom.to_string(bridge.function),
+              "reason" => Atom.to_string(bridge.reason),
+              "scheduler" => Atom.to_string(bridge.scheduler),
+              "facets" => Enum.map(bridge.facets, &Atom.to_string/1)
+            }
+          }
+        end)
+    }
   end
 
   @spec render_zig_nif_entries(Manifest.t(), module()) :: String.t()
@@ -108,6 +147,22 @@ defmodule Kinda.Wrapper.Generate do
     path
     |> Path.expand()
     |> write_file(render_callback_bridge_report(manifest, policy))
+  end
+
+  @spec write_callback_bridge_manifest(
+          Manifest.t(),
+          module(),
+          nil | String.t(),
+          (callback_bridge_manifest() -> iodata())
+        ) :: :ok
+  def write_callback_bridge_manifest(_manifest, _policy, nil, _encoder), do: :ok
+
+  def write_callback_bridge_manifest(manifest, policy, path, encoder) when is_function(encoder, 1) do
+    manifest
+    |> callback_bridge_manifest(policy)
+    |> encoder.()
+    |> IO.iodata_to_binary()
+    |> then(&write_file(Path.expand(path), &1))
   end
 
   defp write_file(dst, txt) do

@@ -89,4 +89,32 @@ defmodule Kinda.Wrapper.GenerateTest do
     assert report =~ "\"baz\""
     refute report =~ ":qux"
   end
+
+  test "builds a versioned callback-bridge manifest contract" do
+    manifest = %Manifest{
+      functions: [
+        %Function{name: "baz", params: ["value"], arity: 1},
+        %Function{name: "foo", params: [], arity: 0}
+      ]
+    }
+
+    assert Generate.callback_bridge_manifest(manifest, FakePolicy) == %{
+             "version" => 1,
+             "entries" => [
+               %{
+                 "function" => %{
+                   "name" => "baz",
+                   "arity" => 1,
+                   "params" => ["value"]
+                 },
+                 "callback_bridge" => %{
+                   "function" => "baz",
+                   "reason" => "callback_bridge_required",
+                   "scheduler" => "dirty_cpu",
+                   "facets" => ["beam_callback", "scheduler_contract"]
+                 }
+               }
+             ]
+           }
+  end
 end

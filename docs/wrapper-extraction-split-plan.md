@@ -47,6 +47,7 @@ What is not yet true:
   - they now have a framework-owned callback-bridge metadata shape
   - and `Kinda.Wrapper.Generate` now exposes a callback-bridge backlog report
     surface
+  - and a versioned machine-readable callback-bridge manifest contract
 
 ## Current State
 
