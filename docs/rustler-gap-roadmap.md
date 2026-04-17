@@ -1,0 +1,304 @@
+# Kinda Rustler-Gap Roadmap
+
+## Summary
+
+`kinda` already has one genuinely strong idea:
+
+- Zig comptime-generated resource kinds for consuming large C APIs
+
+That idea is good enough that `beaver` has built a large MLIR boundary on top
+of it. But `kinda` is still much closer to a powerful substrate than to a
+Rustler-like completed product.
+
+The gap is not mainly about raw capability. The gap is about productization:
+
+- public API shape
+- runtime semantics
+- scheduler policy
+- release/distribution flow
+- testing and documentation
+
+## Current State
+
+### What Kinda clearly already has
+
+- `ResourceKind` for opaque/resource-backed native values
+  - [lib/resource_kind.ex](/Users/tsai/oss/kinda/lib/resource_kind.ex:1)
+  - [src/kinda.zig](/Users/tsai/oss/kinda/src/kinda.zig:33)
+- generated NIF declarations via `Kinda.CodeGen`
+  - [lib/kinda_codegen.ex](/Users/tsai/oss/kinda/lib/kinda_codegen.ex:1)
+- low-level BEAM term conversion helpers in Zig
+  - [src/beam.zig](/Users/tsai/oss/kinda/src/beam.zig:328)
+  - [src/beam.zig](/Users/tsai/oss/kinda/src/beam.zig:894)
+- a minimal ElixirMake precompiler target resolver
+  - [lib/zig_precompiler.ex](/Users/tsai/oss/kinda/lib/zig_precompiler.ex:1)
+
+### What the current codebase also reveals
+
+- the Elixir public API is very small
+- tests are minimal
+  - [test/kinda_test.exs](/Users/tsai/oss/kinda/test/kinda_test.exs:1)
+- the example app is useful but tiny
+  - [kinda_example/lib/kinda_example_nif.ex](/Users/tsai/oss/kinda/kinda_example/lib/kinda_example_nif.ex:1)
+- several ideas are documented before they are fully shipped
+  - README references `Kinda.Prebuilt`
+  - actual code only contains [lib/prebuilt_meta.ex](/Users/tsai/oss/kinda/lib/prebuilt_meta.ex:1)
+
+That is a normal prototype shape, but it is not yet a Rustler-like library
+shape.
+
+## What "Rustler-like Complete" Means Here
+
+`kinda` should not copy Rustler mechanically. It has a different thesis:
+
+- Rustler is centered on Rust + typed encoder/decoder ergonomics
+- Kinda is centered on Zig + generated resource-kind wrappers for C libraries
+
+But if `kinda` wants to feel as complete as Rustler, it needs to become
+comparable along the following axes:
+
+1. Declarative NIF definition
+2. Predictable term/resource conversion
+3. Explicit scheduler policy
+4. Stable lifecycle hooks
+5. First-class precompiled distribution
+6. Strong docs/examples/tests
+
+## Main Gaps Versus Rustler
+
+### 1. Public API ergonomics
+
+Rustler gives users a clear top-level experience:
+
+- `rustler::init!`
+- `#[rustler::nif]`
+- `rustler::resource!`
+- `Encoder` / `Decoder`
+
+Official docs describe simplified NIF declaration, resource setup, and
+per-function scheduler metadata:
+
+- Rustler changelog:
+  https://hexdocs.pm/rustler/changelog.html
+- Rustler upgrade guide:
+  https://hexdocs.pm/rustler/upgrade.html
+
+By contrast, `kinda` currently exposes mostly primitives:
+
+- `use Kinda.ResourceKind`
+- `use Kinda.CodeGen`
+- a minimal `Kinda.Forwarder` behaviour
+
+This is powerful, but still too low-level and too underspecified.
+
+#### Needed evolution
+
+- Add a real top-level library module such as `Kinda.Library`
+- Make NIF declaration metadata first-class, not hidden in manual codegen lists
+- Generate docs/specs/names from declarations
+- Replace ad hoc runtime conventions with explicit public APIs
+
+### 2. Conversion model
+
+Rustler's practical strength is not just raw NIF support. It is the existence
+of a coherent typed conversion model: decoded arguments, encoded results, and
+well-defined resource behavior.
+
+`kinda` does have low-level conversion helpers in Zig, but the consumer-facing
+surface is still mostly:
+
+- unwrap refs
+- fetch resources
+- make resources
+- manually postprocess return tuples
+
+This is exactly why `beaver` had to grow a substantial adapter layer in
+[lib/beaver/native.ex](/Users/tsai/oss/beaver/lib/beaver/native.ex:1).
+
+#### Needed evolution
+
+- Define a public wrap/unwrap protocol or behaviour layer
+- Distinguish resource ownership modes more explicitly:
+  - owned resource
+  - borrowed pointer
+  - mutable array
+  - opaque pointer
+- Add standard conversions for common BEAM-facing shapes:
+  - binaries
+  - iolists
+  - tuples
+  - maps
+  - tagged error tuples
+- Generate `@opaque` / `@type` / `@spec` more systematically
+
+### 3. Scheduler strategy
+
+Rustler exposes per-NIF scheduling where the NIF is declared.
+
+`kinda` already has the low-level mechanism for NIF flags:
+
+- [src/kinda.zig](/Users/tsai/oss/kinda/src/kinda.zig:334)
+- [src/result.zig](/Users/tsai/oss/kinda/src/result.zig:11)
+
+But the current Elixir-facing codegen does not make that a first-class user
+feature. In fact, [lib/codegen/nif_decl.ex](/Users/tsai/oss/kinda/lib/codegen/nif_decl.ex:1)
+defines a `dirty()` type and then does not use it.
+
+That is the exact kind of gap a Rustler-like framework should close.
+
+#### Needed evolution
+
+- Extend `Kinda.CodeGen.NIFDecl` with scheduler metadata
+- Allow per-NIF `:normal | :dirty_cpu | :dirty_io | :auto`
+- Generate dual wrappers when auto-routing is needed
+- Provide consumer guidance for thresholds and callback safety
+
+### 4. Lifecycle completeness
+
+In `beaver`, the Zig entrypoint still handles resource registration directly:
+
+- [native/src/main.zig](/Users/tsai/oss/beaver/native/src/main.zig:1)
+
+And even there:
+
+- `reload = null`
+- `upgrade = null`
+- `unload = null`
+
+That is enough for many packages, but not enough for a library that wants to be
+an ecosystem-grade native framework.
+
+#### Needed evolution
+
+- Public load/reload/upgrade/unload hooks
+- Resource registration helpers with explicit lifecycle semantics
+- Background/owned environment helpers for async callbacks and sends
+- Clear guidance around safe callback execution and teardown
+
+### 5. Precompiled distribution
+
+RustlerPrecompiled has a documented checksum-based distribution flow:
+
+- https://hexdocs.pm/rustler_precompiled/precompilation_guide.html
+
+`kinda` currently has:
+
+- target detection and compile-time integration
+- README references to prebuilt mode
+- no fully realized `Kinda.Prebuilt` module
+- no checksum/download/release task surface comparable to RustlerPrecompiled
+
+#### Needed evolution
+
+- Implement a real `Kinda.Prebuilt`
+- Support checksum files and verified downloads
+- Document a supported release workflow
+- Broaden target coverage
+- Separate "framework capability" from "consumer-specific glue"
+
+### 6. Verification and docs
+
+Rustler feels complete partly because its mental model is stable and well
+documented.
+
+`kinda` currently has:
+
+- minimal tests
+- minimal example docs
+- README-level claims that outrun the shipped API
+
+#### Needed evolution
+
+- Add real integration tests, not just doctests
+- Add matrix tests for:
+  - resources
+  - arrays/pointers
+  - dirty schedulers
+  - callbacks
+  - precompiled loading
+- Add at least one medium-complexity example beyond `kinda_example`
+- Keep README strictly aligned with shipped modules
+
+## Beaver-As-Probe Assessment
+
+`beaver` is already the best external probe for `kinda` because it stresses:
+
+- a huge generated C API surface
+- handwritten and generated NIFs together
+- dirty scheduler needs
+- callback-heavy flows
+- precompiled artifact delivery
+- many opaque resource kinds
+
+That means `kinda` should evolve with `beaver` as its primary proving ground,
+not with the current tiny example app as its main success criterion.
+
+## Recommended Roadmap
+
+### Phase 1. Productize the public API
+
+Goal: make `kinda` feel like a framework, not just a substrate.
+
+- Add real `Kinda.Library`
+- Add real `Kinda.Prebuilt`
+- Replace placeholder `Kinda.Forwarder` with a meaningful behaviour/API
+- Extend `NIFDecl` with name, docs, scheduler flags, and typed params
+
+### Phase 2. Stabilize conversion semantics
+
+Goal: reduce consumer-specific adapter code.
+
+- Formalize resource wrapper contracts
+- Add common term conversion helpers as public APIs
+- Generate richer typespecs and opaque types
+- Provide standard error-shape helpers
+
+### Phase 3. Scheduler-aware NIF declaration
+
+Goal: make dirty scheduling a declaration-time property.
+
+- support dirty CPU / dirty IO metadata
+- support auto-routing helpers
+- document scheduler policy and callback constraints
+
+### Phase 4. Complete the prebuilt story
+
+Goal: make precompiled distribution a first-class feature.
+
+- implement verified downloads
+- add checksum generation and docs
+- expand target matrix
+- publish a release workflow template
+
+### Phase 5. Verification and docs
+
+Goal: reach Rustler-like trust, not just Rustler-like cleverness.
+
+- add real integration tests
+- add CI matrix for OTP / Zig / targets
+- add at least one large example
+- remove README claims that are not yet shipped
+
+## Concrete Near-Term Backlog
+
+If the goal is to move `kinda` materially closer to Rustler in the next few
+iterations, the highest-value order is:
+
+1. Ship `Kinda.Prebuilt` for real
+2. Make scheduler flags first-class in `NIFDecl`
+3. Replace `Kinda.Forwarder` placeholder callbacks with a real runtime API
+4. Add integration tests that exercise `beaver`-style resource flows
+5. Generate stronger Elixir-side types/specs/docs from codegen
+
+## Bottom Line
+
+`kinda` does not need to become Rustler-in-Zig.
+
+It should become:
+
+- as dependable as Rustler
+- while remaining specialized for generated C-library bindings and
+  resource-kind-centric native interop
+
+The design thesis is already strong enough. The missing work is mostly the
+framework layer that turns a strong thesis into a trustworthy library.
