@@ -16,6 +16,31 @@ This preserves the framework boundary:
 - `kinda` becomes a real binding-generation framework
 - `beaver` remains an MLIR consumer with custom policy
 
+## Current Status
+
+The first split slice has now landed.
+
+What is already true:
+
+- `kinda` now ships:
+  - `Kinda.Wrapper.Function`
+  - `Kinda.Wrapper.Manifest`
+  - `Kinda.Wrapper.Extract`
+- `beaver` now ships:
+  - `Beaver.MLIR.WrapperPolicy`
+- `beaver`'s [gen_stub.exs](/Users/tsai/oss/beaver/native/tools/wrapper/gen_stub.exs:1)
+  no longer walks Clang AST directly
+- it now consumes:
+  - `Kinda.Wrapper.Extract.from_clang_ast/1`
+
+What is not yet true:
+
+- `Kinda.Wrapper.Generate` does not exist yet
+- `Kinda.Wrapper.Policy` does not exist yet
+- `beaver` still owns final emission policy and output formatting
+- callback-heavy MLIR APIs are still documented as unsupported backlog, not yet
+  bridged
+
 ## Current State
 
 Today the pipeline is split across these `beaver` pieces:
@@ -254,6 +279,35 @@ The split is only complete once a second consumer can use the same `kinda`
 wrapper extraction/generation path without inheriting MLIR-specific policy.
 
 Without that, the code is merely moved, not generalized.
+
+## Unsupported API Backlog
+
+The current `beaver` policy still excludes a small MLIR CAPI subset through
+`unsupported_nifs`.
+
+That set should not remain an untyped blacklist forever. The current best
+classification is:
+
+- `:callback_bridge_required`
+
+These APIs are special because they are not plain "call a C function and decode
+the result" wrappers. They need one or more of:
+
+- callback trampolines from native code into BEAM
+- lifetime/ownership contracts
+- scheduler-aware invocation metadata
+- richer conversion of function-like Elixir inputs
+
+The right future move is:
+
+- keep generic extraction/generation in `kinda`
+- add a later callback-bridge layer in `kinda`
+- then migrate these APIs out of the flat `unsupported_nifs` bucket
+
+This is intentionally a later phase. It should not block the current split of:
+
+- generic extraction/generation
+- consumer-specific policy
 
 ## Non-Goals
 
