@@ -4,11 +4,12 @@ defmodule Kinda.Wrapper.Function do
   """
 
   @enforce_keys [:name, :params, :arity]
-  defstruct [:name, :params, :arity]
+  defstruct [:name, :params, :arity, :doc]
 
   @type t :: %__MODULE__{
           name: String.t(),
           params: [String.t()],
-          arity: non_neg_integer()
+          arity: non_neg_integer(),
+          doc: String.t() | nil
         }
 end

@@ -16,8 +16,10 @@ defmodule Kinda.CodeGen do
     end
   end
 
+  @type nif_decl_input :: NIFDecl.t() | {atom(), integer()} | {atom(), [atom()]}
+
   @callback kinds() :: [KindDecl.t()]
-  @callback nifs() :: [{atom(), integer()}]
+  @callback nifs() :: [nif_decl_input()]
   def kinds(), do: []
 
   def nif_ast(kinds, nifs, root_module, forward_module) do
@@ -47,7 +49,7 @@ defmodule Kinda.CodeGen do
             }
 
           %NIFDecl{} ->
-            nif
+            normalize_nif_decl(nif, root_module)
         end
 
       {args_ast, arity} =
@@ -69,6 +71,7 @@ defmodule Kinda.CodeGen do
       wrapper_ast =
         if nif_name != wrapper_name do
           quote do
+            unquote(doc_attribute_ast(nif.doc))
             def unquote(wrapper_name)(unquote_splicing(args_ast)) do
               refs = Kinda.unwrap_ref([unquote_splicing(args_ast)])
               ret = apply(__MODULE__, unquote(nif_name), refs)
@@ -78,7 +81,7 @@ defmodule Kinda.CodeGen do
         end
 
       quote do
-        @doc false
+        unquote(doc_attribute_ast(if(nif_name == wrapper_name, do: nif.doc, else: false)))
         def unquote(nif_name)(unquote_splicing(args_ast)),
           do: :erlang.nif_error(:not_loaded)
 
@@ -87,5 +90,26 @@ defmodule Kinda.CodeGen do
       |> then(&{&1, {nif_name, arity}})
     end
     |> Enum.unzip()
+  end
+
+  defp normalize_nif_decl(%NIFDecl{nif_name: nil, wrapper_name: wrapper_name} = nif, root_module)
+       when not is_nil(wrapper_name) do
+    %{nif | nif_name: Module.concat(root_module, wrapper_name)}
+  end
+
+  defp normalize_nif_decl(%NIFDecl{} = nif, _root_module), do: nif
+
+  defp doc_attribute_ast(nil), do: nil
+
+  defp doc_attribute_ast(false) do
+    quote do
+      @doc false
+    end
+  end
+
+  defp doc_attribute_ast(doc) do
+    quote do
+      @doc unquote(doc)
+    end
   end
 end

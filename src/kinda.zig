@@ -125,14 +125,13 @@ pub fn ResourceKind(comptime ElementType: type, comptime module_name_: anytype) 
         }
         fn dump(env: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
             const v: T = resource.fetch(env, args[0]) catch return beam.Error.@"Fail to fetch primitive";
-            var buffer = try std.array_list.Managed(u8).initCapacity(std.heap.page_allocator, 100);
-            defer buffer.deinit();
             const format_string = switch (@typeInfo(T)) {
                 .pointer => "{*}\n",
                 else => "{any}\n",
             };
-            try std.fmt.format(buffer.writer(), format_string, .{v});
-            return beam.make_slice(env, buffer.items);
+            const rendered = try std.fmt.allocPrint(std.heap.page_allocator, format_string, .{v});
+            defer std.heap.page_allocator.free(rendered);
+            return beam.make_slice(env, rendered);
         }
         fn append_to_struct(env: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
             const v = resource.fetch(env, args[0]) catch return beam.Error.@"Fail to fetch primitive";

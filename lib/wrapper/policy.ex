@@ -12,6 +12,7 @@ defmodule Kinda.Wrapper.Policy do
   """
 
   alias Kinda.Wrapper.CallbackBridge
+  alias Kinda.Wrapper.Function
 
   @type function_name :: atom()
   @type params :: [atom()]
@@ -27,5 +28,6 @@ defmodule Kinda.Wrapper.Policy do
   @callback variants(function_name()) :: [variant()]
   @callback public_name(variant()) :: atom()
   @callback elixir_params(variant(), params()) :: params()
+  @callback doc(variant(), Function.t()) :: String.t() | nil
   @callback zig_entry(variant()) :: String.t()
 end

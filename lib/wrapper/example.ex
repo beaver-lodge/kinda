@@ -5,6 +5,7 @@ defmodule Kinda.Wrapper.Example do
 
   alias Kinda.Wrapper.CallbackBridge
   alias Kinda.Wrapper.Extract
+  alias Kinda.Wrapper.Function
   alias Kinda.Wrapper.Generate
 
   defmodule Policy do
@@ -47,6 +48,9 @@ defmodule Kinda.Wrapper.Example do
     def elixir_params({_kind, _public_name, _base_name}, params), do: params
 
     @impl true
+    def doc({_kind, _public_name, _base_name}, %Function{doc: doc}), do: doc
+
+    @impl true
     def zig_entry({_kind, _public_name, base_name}), do: ~s|nif("#{base_name}"),|
   end
 
@@ -65,7 +69,19 @@ defmodule Kinda.Wrapper.Example do
         %{
           "kind" => "FunctionDecl",
           "name" => "mlirContextCreate",
-          "inner" => []
+          "inner" => [
+            %{
+              "kind" => "FullComment",
+              "inner" => [
+                %{
+                  "kind" => "ParagraphComment",
+                  "inner" => [
+                    %{"kind" => "TextComment", "text" => " Creates a fresh MLIR context."}
+                  ]
+                }
+              ]
+            }
+          ]
         }
       ]
     }

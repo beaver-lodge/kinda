@@ -14,7 +14,30 @@ defmodule Kinda.Wrapper.ExtractTest do
           "name" => "mlirFoo",
           "inner" => [
             %{"kind" => "ParmVarDecl", "name" => "ctx"},
-            %{"kind" => "ParmVarDecl"}
+            %{"kind" => "ParmVarDecl"},
+            %{
+              "kind" => "FullComment",
+              "inner" => [
+                %{
+                  "kind" => "ParagraphComment",
+                  "inner" => [
+                    %{"kind" => "TextComment", "text" => " Creates foo."}
+                  ]
+                },
+                %{
+                  "kind" => "ParamCommandComment",
+                  "param" => "ctx",
+                  "inner" => [
+                    %{
+                      "kind" => "ParagraphComment",
+                      "inner" => [
+                        %{"kind" => "TextComment", "text" => " Context value."}
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
           ]
         },
         %{
@@ -32,9 +55,128 @@ defmodule Kinda.Wrapper.ExtractTest do
 
     assert Extract.from_clang_ast(ast) == %Manifest{
              functions: [
-               %Function{name: "mlirBar", params: [], arity: 0},
-               %Function{name: "mlirFoo", params: ["ctx", "param_1"], arity: 2}
+               %Function{name: "mlirBar", params: [], arity: 0, doc: nil},
+               %Function{
+                 name: "mlirFoo",
+                 params: ["ctx", "param_1"],
+                 arity: 2,
+                 doc: "Creates foo.\n\nParameters:\n- `ctx`: Context value."
+               }
              ]
            }
+  end
+
+  test "repairs malformed clang comment code spans without damaging valid ones" do
+    ast = %{
+      "kind" => "TranslationUnitDecl",
+      "inner" => [
+        %{
+          "kind" => "FunctionDecl",
+          "name" => "mlirBrokenDoc",
+          "inner" => [
+            %{
+              "kind" => "FullComment",
+              "inner" => [
+                %{
+                  "kind" => "ParagraphComment",
+                  "inner" => [
+                    %{
+                      "kind" => "TextComment",
+                      "text" => " Uses `llvm.emit_c_interface` and forwards `userData to `callback`."
+                    }
+                  ]
+                },
+                %{
+                  "kind" => "ParagraphComment",
+                  "inner" => [
+                    %{
+                      "kind" => "TextComment",
+                      "text" =>
+                        " Creates a `sparse_tensor.encoding` attribute and stores it in a `std::string`."
+                    },
+                    %{
+                      "kind" => "TextComment",
+                      "text" =>
+                        " Sets multiple current debug types, similarly to `-debug-only=type1,type2\" in the command-line tools."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+
+    assert %Manifest{
+             functions: [
+               %Function{
+                 name: "mlirBrokenDoc",
+                 doc:
+                   "Uses `llvm.emit_c_interface` and forwards `userData` to `callback`.\n\nCreates a `sparse_tensor.encoding` attribute and stores it in a `std::string`. Sets multiple current debug types, similarly to `-debug-only=type1,type2` in the command-line tools."
+               }
+             ]
+           } = Extract.from_clang_ast(ast)
+  end
+
+  test "formats inline bullet sections as markdown parameter lists" do
+    ast = %{
+      "kind" => "TranslationUnitDecl",
+      "inner" => [
+        %{
+          "kind" => "FunctionDecl",
+          "name" => "mlirStreamDoc",
+          "inner" => [
+            %{
+              "kind" => "FullComment",
+              "inner" => [
+                %{
+                  "kind" => "ParagraphComment",
+                  "inner" => [
+                    %{
+                      "kind" => "TextComment",
+                      "text" =>
+                        " Create a raw_fd_ostream for the given path. This wrapper is needed because"
+                    },
+                    %{
+                      "kind" => "TextComment",
+                      "text" =>
+                        " std::ostream does not provide the file sharing semantics required on"
+                    },
+                    %{"kind" => "TextComment", "text" => " Windows."},
+                    %{"kind" => "TextComment", "text" => " - `path`: output file path."},
+                    %{"kind" => "TextComment", "text" => " - `binary`: controls text vs binary mode."},
+                    %{
+                      "kind" => "TextComment",
+                      "text" =>
+                        " - `userData`: forwarded to `errorCallback` so it can copy the error message"
+                    },
+                    %{
+                      "kind" => "TextComment",
+                      "text" => "   into caller-owned storage (e.g., a `std::string`)."
+                    },
+                    %{
+                      "kind" => "TextComment",
+                      "text" =>
+                        " On failure, returns a null stream and invokes the optional error callback with the error message."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+
+    assert %Manifest{
+             functions: [
+               %Function{
+                 name: "mlirStreamDoc",
+                 doc:
+                   "Create a raw_fd_ostream for the given path. This wrapper is needed because std::ostream does not provide the file sharing semantics required on Windows.\n\nParameters:\n- `path`: output file path.\n- `binary`: controls text vs binary mode.\n- `userData`: forwarded to `errorCallback` so it can copy the error message into caller-owned storage (e.g., a `std::string`).\n\nOn failure, returns a null stream and invokes the optional error callback with the error message."
+               }
+             ]
+           } = Extract.from_clang_ast(ast)
   end
 end

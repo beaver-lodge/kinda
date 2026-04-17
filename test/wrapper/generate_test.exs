@@ -5,6 +5,7 @@ defmodule Kinda.Wrapper.GenerateTest do
   alias Kinda.Wrapper.Generate
   alias Kinda.Wrapper.Manifest
   alias Kinda.Wrapper.Policy
+  alias Kinda.CodeGen.NIFDecl
 
   defmodule FakePolicy do
     @behaviour Policy
@@ -12,6 +13,7 @@ defmodule Kinda.Wrapper.GenerateTest do
     def unsupported_entries, do: %{}
     def unsupported?(_name), do: false
     def unsupported_reason(_name), do: nil
+
     def callback_bridge_entries do
       %{
         baz:
@@ -29,16 +31,24 @@ defmodule Kinda.Wrapper.GenerateTest do
     def callback_bridge?(name), do: Map.has_key?(callback_bridge_entries(), name)
     def callback_bridge(name), do: Map.get(callback_bridge_entries(), name)
     def variants(:foo), do: [{:normal, :foo, :foo}]
-    def variants(:bar), do: [{:normal, :bar, :bar}, {:with_diagnostics, :barWithDiagnostics, :bar}]
+
+    def variants(:bar),
+      do: [{:normal, :bar, :bar}, {:with_diagnostics, :barWithDiagnostics, :bar}]
+
     def variants(:baz), do: []
 
     def public_name({_kind, public_name, _base_name}), do: public_name
 
-    def elixir_params({:with_diagnostics, _public_name, _base_name}, params), do: [:context | params]
+    def elixir_params({:with_diagnostics, _public_name, _base_name}, params),
+      do: [:context | params]
+
     def elixir_params({_kind, _public_name, _base_name}, params), do: params
+    def doc({_kind, _public_name, _base_name}, %Function{doc: doc}), do: doc
 
     def zig_entry({:normal, _public_name, base_name}), do: ~s{nif("#{base_name}"),}
-    def zig_entry({:with_diagnostics, _public_name, base_name}), do: ~s{diagnostic.WithDiagnosticsNIF("#{base_name}"),}
+
+    def zig_entry({:with_diagnostics, _public_name, base_name}),
+      do: ~s{diagnostic.WithDiagnosticsNIF("#{base_name}"),}
   end
 
   test "renders generic elixir and zig outputs from manifest + policy" do
@@ -61,6 +71,25 @@ defmodule Kinda.Wrapper.GenerateTest do
     assert zig =~ ~s{diagnostic.WithDiagnosticsNIF("bar"),}
     assert zig =~ ~s{nif("foo"),}
     refute zig =~ ~s{baz}
+  end
+
+  test "builds elixir nif decls with docs" do
+    manifest = %Manifest{
+      functions: [
+        %Function{name: "bar", params: ["ctx"], arity: 1, doc: "Creates bar."},
+        %Function{name: "foo", params: [], arity: 0, doc: "Creates foo."}
+      ]
+    }
+
+    assert Generate.elixir_nif_decls(manifest, FakePolicy) == [
+             %NIFDecl{wrapper_name: :bar, params: [:ctx], doc: "Creates bar."},
+             %NIFDecl{
+               wrapper_name: :barWithDiagnostics,
+               params: [:context, :ctx],
+               doc: "Creates bar."
+             },
+             %NIFDecl{wrapper_name: :foo, params: [], doc: "Creates foo."}
+           ]
   end
 
   test "renders callback-bridge backlog from extracted functions only" do
@@ -105,7 +134,8 @@ defmodule Kinda.Wrapper.GenerateTest do
                  "function" => %{
                    "name" => "baz",
                    "arity" => 1,
-                   "params" => ["value"]
+                   "params" => ["value"],
+                   "doc" => nil
                  },
                  "callback_bridge" => %{
                    "function" => "baz",
@@ -116,5 +146,24 @@ defmodule Kinda.Wrapper.GenerateTest do
                }
              ]
            }
+  end
+
+  test "preserves extracted docs in callback-bridge manifests" do
+    manifest = %Manifest{
+      functions: [
+        %Function{name: "baz", params: ["value"], arity: 1, doc: "Converts a callback."}
+      ]
+    }
+
+    assert %{
+             "entries" => [
+               %{
+                 "function" => %{
+                   "name" => "baz",
+                   "doc" => "Converts a callback."
+                 }
+               }
+             ]
+           } = Generate.callback_bridge_manifest(manifest, FakePolicy)
   end
 end

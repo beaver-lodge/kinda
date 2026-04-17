@@ -7,6 +7,7 @@ defmodule Kinda.Wrapper.Generate do
   alias Kinda.Wrapper.Function
   alias Kinda.Wrapper.Manifest
   alias Kinda.Wrapper.Policy
+  alias Kinda.CodeGen.NIFDecl
 
   @spec elixir_functions(Manifest.t(), module()) :: [{atom(), [atom()]}]
   def elixir_functions(%Manifest{functions: functions}, policy) do
@@ -22,10 +23,28 @@ defmodule Kinda.Wrapper.Generate do
     end)
   end
 
+  @spec elixir_nif_decls(Manifest.t(), module()) :: [NIFDecl.t()]
+  def elixir_nif_decls(%Manifest{functions: functions}, policy) do
+    assert_policy!(policy)
+
+    Enum.flat_map(functions, fn function ->
+      name = String.to_atom(function.name)
+      params = Enum.map(function.params, &String.to_atom/1)
+
+      for variant <- policy.variants(name) do
+        struct(NIFDecl,
+          wrapper_name: policy.public_name(variant),
+          params: policy.elixir_params(variant, params),
+          doc: policy.doc(variant, function)
+        )
+      end
+    end)
+  end
+
   @spec render_elixir_manifest(Manifest.t(), module()) :: String.t()
   def render_elixir_manifest(manifest, policy) do
     manifest
-    |> elixir_functions(policy)
+    |> elixir_nif_decls(policy)
     |> inspect(pretty: true, limit: :infinity, printable_limit: :infinity)
   end
 
@@ -47,7 +66,7 @@ defmodule Kinda.Wrapper.Generate do
         }
 
   @type callback_bridge_manifest_function :: %{
-          String.t() => String.t() | non_neg_integer() | [String.t()]
+          String.t() => String.t() | non_neg_integer() | [String.t()] | nil
         }
 
   @type callback_bridge_manifest_metadata :: %{
@@ -86,12 +105,16 @@ defmodule Kinda.Wrapper.Generate do
     %{
       "version" => 1,
       "entries" =>
-        Enum.map(callback_bridge_backlog(manifest, policy), fn %{function: function, callback_bridge: bridge} ->
+        Enum.map(callback_bridge_backlog(manifest, policy), fn %{
+                                                                 function: function,
+                                                                 callback_bridge: bridge
+                                                               } ->
           %{
             "function" => %{
               "name" => function.name,
               "arity" => function.arity,
-              "params" => function.params
+              "params" => function.params,
+              "doc" => function.doc
             },
             "callback_bridge" => %{
               "function" => Atom.to_string(bridge.function),
@@ -157,7 +180,8 @@ defmodule Kinda.Wrapper.Generate do
         ) :: :ok
   def write_callback_bridge_manifest(_manifest, _policy, nil, _encoder), do: :ok
 
-  def write_callback_bridge_manifest(manifest, policy, path, encoder) when is_function(encoder, 1) do
+  def write_callback_bridge_manifest(manifest, policy, path, encoder)
+      when is_function(encoder, 1) do
     manifest
     |> callback_bridge_manifest(policy)
     |> encoder.()

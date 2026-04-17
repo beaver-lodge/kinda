@@ -9,6 +9,7 @@ The shortest useful description is:
 
 - `kinda` treats a wrapper header as the binding surface
 - extracts functions into a framework-owned manifest
+- preserves Clang-extracted function docs when comments are available
 - generates generic Zig/Elixir wrapper outputs
 - lets the consumer keep product-specific policy outside the framework
 
@@ -157,7 +158,8 @@ The result is a framework-owned shape:
     %Kinda.Wrapper.Function{
       name: "mlirContextCreate",
       params: [],
-      arity: 0
+      arity: 0,
+      doc: "Creates a new MLIR context."
     }
   ]
 }
