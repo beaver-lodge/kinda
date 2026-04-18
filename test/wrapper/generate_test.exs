@@ -158,6 +158,7 @@ defmodule Kinda.Wrapper.GenerateTest do
                callback_bridge: %Kinda.Wrapper.CallbackBridge{
                  function: :baz,
                  reason: :callback_bridge_required,
+                 unblock_path: :callback_bridge_runtime,
                  scheduler: :dirty_cpu,
                  facets: [:beam_callback, :scheduler_contract]
                }
@@ -192,6 +193,7 @@ defmodule Kinda.Wrapper.GenerateTest do
                  "callback_bridge" => %{
                    "function" => "baz",
                    "reason" => "callback_bridge_required",
+                   "unblock_path" => "callback_bridge_runtime",
                    "scheduler" => "dirty_cpu",
                    "facets" => ["beam_callback", "scheduler_contract"]
                  }

@@ -120,6 +120,7 @@ defmodule Kinda.Wrapper.Generate do
             "callback_bridge" => %{
               "function" => Atom.to_string(bridge.function),
               "reason" => Atom.to_string(bridge.reason),
+              "unblock_path" => Atom.to_string(bridge.unblock_path),
               "scheduler" => Atom.to_string(bridge.scheduler),
               "facets" => Enum.map(bridge.facets, &Atom.to_string/1)
             }

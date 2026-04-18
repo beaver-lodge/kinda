@@ -10,6 +10,7 @@ defmodule Kinda.Wrapper.CallbackBridgeTest do
            ) == %CallbackBridge{
              function: :mlirTypeConverterAddConversion,
              reason: :callback_bridge_required,
+             unblock_path: :callback_bridge_runtime,
              scheduler: :normal,
              facets: [:beam_callback, :rich_input_decoder]
            }

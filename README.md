@@ -235,6 +235,11 @@ It is the framework-owned metadata layer that lets a consumer say:
 - this API is not “missing”
 - this API belongs to the callback-bridge backlog
 
+Pure kind-surface gaps belong to a different path. In a consumer such as
+`beaver`, handle-like CAPIs are often unblocked by extending the Zig-side kind
+surface and the matching Elixir `KindDecl` surface; callback-bridge metadata is
+specifically for the remainder that kind-surface sync cannot solve.
+
 ## Reporting Surface
 
 Kinda now exposes two reporting modes for that backlog:
@@ -269,6 +274,7 @@ The manifest is versioned and JSON-friendly:
       "callback_bridge": {
         "function": "mlirTypeConverterAddConversion",
         "reason": "callback_bridge_required",
+        "unblock_path": "callback_bridge_runtime",
         "scheduler": "unspecified",
         "facets": ["beam_callback", "rich_input_decoder"]
       }

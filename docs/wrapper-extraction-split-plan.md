@@ -52,6 +52,8 @@ What is not yet true:
 - `beaver` still owns final emission policy
 - callback-heavy MLIR APIs are still generation-blocked backlog, not yet
   bridged
+- pure kind-surface gaps are still consumer-owned coordination work between the
+  Zig-side kind list and the Elixir-side `KindDecl` list
 - scheduler metadata is now preserved in manifest IR, but `kinda` still does
   not expose a fully user-facing scheduler declaration/codegen contract
 - but they are no longer only a flat reason atom
@@ -161,6 +163,60 @@ Its outputs should be equivalent in role to today's:
 - `capi_functions.ex`
 
 but parameterized by generic framework inputs.
+
+## Kind-Surface Auto-Unblock Path
+
+There is an important middle case between:
+
+- plain generated wrappers that already work
+- callback-heavy APIs that need a future bridge layer
+
+That middle case is "the function shape is ordinary, but the generated kind
+surface is incomplete".
+
+`beaver` currently expresses that surface in two places:
+
+- Zig-side generated/resource kinds in
+  [native/src/mlir_capi.zig](/Users/tsai/oss/beaver/native/src/mlir_capi.zig:1)
+- Elixir-side `KindDecl` emission in
+  [lib/beaver/mlir/capi_codegen.ex](/Users/tsai/oss/beaver/lib/beaver/mlir/capi_codegen.ex:1)
+
+For handle-like or struct-like CAPIs, unblocking often means:
+
+1. add the missing kind on the Zig side
+2. mirror it on the Elixir `KindDecl` side
+3. regenerate wrapper outputs
+
+That path can unlock standard generated wrappers without building a callback
+bridge at all.
+
+This is exactly why callback-heavy exclusions should not be described as a flat
+`unsupported_nifs` bucket. Some missing surface area is really "kind surface
+not modeled yet", while some is truly "callback bridge still required".
+
+The current `beaver` blocker set is firmly in the second category; updating the
+kind surface alone will not emit those APIs.
+
+## How To Formalize This Further
+
+The next formalization step should not be more prose. It should be a framework
+and consumer contract.
+
+Recommended direction:
+
+- make the consumer kind surface explicit and machine-readable, instead of
+  keeping two loosely synchronized lists
+- classify generated surface entries as:
+  - generated Zig/Elixir paired kinds
+  - consumer-defined handwritten kinds
+- reserve callback-bridge manifests for blockers whose unblock path is
+  callback-runtime work, not kind-surface sync
+- eventually let one checked-in manifest drive both:
+  - Zig resource-kind registration
+  - Elixir `KindDecl` emission
+
+That would turn the current "update both files carefully" convention into a
+formal generation contract.
 
 ## Layer 3: Consumer Policy
 
