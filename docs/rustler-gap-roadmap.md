@@ -105,6 +105,7 @@ By contrast, `kinda` currently exposes mostly primitives:
   instead of each wrapper hand-rolling unwrap + raw invoke + `check!/1`
 - and generated public wrappers now also have a first companion raw module
   surface (`RootModule.Raw`)
+- and kind-scoped runtime raw calls now prefer that companion raw surface too
 
 This is real progress, but the runtime surface is still too thin for the full
 set of `beaver`-style adapter needs.
@@ -317,8 +318,8 @@ iterations, the highest-value order is:
 
 1. Ship `Kinda.Prebuilt` for real
 2. Make scheduler flags first-class in `NIFDecl`
-3. Extend the new `RootModule.Raw` split from public generated wrappers into a
-   fuller raw-vs-public generated surface, especially for kind-scoped paths
+3. Turn the new `RootModule.Raw` surface into the stable primary raw contract,
+   instead of a companion compatibility layer alongside root raw stubs
 4. Add integration tests that exercise `beaver`-style resource flows
 5. Generate stronger Elixir-side types/specs/docs from codegen
 

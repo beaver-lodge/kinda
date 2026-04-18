@@ -54,6 +54,8 @@ What is already true:
   - `RootModule.Raw`
   - which provides explicit raw entrypoints for public generated wrappers
     without yet removing the legacy raw stubs from `RootModule`
+- kind-scoped runtime calls now also prefer that same companion raw module via
+  [Kinda.Forwarder.raw_call/4](/Users/tsai/oss/kinda/lib/forwarder.ex:85)
 - `beaver` now exposes a compatibility
   [Beaver.Native.call/3](/Users/tsai/oss/beaver/lib/beaver/native.ex:91)
   entry and probes it in
@@ -61,8 +63,10 @@ What is already true:
 
 What is not yet true:
 
-- kind-scoped raw NIF surfaces are still not split into distinct modules or
-  namespaces
+- root-module raw stubs still remain alongside the new `Raw` companion module
+  for compatibility
+- handwritten raw NIFs still do not participate in one uniform raw-surface
+  contract
 - `forward/3` still exists as a compatibility shim
 - the framework still does not classify native-facing shapes as:
   - `:resource`
@@ -352,8 +356,10 @@ Current status:
 - the raw-vs-public seam is now explicit in helper form
 - generated public wrappers now have a first explicit companion raw module:
   - `RootModule.Raw`
-- but kind-scoped generated raw functions still live only in the root module
-- that means this phase has started, but is not completed
+- kind-scoped generated raw functions now also get companion `Raw` entries
+  and `raw_call/3` prefers that surface first
+- but root-module raw stubs still remain as compatibility aliases
+- that means this phase has advanced materially, but is not completed
 
 ### Phase 3. Introduce kind-shape classification
 

@@ -83,7 +83,15 @@ defmodule Kinda.Forwarder do
   normalization.
   """
   def raw_call(nif_module, element_kind, kind_func_name, args) when is_list(args) do
-    apply(nif_module, Module.concat(element_kind, kind_func_name), Kinda.unwrap_ref(args))
+    function_name = Module.concat(element_kind, kind_func_name)
+    raw_args = Kinda.unwrap_ref(args)
+
+    try do
+      apply(Module.concat(nif_module, Raw), function_name, raw_args)
+    rescue
+      UndefinedFunctionError ->
+        apply(nif_module, function_name, raw_args)
+    end
   end
 
   @doc """

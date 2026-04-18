@@ -14,14 +14,28 @@ defmodule Kinda.ForwarderTest do
   end
 
   defmodule FakeNIF do
-    def unquote(Module.concat(Kinda.ForwarderTest.RawKind, "make"))(value), do: value
-
-    def unquote(Module.concat(Kinda.ForwarderTest.DecodedKind, :wrap))() do
-      {:kind, Kinda.ForwarderTest.DecodedKind, make_ref()}
+    def unquote(Module.concat(Kinda.ForwarderTest.RawKind, "make"))(_value) do
+      raise "root kind raw stub should not be called directly"
     end
 
-    def unquote(Module.concat(Kinda.ForwarderTest.DecodedKind, :primitive))(ref) do
-      {:primitive, ref}
+    def unquote(Module.concat(Kinda.ForwarderTest.DecodedKind, :wrap))() do
+      raise "root raw stub should not be called directly"
+    end
+
+    def unquote(Module.concat(Kinda.ForwarderTest.DecodedKind, :primitive))(_ref) do
+      raise "root primitive raw stub should not be called directly"
+    end
+
+    defmodule Raw do
+      def unquote(Module.concat(Kinda.ForwarderTest.RawKind, "make"))(value), do: value
+
+      def unquote(Module.concat(Kinda.ForwarderTest.DecodedKind, :wrap))() do
+        {:kind, Kinda.ForwarderTest.DecodedKind, make_ref()}
+      end
+
+      def unquote(Module.concat(Kinda.ForwarderTest.DecodedKind, :primitive))(ref) do
+        {:primitive, ref}
+      end
     end
   end
 
@@ -31,6 +45,11 @@ defmodule Kinda.ForwarderTest do
 
   test "raw_call/3 leaves wrapping to the caller" do
     assert {:kind, DecodedKind, _ref} = Runtime.raw_call(DecodedKind, :wrap, [])
+  end
+
+  test "raw_call/3 prefers raw companion modules when available" do
+    assert {:primitive, :ok} ==
+             Runtime.raw_call(DecodedKind, :primitive, [%DecodedKind{ref: :ok}])
   end
 
   test "call_kind/4 prefers call/3 when available" do
@@ -48,7 +67,7 @@ defmodule Kinda.ForwarderTest do
     assert {:primitive, ^ref} =
              Kinda.Forwarder.invoke_public_nif(
                Runtime,
-               FakeNIF,
+               FakeNIF.Raw,
                Module.concat(DecodedKind, :primitive),
                [%DecodedKind{ref: ref}]
              )

@@ -90,12 +90,10 @@ defmodule Kinda.CodeGen do
           end
 
         raw_entry_ast =
-          if nif_name != wrapper_name do
-            quote do
-              @doc false
-              def unquote(wrapper_name)(unquote_splicing(args_ast)) do
-                apply(unquote(root_module), unquote(nif_name), [unquote_splicing(args_ast)])
-              end
+          quote do
+            @doc false
+            def unquote(wrapper_name)(unquote_splicing(args_ast)) do
+              apply(unquote(root_module), unquote(nif_name), [unquote_splicing(args_ast)])
             end
           end
 
