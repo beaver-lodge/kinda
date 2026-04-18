@@ -26,8 +26,9 @@ defmodule Kinda.CodeGenTest do
     ast_string = ast |> then(&{:__block__, [], &1}) |> Macro.to_string()
 
     assert ast_string =~ ~s(@doc "Creates foo.)
+    assert ast_string =~ "defmodule Raw"
     assert ast_string =~ "def mlirFoo(ctx)"
-    assert ast_string =~ "@doc false"
+    assert ast_string =~ "GeneratedDocs.Raw"
     assert ast_string =~ "Kinda.Forwarder.invoke_public_nif"
   end
 end

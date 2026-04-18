@@ -22,6 +22,10 @@ defmodule Kinda.CodeGen do
   @callback nifs() :: [nif_decl_input()]
   def kinds(), do: []
 
+  def raw_module(root_module) when is_atom(root_module) do
+    Module.concat(root_module, Raw)
+  end
+
   def nif_ast(kinds, nifs, root_module, forward_module) do
     # generate stubs for generated NIFs
     extra_kind_nifs =
@@ -31,70 +35,100 @@ defmodule Kinda.CodeGen do
 
     nifs = nifs ++ extra_kind_nifs
 
-    for nif <- nifs do
-      nif =
-        case nif do
-          {wrapper_name, arity} when is_atom(wrapper_name) and is_integer(arity) ->
-            %NIFDecl{
-              wrapper_name: wrapper_name,
-              nif_name: Module.concat(root_module, wrapper_name),
-              params: arity
-            }
+    {entries, raw_entries} =
+      for nif <- nifs do
+        nif =
+          case nif do
+            {wrapper_name, arity} when is_atom(wrapper_name) and is_integer(arity) ->
+              %NIFDecl{
+                wrapper_name: wrapper_name,
+                nif_name: Module.concat(root_module, wrapper_name),
+                params: arity
+              }
 
-          {wrapper_name, params} when is_atom(wrapper_name) and is_list(params) ->
-            %NIFDecl{
-              wrapper_name: wrapper_name,
-              nif_name: Module.concat(root_module, wrapper_name),
-              params: params
-            }
+            {wrapper_name, params} when is_atom(wrapper_name) and is_list(params) ->
+              %NIFDecl{
+                wrapper_name: wrapper_name,
+                nif_name: Module.concat(root_module, wrapper_name),
+                params: params
+              }
 
-          %NIFDecl{} ->
-            normalize_nif_decl(nif, root_module)
-        end
+            %NIFDecl{} ->
+              normalize_nif_decl(nif, root_module)
+          end
 
-      {args_ast, arity} =
-        if is_list(nif.params) do
-          {Enum.map(nif.params, &Macro.var(&1, __MODULE__)), length(nif.params)}
-        else
-          {Macro.generate_unique_arguments(nif.params, __MODULE__), nif.params}
-        end
+        {args_ast, arity} =
+          if is_list(nif.params) do
+            {Enum.map(nif.params, &Macro.var(&1, __MODULE__)), length(nif.params)}
+          else
+            {Macro.generate_unique_arguments(nif.params, __MODULE__), nif.params}
+          end
 
-      %NIFDecl{wrapper_name: wrapper_name, nif_name: nif_name} = nif
+        %NIFDecl{wrapper_name: wrapper_name, nif_name: nif_name} = nif
 
-      wrapper_name =
-        if is_bitstring(wrapper_name) do
-          String.to_atom(wrapper_name)
-        else
-          wrapper_name
-        end
+        wrapper_name =
+          if is_bitstring(wrapper_name) do
+            String.to_atom(wrapper_name)
+          else
+            wrapper_name
+          end
 
-      wrapper_ast =
-        if nif_name != wrapper_name do
-          quote do
-            unquote(doc_attribute_ast(nif.doc))
+        wrapper_ast =
+          if nif_name != wrapper_name do
+            quote do
+              unquote(doc_attribute_ast(nif.doc))
 
-            def unquote(wrapper_name)(unquote_splicing(args_ast)) do
-              Kinda.Forwarder.invoke_public_nif(
-                unquote(forward_module),
-                __MODULE__,
-                unquote(nif_name),
-                [unquote_splicing(args_ast)]
-              )
+              def unquote(wrapper_name)(unquote_splicing(args_ast)) do
+                Kinda.Forwarder.invoke_public_nif(
+                  unquote(forward_module),
+                  unquote(raw_module(root_module)),
+                  unquote(wrapper_name),
+                  [unquote_splicing(args_ast)]
+                )
+              end
             end
           end
-        end
 
-      quote do
-        unquote(doc_attribute_ast(if(nif_name == wrapper_name, do: nif.doc, else: false)))
+        raw_entry_ast =
+          if nif_name != wrapper_name do
+            quote do
+              @doc false
+              def unquote(wrapper_name)(unquote_splicing(args_ast)) do
+                apply(unquote(root_module), unquote(nif_name), [unquote_splicing(args_ast)])
+              end
+            end
+          end
 
-        def unquote(nif_name)(unquote_splicing(args_ast)),
-          do: :erlang.nif_error(:not_loaded)
+        ast =
+          quote do
+            unquote(doc_attribute_ast(if(nif_name == wrapper_name, do: nif.doc, else: false)))
 
-        unquote(wrapper_ast)
+            def unquote(nif_name)(unquote_splicing(args_ast)),
+              do: :erlang.nif_error(:not_loaded)
+
+            unquote(wrapper_ast)
+          end
+
+        {{ast, {nif_name, arity}}, raw_entry_ast}
       end
-      |> then(&{&1, {nif_name, arity}})
-    end
-    |> Enum.unzip()
+      |> Enum.unzip()
+
+    {asts, exports} = Enum.unzip(entries)
+
+    raw_module_ast =
+      case Enum.reject(raw_entries, &is_nil/1) do
+        [] ->
+          nil
+
+        raw_entries ->
+          quote do
+            defmodule Raw do
+              (unquote_splicing(raw_entries))
+            end
+          end
+      end
+
+    {asts ++ List.wrap(raw_module_ast), exports}
   end
 
   defp normalize_nif_decl(%NIFDecl{nif_name: nil, wrapper_name: wrapper_name} = nif, root_module)

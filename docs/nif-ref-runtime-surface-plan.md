@@ -50,6 +50,10 @@ What is already true:
   - input unwrap
   - raw invoke
   - `check!/1`
+- generated public wrappers now also get a first companion raw module:
+  - `RootModule.Raw`
+  - which provides explicit raw entrypoints for public generated wrappers
+    without yet removing the legacy raw stubs from `RootModule`
 - `beaver` now exposes a compatibility
   [Beaver.Native.call/3](/Users/tsai/oss/beaver/lib/beaver/native.ex:91)
   entry and probes it in
@@ -57,8 +61,8 @@ What is already true:
 
 What is not yet true:
 
-- raw/internal generated NIF surfaces are still not split into distinct
-  modules or namespaces
+- kind-scoped raw NIF surfaces are still not split into distinct modules or
+  namespaces
 - `forward/3` still exists as a compatibility shim
 - the framework still does not classify native-facing shapes as:
   - `:resource`
@@ -101,9 +105,9 @@ This is consumed directly by generated wrappers in
 
 Generated public wrappers currently:
 
-- unwrap arguments with `Kinda.unwrap_ref/1`
-- call a raw NIF function
-- pass the result through `forward_module.check!/1`
+- call into a companion `Raw` module when the wrapper has a public/raw split
+- route the result through `Kinda.Forwarder.invoke_public_nif/4`
+- keep legacy root-module raw stubs for compatibility while the split lands
 
 That logic lives in
 [Kinda.CodeGen](/Users/tsai/oss/kinda/lib/kinda_codegen.ex:69).
@@ -114,16 +118,20 @@ That logic lives in
 now formalizes the first public runtime slice:
 
 - `check!/1`
+- `raw_call/3`
+- `call/3`
 - `forward/3`
 - `to_term/1`
 
-This is enough for `kinda_example`, but it is still only the minimal path.
+This is enough for `kinda_example` and for the first public-wrapper raw split,
+but it is still only the minimal path.
 
 ### 4. Typed wrapper structs
 
 [Kinda.ResourceKind](/Users/tsai/oss/kinda/lib/resource_kind.ex:1)
 generates `%Kind{ref: ref}` wrappers and a `make/1` constructor that delegates
-through `forward_module.forward(__MODULE__, "make", [value])`.
+through
+[Kinda.Forwarder.call_kind/4](/Users/tsai/oss/kinda/lib/forwarder.ex:99).
 
 That gives the Elixir side a typed identity for values that are represented by
 native references.
@@ -342,8 +350,10 @@ Goal: stop conflating low-level NIF entrypoints with normalized public wrappers.
 Current status:
 
 - the raw-vs-public seam is now explicit in helper form
-- but it is not yet explicit in generated module layout or naming
-- that means this phase is partially prepared, not completed
+- generated public wrappers now have a first explicit companion raw module:
+  - `RootModule.Raw`
+- but kind-scoped generated raw functions still live only in the root module
+- that means this phase has started, but is not completed
 
 ### Phase 3. Introduce kind-shape classification
 
