@@ -26,6 +26,31 @@ defmodule Kinda.CodeGen.NIFDecl do
             return_typespec: nil,
             dirty: false
 
+  @spec to_manifest(t()) :: map()
+  def to_manifest(%__MODULE__{} = nif_decl) do
+    %{
+      "wrapper_name" => normalize_name(nif_decl.wrapper_name),
+      "nif_name" => normalize_name(nif_decl.nif_name),
+      "params" => normalize_params(nif_decl.params),
+      "doc" => nif_decl.doc,
+      "param_ctypes" => Enum.map(nif_decl.param_ctypes || [], &normalize_ctype/1),
+      "return_ctype" => normalize_ctype(nif_decl.return_ctype),
+      "param_typespecs" =>
+        if is_list(nif_decl.param_typespecs) do
+          Enum.map(nif_decl.param_typespecs, &TypeSpecRef.to_manifest/1)
+        else
+          nil
+        end,
+      "return_typespec" =>
+        if nif_decl.return_typespec do
+          TypeSpecRef.to_manifest(nif_decl.return_typespec)
+        else
+          nil
+        end,
+      "dirty" => normalize_dirty(nif_decl.dirty)
+    }
+  end
+
   # TODO: make this extensible
   def from_resource_kind(%KindDecl{module_name: module_name, kind_functions: kind_functions}) do
     for {f, a} <-
@@ -47,5 +72,24 @@ defmodule Kinda.CodeGen.NIFDecl do
         params: a
       }
     end
+  end
+
+  defp normalize_name(nil), do: nil
+  defp normalize_name(name) when is_atom(name), do: Atom.to_string(name)
+  defp normalize_name(name) when is_binary(name), do: name
+
+  defp normalize_params(params) when is_integer(params), do: params
+  defp normalize_params(params) when is_list(params), do: Enum.map(params, &normalize_name/1)
+
+  defp normalize_dirty(false), do: false
+  defp normalize_dirty(dirty) when is_atom(dirty), do: Atom.to_string(dirty)
+
+  defp normalize_ctype(nil), do: nil
+
+  defp normalize_ctype(%{spelling: spelling, kind: kind}) do
+    %{
+      "spelling" => spelling,
+      "kind" => Atom.to_string(kind)
+    }
   end
 end

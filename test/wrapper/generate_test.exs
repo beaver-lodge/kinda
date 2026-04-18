@@ -277,6 +277,64 @@ defmodule Kinda.Wrapper.GenerateTest do
            }
   end
 
+  test "builds a unified declaration manifest contract" do
+    manifest = %Manifest{
+      records: [
+        %CRecord{
+          name: "MlirContext",
+          kind: :struct,
+          fields: [
+            %CField{name: "ptr", ctype: %CType{spelling: "void*", kind: :pointer}}
+          ]
+        }
+      ],
+      functions: [
+        %Function{
+          name: "foo",
+          params: ["ctx"],
+          param_ctypes: [%CType{spelling: "MlirContext", kind: :unknown}],
+          arity: 1,
+          doc: "Creates foo.",
+          return_ctype: %CType{spelling: "bool", kind: :bool}
+        }
+      ]
+    }
+
+    assert Generate.declaration_manifest(manifest, FakePolicy) == %{
+             "version" => 1,
+             "signature_manifest_version" => 1,
+             "nif_decls" => [
+               %{
+                 "wrapper_name" => "foo",
+                 "nif_name" => nil,
+                 "params" => ["ctx"],
+                 "doc" => "Creates foo.",
+                 "param_ctypes" => [%{"spelling" => "MlirContext", "kind" => "unknown"}],
+                 "return_ctype" => %{"spelling" => "bool", "kind" => "bool"},
+                 "param_typespecs" => [%{"kind" => "builtin", "name" => "term"}],
+                 "return_typespec" => %{"kind" => "builtin", "name" => "boolean"},
+                 "dirty" => false
+               }
+             ],
+             "type_decls" => [
+               %{
+                 "name" => "mlir_context_record",
+                 "source_record_name" => "MlirContext",
+                 "doc" => "Typed projection for extracted C record MlirContext.",
+                 "typespec" => %{
+                   "kind" => "map",
+                   "fields" => [
+                     %{
+                       "name" => "ptr",
+                       "type" => %{"kind" => "builtin", "name" => "term"}
+                     }
+                   ]
+                 }
+               }
+             ]
+           }
+  end
+
   test "preserves dirty metadata in generated nif decls" do
     manifest = %Manifest{
       functions: [

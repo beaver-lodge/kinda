@@ -153,16 +153,20 @@ end
 
 This is the older `ResourceKind + CodeGen` side of `kinda`.
 
-Generated `use Kinda.CodeGen` modules now also expose their declaration
-manifest via `__kinda_nif_decls__/0`, and can expose a typed signature
-manifest via `__kinda_signature_manifest__/0` when the generator module
-implements `signature_manifest/0`. When that manifest includes projected
-records, `Kinda.CodeGen` also emits deterministic public type aliases such as
-`foo_handle_record()/0` from the same single source. These generated aliases
-use atom field keys derived from extracted C field names, while the
-machine-readable manifest keeps the original string names. The generated
-module also exposes the formalized type-declaration IR through
-`__kinda_type_decls__/0`.
+Generated `use Kinda.CodeGen` modules now expose three related surfaces from
+the same typed source:
+
+- NIF declarations through `__kinda_nif_decls__/0`
+- the typed signature manifest through `__kinda_signature_manifest__/0` when
+  the generator module implements `signature_manifest/0`
+- and a unified declaration manifest through `__kinda_declaration_manifest__/0`
+
+When that manifest includes projected records, `Kinda.CodeGen` also emits
+deterministic public type aliases such as `foo_handle_record()/0` from the same
+single source. These generated aliases use atom field keys derived from
+extracted C field names, while the machine-readable manifest keeps the
+original string names. The generated module also exposes the formalized
+type-declaration IR through `__kinda_type_decls__/0`.
 
 For larger generated bindings, the newer wrapper pipeline is usually more
 important.

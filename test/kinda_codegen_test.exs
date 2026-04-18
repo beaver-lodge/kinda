@@ -2,7 +2,7 @@ defmodule Kinda.CodeGenTest do
   use ExUnit.Case, async: true
 
   alias Kinda.CodeGen
-  alias Kinda.CodeGen.{NIFDecl, TypeDecl, TypeSpecRef}
+  alias Kinda.CodeGen.{DeclarationManifest, NIFDecl, TypeDecl, TypeSpecRef}
 
   defmodule GeneratedDecls do
     @behaviour Kinda.CodeGen
@@ -156,6 +156,25 @@ defmodule Kinda.CodeGenTest do
                typespec: TypeSpecRef.map([])
              }
            ]
+  end
+
+  test "exposes unified declaration manifest metadata" do
+    assert %DeclarationManifest{
+             version: 1,
+             signature_manifest_version: 1,
+             nif_decls: [
+               %NIFDecl{
+                 wrapper_name: :invoke_dirty_cpu,
+                 dirty: :dirty_cpu
+               }
+             ],
+             type_decls: [
+               %TypeDecl{
+                 name: :foo_handle_record,
+                 source_record_name: "FooHandle"
+               }
+             ]
+           } = GeneratedModule.__kinda_declaration_manifest__()
   end
 
   test "emits raw companion entries for kind-scoped generated functions" do

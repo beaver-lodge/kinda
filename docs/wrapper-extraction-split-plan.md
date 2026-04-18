@@ -261,6 +261,11 @@ framework-complete:
 - and `Kinda.CodeGen` now materializes a framework-owned `TypeDecl` metadata
   layer from the same manifest, exposed on generated modules through
   `__kinda_type_decls__/0`
+- and `Kinda.CodeGen` now also exposes a unified declaration contract through
+  `__kinda_declaration_manifest__/0`, so generated functions and generated
+  types share one framework-owned metadata surface
+- and `Kinda.Wrapper.Generate.declaration_manifest/2` now exports that same
+  unified surface as a machine-readable contract for build/CI consumers
 - `beaver` is the first downstream to project those C types, including
   `struct Mlir...` record fields, into remote MLIR resource wrapper types
 
@@ -291,8 +296,10 @@ Recommended direction:
   - projected record-level public types
   - generated record type aliases on wrapper modules
   - generated type-declaration metadata on wrapper modules
+  - unified declaration metadata on wrapper modules
   - generated `@spec` declarations
   - machine-readable typed signature manifests
+  - machine-readable unified declaration manifests
   - future `@opaque` / result-shape contracts
 
 That is the path from today's landed `beaver` slice to a real framework-level

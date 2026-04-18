@@ -11,6 +11,8 @@ defmodule Kinda.Wrapper.Generate do
   alias Kinda.Wrapper.Manifest
   alias Kinda.Wrapper.Policy
   alias Kinda.CodeGen.NIFDecl
+  alias Kinda.CodeGen.DeclarationManifest
+  alias Kinda.CodeGen.TypeDecl
   alias Kinda.CodeGen.TypeSpecRef
 
   @spec elixir_functions(Manifest.t(), module()) :: [{atom(), [atom()]}]
@@ -117,6 +119,8 @@ defmodule Kinda.Wrapper.Generate do
             pos_integer() | [signature_manifest_entry()] | [signature_manifest_record()]
         }
 
+  @type declaration_manifest :: map()
+
   @spec callback_bridge_backlog(Manifest.t(), module()) :: [callback_bridge_backlog_entry()]
   def callback_bridge_backlog(%Manifest{functions: functions}, policy) do
     assert_policy!(policy)
@@ -173,6 +177,17 @@ defmodule Kinda.Wrapper.Generate do
       "records" => Enum.map(records, &signature_manifest_record(&1, policy)),
       "entries" => Enum.map(functions, &signature_manifest_entry(&1, policy))
     }
+  end
+
+  @spec declaration_manifest(Manifest.t(), module()) :: declaration_manifest()
+  def declaration_manifest(%Manifest{} = manifest, policy) do
+    signature_manifest = signature_manifest(manifest, policy)
+    type_decls = TypeDecl.from_signature_manifest(signature_manifest)
+
+    manifest
+    |> elixir_nif_decls(policy)
+    |> DeclarationManifest.from_parts(type_decls, signature_manifest)
+    |> DeclarationManifest.to_manifest()
   end
 
   @spec render_zig_nif_entries(Manifest.t(), module()) :: String.t()
@@ -249,6 +264,23 @@ defmodule Kinda.Wrapper.Generate do
       when is_function(encoder, 1) do
     manifest
     |> signature_manifest(policy)
+    |> encoder.()
+    |> IO.iodata_to_binary()
+    |> then(&write_file(Path.expand(path), &1))
+  end
+
+  @spec write_declaration_manifest(
+          Manifest.t(),
+          module(),
+          nil | String.t(),
+          (declaration_manifest() -> iodata())
+        ) :: :ok
+  def write_declaration_manifest(_manifest, _policy, nil, _encoder), do: :ok
+
+  def write_declaration_manifest(manifest, policy, path, encoder)
+      when is_function(encoder, 1) do
+    manifest
+    |> declaration_manifest(policy)
     |> encoder.()
     |> IO.iodata_to_binary()
     |> then(&write_file(Path.expand(path), &1))

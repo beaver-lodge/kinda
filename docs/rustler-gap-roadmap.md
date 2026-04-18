@@ -188,6 +188,11 @@ The first typespec-driven conversion slice has also now landed:
 - `Kinda.CodeGen` now also exposes a formal `TypeDecl` metadata surface through
   `__kinda_type_decls__/0`, so generated public types are not only observable
   via emitted AST or BEAM abstract code
+- `Kinda.CodeGen` now also exposes a unified declaration contract through
+  `__kinda_declaration_manifest__/0`, so generated function/type declarations
+  are no longer split across ad hoc module probes
+- `Kinda.Wrapper.Generate.declaration_manifest/2` now exports the same unified
+  declaration surface as a JSON-friendly machine-readable contract
 - `beaver` now acts as the first consumer probe by mapping MLIR handle-like
   C types, including `struct Mlir...` field spellings inside records, to public
   remote wrapper types
@@ -210,8 +215,9 @@ The first typespec-driven conversion slice has also now landed:
   consumer-specific MLIR mapping into a stable framework contract for C
   pointers, pointer-arrays, enums, and common result shapes
 - Generate `@opaque` / `@type` / `@spec` more systematically from that typed
-  contract, especially beyond the first generated record aliases and `TypeDecl`
-  metadata that now land on `use Kinda.CodeGen` modules
+  contract, especially beyond the first generated record aliases, `TypeDecl`
+  metadata, and unified declaration manifest that now land on
+  `use Kinda.CodeGen` modules
 
 ### 3. Scheduler strategy
 
