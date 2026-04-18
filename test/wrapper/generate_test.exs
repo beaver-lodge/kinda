@@ -277,6 +277,42 @@ defmodule Kinda.Wrapper.GenerateTest do
            }
   end
 
+  test "builds a canonical declaration manifest struct" do
+    manifest = %Manifest{
+      records: [
+        %CRecord{
+          name: "MlirContext",
+          kind: :struct,
+          fields: [
+            %CField{name: "ptr", ctype: %CType{spelling: "void*", kind: :pointer}}
+          ]
+        }
+      ],
+      functions: [
+        %Function{
+          name: "foo",
+          params: ["ctx"],
+          param_ctypes: [%CType{spelling: "MlirContext", kind: :unknown}],
+          arity: 1,
+          doc: "Creates foo.",
+          return_ctype: %CType{spelling: "bool", kind: :bool}
+        }
+      ]
+    }
+
+    assert %Kinda.CodeGen.DeclarationManifest{
+             version: 1,
+             signature_manifest_version: 1,
+             signature_manifest: %{
+               "version" => 1,
+               "records" => [_],
+               "entries" => [_]
+             },
+             nif_decls: [%NIFDecl{wrapper_name: :foo}],
+             type_decls: [%Kinda.CodeGen.TypeDecl{name: :mlir_context_record}]
+           } = Generate.declaration_manifest_struct(manifest, FakePolicy)
+  end
+
   test "builds a unified declaration manifest contract" do
     manifest = %Manifest{
       records: [
@@ -381,6 +417,35 @@ defmodule Kinda.Wrapper.GenerateTest do
                }
              ]
            }
+  end
+
+  test "derives signature manifests from canonical declaration manifests" do
+    manifest = %Manifest{
+      records: [
+        %CRecord{
+          name: "MlirContext",
+          kind: :struct,
+          fields: [
+            %CField{name: "ptr", ctype: %CType{spelling: "void*", kind: :pointer}}
+          ]
+        }
+      ],
+      functions: [
+        %Function{
+          name: "foo",
+          params: ["ctx"],
+          param_ctypes: [%CType{spelling: "MlirContext", kind: :unknown}],
+          arity: 1,
+          doc: "Creates foo.",
+          return_ctype: %CType{spelling: "bool", kind: :bool}
+        }
+      ]
+    }
+
+    declaration_manifest = Generate.declaration_manifest_struct(manifest, FakePolicy)
+
+    assert Generate.signature_manifest(manifest, FakePolicy) ==
+             Kinda.CodeGen.DeclarationManifest.signature_manifest(declaration_manifest)
   end
 
   test "preserves dirty metadata in generated nif decls" do

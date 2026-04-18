@@ -119,6 +119,7 @@ defmodule Kinda.Wrapper.Generate do
             pos_integer() | [signature_manifest_entry()] | [signature_manifest_record()]
         }
 
+  @type declaration_manifest_struct :: DeclarationManifest.t()
   @type declaration_manifest :: map()
 
   @spec callback_bridge_backlog(Manifest.t(), module()) :: [callback_bridge_backlog_entry()]
@@ -169,24 +170,33 @@ defmodule Kinda.Wrapper.Generate do
   end
 
   @spec signature_manifest(Manifest.t(), module()) :: signature_manifest()
-  def signature_manifest(%Manifest{functions: functions, records: records}, policy) do
+  def signature_manifest(%Manifest{} = manifest, policy) do
+    manifest
+    |> declaration_manifest_struct(policy)
+    |> DeclarationManifest.signature_manifest()
+  end
+
+  @spec declaration_manifest_struct(Manifest.t(), module()) :: declaration_manifest_struct()
+  def declaration_manifest_struct(%Manifest{functions: functions, records: records} = manifest, policy) do
     assert_policy!(policy)
 
-    %{
+    signature_manifest = %{
       "version" => 1,
       "records" => Enum.map(records, &signature_manifest_record(&1, policy)),
       "entries" => Enum.map(functions, &signature_manifest_entry(&1, policy))
     }
-  end
 
-  @spec declaration_manifest(Manifest.t(), module()) :: declaration_manifest()
-  def declaration_manifest(%Manifest{} = manifest, policy) do
-    signature_manifest = signature_manifest(manifest, policy)
     type_decls = TypeDecl.from_signature_manifest(signature_manifest)
 
     manifest
     |> elixir_nif_decls(policy)
     |> DeclarationManifest.from_parts(type_decls, signature_manifest)
+  end
+
+  @spec declaration_manifest(Manifest.t(), module()) :: declaration_manifest()
+  def declaration_manifest(%Manifest{} = manifest, policy) do
+    manifest
+    |> declaration_manifest_struct(policy)
     |> DeclarationManifest.to_manifest()
   end
 
@@ -263,7 +273,8 @@ defmodule Kinda.Wrapper.Generate do
   def write_signature_manifest(manifest, policy, path, encoder)
       when is_function(encoder, 1) do
     manifest
-    |> signature_manifest(policy)
+    |> declaration_manifest_struct(policy)
+    |> DeclarationManifest.signature_manifest()
     |> encoder.()
     |> IO.iodata_to_binary()
     |> then(&write_file(Path.expand(path), &1))
@@ -280,7 +291,8 @@ defmodule Kinda.Wrapper.Generate do
   def write_declaration_manifest(manifest, policy, path, encoder)
       when is_function(encoder, 1) do
     manifest
-    |> declaration_manifest(policy)
+    |> declaration_manifest_struct(policy)
+    |> DeclarationManifest.to_manifest()
     |> encoder.()
     |> IO.iodata_to_binary()
     |> then(&write_file(Path.expand(path), &1))

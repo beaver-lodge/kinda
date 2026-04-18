@@ -12,7 +12,8 @@ defmodule Mix.Tasks.Kinda.Wrapper.ExampleTest do
       end)
 
     assert output =~ "== Elixir Manifest =="
-    assert output =~ "== Signature Manifest =="
+    assert output =~ "== Declaration Manifest =="
+    assert output =~ "== Derived Signature Manifest =="
     assert output =~ "== Callback Bridge Report =="
     assert output =~ "== Callback Bridge Manifest =="
     assert output =~ "callback_bridge_required"
@@ -48,7 +49,8 @@ defmodule Mix.Tasks.Kinda.Wrapper.ExampleTest do
     assert output =~ "== Callback Bridge Report =="
     assert output =~ "callback_bridge_required"
     refute output =~ "== Elixir Manifest =="
-    refute output =~ "== Signature Manifest =="
+    refute output =~ "== Declaration Manifest =="
+    refute output =~ "== Derived Signature Manifest =="
     refute output =~ "== Callback Bridge Manifest =="
   end
 end

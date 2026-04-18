@@ -170,7 +170,11 @@ defmodule Kinda.Wrapper.Example do
         [
           "== Elixir Manifest ==\n",
           Generate.render_elixir_manifest(manifest, policy),
-          "\n\n== Signature Manifest ==\n",
+          "\n\n== Declaration Manifest ==\n",
+          manifest
+          |> Generate.declaration_manifest(policy)
+          |> encode_json(),
+          "\n\n== Derived Signature Manifest ==\n",
           manifest
           |> Generate.signature_manifest(policy)
           |> encode_json(),

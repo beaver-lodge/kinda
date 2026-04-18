@@ -58,9 +58,13 @@ What is already true:
 - and `Kinda.Wrapper.Generate` / `Kinda.CodeGen` can now carry those typed
   facts forward into generated `NIFDecl` metadata and public `@spec`
   declarations
-- and `Kinda.Wrapper.Generate.signature_manifest/2` now exposes that same typed
-  surface as a versioned, machine-readable contract instead of leaving it only
-  in generated Elixir source and runtime structs
+- and `Kinda.Wrapper.Generate.declaration_manifest_struct/2` now exposes the
+  canonical framework-owned declaration contract for that same typed surface
+- and `Kinda.Wrapper.Generate.declaration_manifest/2` now serializes that
+  contract into a versioned machine-readable form instead of leaving it only in
+  generated Elixir source and runtime structs
+- and `Kinda.Wrapper.Generate.signature_manifest/2` now serves as a derived
+  compatibility view over that canonical declaration contract
 - and the policy surface now treats callback-heavy exclusions as
   generation-blockers first, with the older `unsupported_*` names retained only
   as compatibility aliases
@@ -251,8 +255,12 @@ framework-complete:
 - `Kinda.Wrapper.Generate` now carries those raw C signature facts into
   `Kinda.CodeGen.NIFDecl`
 - `Kinda.CodeGen` now emits public `@spec` declarations from that typed IR
-- `Kinda.Wrapper.Generate.signature_manifest/2` now exposes the same typed IR
-  as a versioned, machine-readable wrapper contract
+- `Kinda.Wrapper.Generate.declaration_manifest_struct/2` now materializes the
+  canonical framework-owned declaration contract for the same typed IR
+- `Kinda.Wrapper.Generate.declaration_manifest/2` now exposes that same typed
+  IR as a versioned, machine-readable wrapper contract
+- `Kinda.Wrapper.Generate.signature_manifest/2` now derives its compatibility
+  view from that canonical declaration contract
 - `Kinda.Wrapper.Generate.signature_manifest/2` now also projects record fields
   into public typespecs and emits record-level public map types
 - `Kinda.CodeGen` can now read that same typed manifest contract and emit

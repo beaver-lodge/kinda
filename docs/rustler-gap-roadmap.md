@@ -129,9 +129,13 @@ By contrast, `kinda` currently exposes mostly primitives:
 - and consumer policy can now project those raw C signature facts into
   generated public `@spec` declarations and machine-readable record contracts
   instead of leaving the Elixir surface purely name-driven
-- and `Kinda.Wrapper.Generate.signature_manifest/2` now exposes that typed
-  wrapper surface as a versioned, machine-readable contract instead of keeping
-  it only in generated AST and runtime structs
+- and `Kinda.Wrapper.Generate.declaration_manifest_struct/2` now exposes the
+  canonical framework-owned declaration contract for that typed wrapper surface
+- and `Kinda.Wrapper.Generate.declaration_manifest/2` now serializes that same
+  contract into a JSON-friendly machine-readable form
+- and `Kinda.Wrapper.Generate.signature_manifest/2` now acts as a derived
+  compatibility view over that canonical declaration contract instead of being
+  the primary wrapper-side source
 - and that contract can now also be surfaced on generated modules instead of
   only living as a detached build artifact
 
@@ -179,8 +183,12 @@ The first typespec-driven conversion slice has also now landed:
   present
 - `Kinda.Wrapper.Generate.signature_manifest/2` now also projects record fields
   into public typespecs and emits record-level public map types
-- `Kinda.Wrapper.Generate.signature_manifest/2` now makes the same typed slice
-  available as a JSON-friendly contract for CI/build consumers
+- `Kinda.Wrapper.Generate.declaration_manifest_struct/2` now materializes the
+  canonical framework-owned declaration contract for that typed slice
+- `Kinda.Wrapper.Generate.declaration_manifest/2` now makes the same typed
+  slice available as a JSON-friendly contract for CI/build consumers
+- `Kinda.Wrapper.Generate.signature_manifest/2` now derives its compatibility
+  view from that canonical declaration contract
 - `Kinda.CodeGen` can now consume that same manifest contract and emit
   deterministic public record type aliases on generated modules
 - those generated aliases use atom field keys derived from extracted C field

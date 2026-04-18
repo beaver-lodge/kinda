@@ -253,7 +253,8 @@ end
 ```elixir
 Kinda.Wrapper.Generate.render_elixir_manifest(manifest, MyLib.WrapperPolicy)
 Kinda.Wrapper.Generate.render_zig_nif_entries(manifest, MyLib.WrapperPolicy)
-Kinda.Wrapper.Generate.signature_manifest(manifest, MyLib.WrapperPolicy)
+Kinda.Wrapper.Generate.declaration_manifest_struct(manifest, MyLib.WrapperPolicy)
+Kinda.Wrapper.Generate.declaration_manifest(manifest, MyLib.WrapperPolicy)
 ```
 
 ## Callback-Bridge Backlog
@@ -291,27 +292,38 @@ specifically for the remainder that kind-surface sync cannot solve.
 
 ## Reporting Surface
 
-Kinda now exposes two machine-readable reporting contracts around that wrapper
-surface:
+Kinda now exposes one canonical declaration contract plus one derived signature
+view around that wrapper surface:
 
-1. typed signature manifest
+1. unified declaration manifest
 2. callback-bridge manifest
 
-Typed signature manifest:
+Unified declaration manifest:
 
 ```elixir
-Kinda.Wrapper.Generate.signature_manifest(manifest, policy)
+Kinda.Wrapper.Generate.declaration_manifest_struct(manifest, policy)
+Kinda.Wrapper.Generate.declaration_manifest(manifest, policy)
 ```
 
-This is versioned and JSON-friendly. It keeps:
+This is the canonical wrapper-declaration source in `kinda`. The struct form is
+the framework-owned in-memory contract; the map form is the JSON-friendly
+serialization. It keeps:
 
 - named C records and fields from extraction
 - raw C param/return type facts from extraction
 - consumer-projected public params and return typespecs
 - consumer-projected public record and field typespecs
+- generated `NIFDecl` entries
+- generated `TypeDecl` entries
 - dirty scheduler metadata on emitted variants
 - generation-blocker reasons when the function is not emitted as a plain
   generated wrapper
+
+The typed signature manifest remains available as a derived compatibility view:
+
+```elixir
+Kinda.Wrapper.Generate.signature_manifest(manifest, policy)
+```
 
 The callback-bridge backlog remains a separate reporting mode:
 
