@@ -1,14 +1,15 @@
 defmodule Kinda.CodeGen.NIFDecl do
   alias Kinda.CodeGen.KindDecl
-  @type dirty() :: :io | :cpu | false
+  @type dirty() :: :dirty_io | :dirty_cpu | false
   @type name() :: nil | String.t() | atom()
   @type t() :: %__MODULE__{
           wrapper_name: name(),
           nif_name: name(),
           params: [String.t() | atom()] | integer(),
-          doc: String.t() | nil
+          doc: String.t() | nil,
+          dirty: dirty()
         }
-  defstruct nif_name: nil, arity: 0, wrapper_name: nil, params: nil, doc: nil
+  defstruct nif_name: nil, arity: 0, wrapper_name: nil, params: nil, doc: nil, dirty: false
 
   # TODO: make this extensible
   def from_resource_kind(%KindDecl{module_name: module_name, kind_functions: kind_functions}) do

@@ -37,12 +37,17 @@ What is already true:
   - `Kinda.Wrapper.Extract.from_clang_ast/1`
   - `Kinda.Wrapper.Generate.write_elixir_manifest/3`
   - `Kinda.Wrapper.Generate.write_zig_nif_entries/3`
+- wrapper policy now also preserves dirty scheduler metadata through
+  framework-owned `Kinda.CodeGen.NIFDecl` IR instead of only burying it inside
+  Zig entry-string emission
 
 What is not yet true:
 
 - `beaver` still owns final emission policy
 - callback-heavy MLIR APIs are still documented as unsupported backlog, not yet
   bridged
+- scheduler metadata is now preserved in manifest IR, but `kinda` still does
+  not expose a fully user-facing scheduler declaration/codegen contract
 - but they are no longer only a flat reason atom
   - they now have a framework-owned callback-bridge metadata shape
   - and `Kinda.Wrapper.Generate` now exposes a callback-bridge backlog report

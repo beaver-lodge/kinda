@@ -191,6 +191,7 @@ defmodule MyLib.WrapperPolicy do
   def variants(name), do: [{:normal, name, name}]
   def public_name({_kind, public, _base}), do: public
   def elixir_params({_kind, _public, _base}, params), do: params
+  def dirty({_kind, _public, _base}), do: false
   def zig_entry({_kind, _public, base}), do: ~s{nif("#{base}"),}
 end
 ```

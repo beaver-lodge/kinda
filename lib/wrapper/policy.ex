@@ -28,6 +28,7 @@ defmodule Kinda.Wrapper.Policy do
   @callback variants(function_name()) :: [variant()]
   @callback public_name(variant()) :: atom()
   @callback elixir_params(variant(), params()) :: params()
+  @callback dirty(variant()) :: Kinda.CodeGen.NIFDecl.dirty()
   @callback doc(variant(), Function.t()) :: String.t() | nil
   @callback zig_entry(variant()) :: String.t()
 end

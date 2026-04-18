@@ -35,7 +35,8 @@ defmodule Kinda.Wrapper.Generate do
         struct(NIFDecl,
           wrapper_name: policy.public_name(variant),
           params: policy.elixir_params(variant, params),
-          doc: policy.doc(variant, function)
+          doc: policy.doc(variant, function),
+          dirty: policy.dirty(variant)
         )
       end
     end)

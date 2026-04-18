@@ -43,12 +43,35 @@ defmodule Kinda.Wrapper.GenerateTest do
       do: [:context | params]
 
     def elixir_params({_kind, _public_name, _base_name}, params), do: params
+    def dirty({:dirty_cpu, _public_name, _base_name}), do: :dirty_cpu
+    def dirty({:dirty_io, _public_name, _base_name}), do: :dirty_io
+    def dirty({_kind, _public_name, _base_name}), do: false
     def doc({_kind, _public_name, _base_name}, %Function{doc: doc}), do: doc
 
     def zig_entry({:normal, _public_name, base_name}), do: ~s{nif("#{base_name}"),}
 
     def zig_entry({:with_diagnostics, _public_name, base_name}),
       do: ~s{diagnostic.WithDiagnosticsNIF("#{base_name}"),}
+  end
+
+  defmodule DirtyPolicy do
+    @behaviour Policy
+
+    def unsupported_entries, do: %{}
+    def unsupported?(_name), do: false
+    def unsupported_reason(_name), do: nil
+    def callback_bridge_entries, do: %{}
+    def callback_bridge?(_name), do: false
+    def callback_bridge(_name), do: nil
+    def variants(:invoke), do: [{:dirty_cpu, :invoke_dirty_cpu, :invoke}]
+    def public_name({_kind, public_name, _base_name}), do: public_name
+    def elixir_params({_kind, _public_name, _base_name}, params), do: params
+    def dirty({:dirty_cpu, _public_name, _base_name}), do: :dirty_cpu
+    def dirty({_kind, _public_name, _base_name}), do: false
+    def doc({_kind, _public_name, _base_name}, %Function{doc: doc}), do: doc
+
+    def zig_entry({:dirty_cpu, public_name, base_name}),
+      do: ~s{nifDirtyCPU("#{base_name}", "#{public_name}"),}
   end
 
   test "renders generic elixir and zig outputs from manifest + policy" do
@@ -82,13 +105,36 @@ defmodule Kinda.Wrapper.GenerateTest do
     }
 
     assert Generate.elixir_nif_decls(manifest, FakePolicy) == [
-             %NIFDecl{wrapper_name: :bar, params: [:ctx], doc: "Creates bar."},
+             %NIFDecl{wrapper_name: :bar, params: [:ctx], doc: "Creates bar.", dirty: false},
              %NIFDecl{
                wrapper_name: :barWithDiagnostics,
                params: [:context, :ctx],
-               doc: "Creates bar."
+               doc: "Creates bar.",
+               dirty: false
              },
-             %NIFDecl{wrapper_name: :foo, params: [], doc: "Creates foo."}
+             %NIFDecl{wrapper_name: :foo, params: [], doc: "Creates foo.", dirty: false}
+           ]
+  end
+
+  test "preserves dirty metadata in generated nif decls" do
+    manifest = %Manifest{
+      functions: [
+        %Function{
+          name: "invoke",
+          params: ["engine", "args"],
+          arity: 2,
+          doc: "Invokes a function."
+        }
+      ]
+    }
+
+    assert Generate.elixir_nif_decls(manifest, DirtyPolicy) == [
+             %NIFDecl{
+               wrapper_name: :invoke_dirty_cpu,
+               params: [:engine, :args],
+               doc: "Invokes a function.",
+               dirty: :dirty_cpu
+             }
            ]
   end
 

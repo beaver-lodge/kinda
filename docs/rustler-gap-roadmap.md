@@ -109,6 +109,9 @@ By contrast, `kinda` currently exposes mostly primitives:
 - and kind-scoped runtime raw calls now prefer that companion raw surface too
 - and the first downstream handwritten kind-call path now routes through that
   same framework helper instead of direct `apply(CAPI, ...)`
+- and the wrapper-policy pipeline now preserves per-variant dirty scheduler
+  metadata in framework-owned `NIFDecl` IR instead of only encoding it in Zig
+  entry strings
 
 This is real progress, but the runtime surface is still too thin for the full
 set of `beaver`-style adapter needs.
@@ -163,15 +166,24 @@ Rustler exposes per-NIF scheduling where the NIF is declared.
 - [src/kinda.zig](/Users/tsai/oss/kinda/src/kinda.zig:334)
 - [src/result.zig](/Users/tsai/oss/kinda/src/result.zig:11)
 
-But the current Elixir-facing codegen does not make that a first-class user
-feature. In fact, [lib/codegen/nif_decl.ex](/Users/tsai/oss/kinda/lib/codegen/nif_decl.ex:1)
-defines a `dirty()` type and then does not use it.
+The framework has now landed a first scheduler-metadata slice:
+
+- [lib/codegen/nif_decl.ex](/Users/tsai/oss/kinda/lib/codegen/nif_decl.ex:1)
+  carries a real `dirty` field
+- [lib/wrapper/policy.ex](/Users/tsai/oss/kinda/lib/wrapper/policy.ex:1)
+  exposes a `dirty/1` callback
+- [lib/wrapper/generate.ex](/Users/tsai/oss/kinda/lib/wrapper/generate.ex:1)
+  preserves that metadata in generated `NIFDecl` manifests
+
+But the current Elixir-facing codegen still does not make scheduling a full
+first-class user feature end to end.
 
 That is the exact kind of gap a Rustler-like framework should close.
 
 #### Needed evolution
 
-- Extend `Kinda.CodeGen.NIFDecl` with scheduler metadata
+- Extend the new `NIFDecl.dirty` metadata into a full public declaration
+  surface
 - Allow per-NIF `:normal | :dirty_cpu | :dirty_io | :auto`
 - Generate dual wrappers when auto-routing is needed
 - Provide consumer guidance for thresholds and callback safety
@@ -321,7 +333,8 @@ If the goal is to move `kinda` materially closer to Rustler in the next few
 iterations, the highest-value order is:
 
 1. Ship `Kinda.Prebuilt` for real
-2. Make scheduler flags first-class in `NIFDecl`
+2. Extend the newly-landed scheduler metadata in `NIFDecl` into full codegen
+   and runtime support
 3. Promote the new `RootModule.Raw` surface from companion compatibility layer
    to the stable primary raw contract across generated and handwritten
    kind-call surfaces, instead of keeping root raw stubs as the long-term

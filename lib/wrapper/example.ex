@@ -48,6 +48,9 @@ defmodule Kinda.Wrapper.Example do
     def elixir_params({_kind, _public_name, _base_name}, params), do: params
 
     @impl true
+    def dirty({_kind, _public_name, _base_name}), do: false
+
+    @impl true
     def doc({_kind, _public_name, _base_name}, %Function{doc: doc}), do: doc
 
     @impl true
