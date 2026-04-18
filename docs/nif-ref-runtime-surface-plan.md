@@ -37,6 +37,7 @@ What is already true:
   - `raw_call/3`
   - `call/3`
   - `forward/3`
+  - `invoke_kind_nif/5`
   - `check!/1`
   - `to_term/1`
 - `Kinda.ResourceKind.make/1` now routes through
@@ -56,6 +57,12 @@ What is already true:
     without yet removing the legacy raw stubs from `RootModule`
 - kind-scoped runtime calls now also prefer that same companion raw module via
   [Kinda.Forwarder.raw_call/4](/Users/tsai/oss/kinda/lib/forwarder.ex:85)
+- downstream handwritten kind-scoped runtimes can now route through one common
+  helper via
+  [Kinda.Forwarder.invoke_kind_nif/5](/Users/tsai/oss/kinda/lib/forwarder.ex:115)
+- `beaver` now routes its handwritten kind-scoped helper path in
+  [Beaver.Native](/Users/tsai/oss/beaver/lib/beaver/native.ex:1)
+  through that helper instead of direct `apply(CAPI, ...)`
 - `beaver` now exposes a compatibility
   [Beaver.Native.call/3](/Users/tsai/oss/beaver/lib/beaver/native.ex:91)
   entry and probes it in
@@ -65,8 +72,8 @@ What is not yet true:
 
 - root-module raw stubs still remain alongside the new `Raw` companion module
   for compatibility
-- handwritten raw NIFs still do not participate in one uniform raw-surface
-  contract
+- handwritten raw NIF exports still do not automatically participate in one
+  uniform generated `Raw` contract
 - `forward/3` still exists as a compatibility shim
 - the framework still does not classify native-facing shapes as:
   - `:resource`
@@ -127,8 +134,9 @@ now formalizes the first public runtime slice:
 - `forward/3`
 - `to_term/1`
 
-This is enough for `kinda_example` and for the first public-wrapper raw split,
-but it is still only the minimal path.
+This is enough for `kinda_example`, for the first public-wrapper raw split, and
+for the first downstream handwritten kind-call path in `beaver`, but it is
+still only the minimal path.
 
 ### 4. Typed wrapper structs
 

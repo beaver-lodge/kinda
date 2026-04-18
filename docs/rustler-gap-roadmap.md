@@ -100,12 +100,15 @@ By contrast, `kinda` currently exposes mostly primitives:
   - `raw_call/3`
   - `call/3`
   - `forward/3`
+  - `invoke_kind_nif/5`
   - `to_term/1`
 - and generated public wrappers now route through an explicit runtime helper
   instead of each wrapper hand-rolling unwrap + raw invoke + `check!/1`
 - and generated public wrappers now also have a first companion raw module
   surface (`RootModule.Raw`)
 - and kind-scoped runtime raw calls now prefer that companion raw surface too
+- and the first downstream handwritten kind-call path now routes through that
+  same framework helper instead of direct `apply(CAPI, ...)`
 
 This is real progress, but the runtime surface is still too thin for the full
 set of `beaver`-style adapter needs.
@@ -115,7 +118,8 @@ set of `beaver`-style adapter needs.
 - Add a real top-level library module such as `Kinda.Library`
 - Make NIF declaration metadata first-class, not hidden in manual codegen lists
 - Generate docs/specs/names from declarations
-- Replace ad hoc runtime conventions with explicit public APIs
+- Replace the remaining ad hoc handwritten raw-export conventions with explicit
+  public APIs
 
 ### 2. Conversion model
 
@@ -318,8 +322,10 @@ iterations, the highest-value order is:
 
 1. Ship `Kinda.Prebuilt` for real
 2. Make scheduler flags first-class in `NIFDecl`
-3. Turn the new `RootModule.Raw` surface into the stable primary raw contract,
-   instead of a companion compatibility layer alongside root raw stubs
+3. Promote the new `RootModule.Raw` surface from companion compatibility layer
+   to the stable primary raw contract across generated and handwritten
+   kind-call surfaces, instead of keeping root raw stubs as the long-term
+   public raw story
 4. Add integration tests that exercise `beaver`-style resource flows
 5. Generate stronger Elixir-side types/specs/docs from codegen
 

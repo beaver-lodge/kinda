@@ -41,8 +41,13 @@ defmodule Kinda.Forwarder do
 
       @impl true
       def call(element_kind, kind_func_name, args) do
-        raw_call(element_kind, kind_func_name, args)
-        |> check!()
+        Kinda.Forwarder.invoke_kind_nif(
+          __MODULE__,
+          @kinda_nif_module,
+          element_kind,
+          kind_func_name,
+          args
+        )
       end
 
       @impl true
@@ -101,6 +106,16 @@ defmodule Kinda.Forwarder do
   def call(nif_module, element_kind, kind_func_name, args) when is_list(args) do
     raw_call(nif_module, element_kind, kind_func_name, args)
     |> check!()
+  end
+
+  @doc """
+  Dispatches a kind-scoped NIF function and routes the return value through
+  the runtime module's normalization path.
+  """
+  def invoke_kind_nif(runtime_module, nif_module, element_kind, kind_func_name, args)
+      when is_atom(runtime_module) and is_atom(nif_module) and is_list(args) do
+    raw_call(nif_module, element_kind, kind_func_name, args)
+    |> normalize_result(runtime_module)
   end
 
   @doc """

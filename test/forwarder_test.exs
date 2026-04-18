@@ -61,6 +61,13 @@ defmodule Kinda.ForwarderTest do
     assert is_reference(ref)
   end
 
+  test "invoke_kind_nif/5 unwraps refs and normalizes kind results" do
+    assert %DecodedKind{ref: ref} =
+             Kinda.Forwarder.invoke_kind_nif(Runtime, FakeNIF, DecodedKind, :wrap, [])
+
+    assert is_reference(ref)
+  end
+
   test "invoke_public_nif/4 unwraps refs and normalizes the result" do
     ref = make_ref()
 
