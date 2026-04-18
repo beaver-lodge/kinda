@@ -219,9 +219,6 @@ defmodule Kinda.CodeGenTest do
   test "exposes resolved declaration surfaces as module metadata" do
     assert %DeclarationSurfaces{
              source_declaration_manifest: nil,
-             signature_manifest: %{"version" => 1},
-             nif_decls: [%NIFDecl{wrapper_name: :invoke_dirty_cpu}],
-             type_decls: [%TypeDecl{name: :foo_handle_record}],
              declaration_manifest: %DeclarationManifest{
                nif_decls: [%NIFDecl{wrapper_name: :invoke_dirty_cpu}],
                type_decls: [%TypeDecl{name: :foo_handle_record}]
@@ -296,16 +293,6 @@ defmodule Kinda.CodeGenTest do
 
     assert %DeclarationSurfaces{
              source_declaration_manifest: %DeclarationManifest{},
-             nif_decls: [
-               %NIFDecl{
-                 wrapper_name: :invoke_from_manifest,
-                 nif_name: ^expected_nif_name,
-                 dirty: :dirty_io
-               }
-             ],
-             type_decls: [
-               %TypeDecl{name: :bar_handle_record}
-             ],
              declaration_manifest: %DeclarationManifest{
                nif_decls: [
                  %NIFDecl{
@@ -316,8 +303,7 @@ defmodule Kinda.CodeGenTest do
                type_decls: [
                  %TypeDecl{name: :bar_handle_record}
                ]
-             },
-             signature_manifest: %{"version" => 7}
+             }
            } =
              CodeGen.declaration_surfaces(
                Kinda.CodeGenTest.ManifestBackedDecls,

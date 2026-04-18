@@ -191,6 +191,9 @@ interface when they want to compare against `__kinda_nif_decls__/0`,
 modules now expose that same resolved IR directly through
 `__kinda_declaration_surfaces__/0`, and the split metadata accessors are now
 derived views over that IR rather than separately stored module state.
+Inside that IR, the canonical resolved payload is the declaration manifest
+itself; `nif_decls`, `type_decls`, and `signature_manifest` are no longer
+stored a second time on the resolved surface.
 
 When that manifest includes projected records, `Kinda.CodeGen` also emits
 deterministic public type aliases such as `foo_handle_record()/0` from the same

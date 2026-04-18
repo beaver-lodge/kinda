@@ -227,6 +227,10 @@ The first typespec-driven conversion slice has also now landed:
   `__kinda_signature_manifest__/0`, `__kinda_declaration_manifest__/0`) are
   now derived from that single declaration-surface IR, with
   `__kinda_source_declaration_manifest__/0` exposing the checked-in source side
+- and `Kinda.CodeGen.DeclarationSurfaces` now keeps only the canonical source
+  declaration manifest plus the canonical resolved declaration manifest; split
+  views like `nif_decls` and `type_decls` are derived accessors instead of
+  duplicate stored fields
 - when a declaration manifest is present, the typed signature surface is now a
   derived view over its embedded `signature_manifest`, rather than a required
   parallel build/source artifact

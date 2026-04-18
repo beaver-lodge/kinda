@@ -300,6 +300,10 @@ framework-complete:
 - and the older split declaration accessors on generated modules are now
   compatibility views derived from that same declaration-surface IR, instead of
   parallel module metadata stores
+- and `DeclarationSurfaces` itself now also avoids parallel storage, keeping
+  only the canonical source declaration manifest plus the canonical resolved
+  declaration manifest while deriving `nif_decls` / `type_decls` /
+  `signature_manifest` through accessors
 - and when that unified declaration manifest is present, the generated
   signature surface is now a derived view over its embedded
   `signature_manifest`, rather than a separate required sidecar

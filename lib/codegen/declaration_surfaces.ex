@@ -7,38 +7,16 @@ defmodule Kinda.CodeGen.DeclarationSurfaces do
 
   @type t() :: %__MODULE__{
           source_declaration_manifest: source_declaration_manifest(),
-          declaration_manifest: DeclarationManifest.t(),
-          signature_manifest: map() | nil,
-          nif_decls: [NIFDecl.t()],
-          type_decls: [TypeDecl.t()]
+          declaration_manifest: DeclarationManifest.t()
         }
 
-  defstruct source_declaration_manifest: nil,
-            declaration_manifest: nil,
-            signature_manifest: nil,
-            nif_decls: [],
-            type_decls: []
+  defstruct source_declaration_manifest: nil, declaration_manifest: nil
 
-  @spec from_parts(
-          source_declaration_manifest(),
-          DeclarationManifest.t(),
-          [NIFDecl.t()],
-          [TypeDecl.t()],
-          map() | nil
-        ) :: t()
-  def from_parts(
-        source_declaration_manifest,
-        %DeclarationManifest{} = declaration_manifest,
-        nif_decls,
-        type_decls,
-        signature_manifest
-      ) do
+  @spec from_parts(source_declaration_manifest(), DeclarationManifest.t()) :: t()
+  def from_parts(source_declaration_manifest, %DeclarationManifest{} = declaration_manifest) do
     %__MODULE__{
       source_declaration_manifest: source_declaration_manifest,
-      declaration_manifest: declaration_manifest,
-      signature_manifest: signature_manifest,
-      nif_decls: nif_decls,
-      type_decls: type_decls
+      declaration_manifest: declaration_manifest
     }
   end
 
@@ -52,13 +30,13 @@ defmodule Kinda.CodeGen.DeclarationSurfaces do
 
   @spec signature_manifest(t()) :: map() | nil
   def signature_manifest(%__MODULE__{} = surfaces),
-    do: surfaces.signature_manifest
+    do: surfaces |> declaration_manifest() |> DeclarationManifest.signature_manifest()
 
   @spec nif_decls(t()) :: [NIFDecl.t()]
   def nif_decls(%__MODULE__{} = surfaces),
-    do: surfaces.nif_decls
+    do: surfaces |> declaration_manifest() |> DeclarationManifest.nif_decls()
 
   @spec type_decls(t()) :: [TypeDecl.t()]
   def type_decls(%__MODULE__{} = surfaces),
-    do: surfaces.type_decls
+    do: surfaces |> declaration_manifest() |> DeclarationManifest.type_decls()
 end

@@ -112,7 +112,7 @@ defmodule Kinda.CodeGen do
     source_declaration_manifest = source_declaration_manifest(mod)
     signature_manifest = source_signature_manifest(mod, source_declaration_manifest)
 
-    {decls, type_decls, declaration_manifest} =
+    {_decls, _type_decls, declaration_manifest} =
       resolve_declaration_surfaces(
         source_declaration_manifest,
         mod,
@@ -120,13 +120,7 @@ defmodule Kinda.CodeGen do
         signature_manifest
       )
 
-    DeclarationSurfaces.from_parts(
-      source_declaration_manifest,
-      declaration_manifest,
-      decls,
-      type_decls,
-      signature_manifest
-    )
+    DeclarationSurfaces.from_parts(source_declaration_manifest, declaration_manifest)
   end
 
   def raw_module(root_module) when is_atom(root_module) do
