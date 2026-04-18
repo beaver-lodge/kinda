@@ -56,11 +56,11 @@ defmodule Kinda.ExampleVerifier do
   defp zig_bin(opts) do
     Keyword.get(opts, :zig_bin) ||
       System.get_env("KINDA_ZIG_BIN") ||
-      detect_zig_015()
+      detect_zig_016()
   end
 
-  defp detect_zig_015 do
-    candidate = "/opt/homebrew/opt/zig@0.15/bin/zig"
+  defp detect_zig_016 do
+    candidate = "/opt/homebrew/opt/zig/bin/zig"
 
     if File.exists?(candidate), do: candidate, else: nil
   end
