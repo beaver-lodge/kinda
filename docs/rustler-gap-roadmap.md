@@ -230,11 +230,17 @@ Current audit status:
 
 - declaration surfaces are formalized and single-sourced enough to drive the
   ordinary generated wrapper path
-- wrapper generation is still not complete end to end
-- `beaver` still has 11 callback-bridge generation blockers, so not every CAPI
-  is emitted as a plain generated wrapper today
-- `beaver` now emits callback-bridge audit artifacts in its generated build
-  output so that remaining omissions are explicit rather than implicit
+- `beaver` no longer carries callback-bridge generation blockers in its
+  wrapper policy
+- the formerly blocked callback-heavy CAPIs now land through a handwritten
+  callback-bridge runtime, but they are merged back into the same unified
+  declaration surface as ordinary generated wrappers
+- for `beaver`'s extracted MLIR CAPI function set, wrapper generation is now
+  complete enough that the resolved declaration surface has no missing wrapper
+  names relative to `generated/capi_functions.ex`
+- `beaver` still emits callback-bridge audit artifacts in its generated build
+  output, but they now serve as zero-backlog proof rather than an omission
+  report
 
 #### Needed evolution
 
