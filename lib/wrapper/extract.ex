@@ -3,6 +3,7 @@ defmodule Kinda.Wrapper.Extract do
   Extracts a normalized wrapper manifest from a Clang AST tree.
   """
 
+  alias Kinda.Wrapper.CType
   alias Kinda.Wrapper.Function
   alias Kinda.Wrapper.Manifest
 
@@ -21,19 +22,23 @@ defmodule Kinda.Wrapper.Extract do
   end
 
   defp collect_functions(%{"kind" => "FunctionDecl", "name" => name} = node) do
-    params =
+    params_with_types =
       node
       |> Map.get("inner", [])
       |> Enum.with_index()
       |> Enum.filter(fn {elem, _index} -> Map.get(elem, "kind") == "ParmVarDecl" end)
-      |> Enum.map(fn {elem, index} -> Map.get(elem, "name", "param_#{index}") end)
+      |> Enum.map(fn {elem, index} ->
+        {Map.get(elem, "name", "param_#{index}"), CType.from_clang_type(Map.get(elem, "type"))}
+      end)
 
     [
       %Function{
         name: name,
-        params: params,
-        arity: length(params),
-        doc: extract_doc(node)
+        params: Enum.map(params_with_types, &elem(&1, 0)),
+        param_ctypes: Enum.map(params_with_types, &elem(&1, 1)),
+        arity: length(params_with_types),
+        doc: extract_doc(node),
+        return_ctype: CType.from_function_decl(node)
       }
       | collect_children(node)
     ]

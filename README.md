@@ -10,7 +10,9 @@ The shortest useful description is:
 - `kinda` treats a wrapper header as the binding surface
 - extracts functions into a framework-owned manifest
 - preserves Clang-extracted function docs when comments are available
+- preserves raw C parameter/return type facts in that manifest
 - generates generic Zig/Elixir wrapper outputs
+- lets consumer policy project those raw C facts into public Elixir typespecs
 - lets the consumer keep product-specific policy outside the framework
 
 This makes `kinda` a better fit for projects like `beaver`, where the problem
@@ -172,7 +174,12 @@ The result is a framework-owned shape:
       name: "mlirContextCreate",
       params: [],
       arity: 0,
-      doc: "Creates a new MLIR context."
+      doc: "Creates a new MLIR context.",
+      param_ctypes: [],
+      return_ctype: %Kinda.Wrapper.CType{
+        spelling: "MlirContext",
+        kind: :unknown
+      }
     }
   ]
 }
@@ -196,6 +203,8 @@ defmodule MyLib.WrapperPolicy do
   def public_name({_kind, public, _base}), do: public
   def elixir_params({_kind, _public, _base}, params), do: params
   def dirty({_kind, _public, _base}), do: false
+  def typespec_params(_variant, function), do: ...
+  def typespec_return(_variant, function), do: ...
   def zig_entry({_kind, _public, base}), do: ~s{nif("#{base}"),}
 end
 ```

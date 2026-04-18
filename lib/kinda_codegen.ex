@@ -3,7 +3,7 @@ defmodule Kinda.CodeGen do
   Behavior for customizing your source code generation.
   """
 
-  alias Kinda.CodeGen.{KindDecl, NIFDecl}
+  alias Kinda.CodeGen.{KindDecl, NIFDecl, TypeSpecRef}
 
   defmacro __using__(opts) do
     quote do
@@ -91,6 +91,10 @@ defmodule Kinda.CodeGen do
         wrapper_ast =
           if nif_name != wrapper_name do
             quote do
+              unquote(
+                typespec_attribute_ast(wrapper_name, nif.param_typespecs, nif.return_typespec)
+              )
+
               unquote(doc_attribute_ast(nif.doc))
 
               def unquote(wrapper_name)(unquote_splicing(args_ast)) do
@@ -114,6 +118,14 @@ defmodule Kinda.CodeGen do
 
         ast =
           quote do
+            unquote(
+              if(nif_name == wrapper_name,
+                do:
+                  typespec_attribute_ast(wrapper_name, nif.param_typespecs, nif.return_typespec),
+                else: nil
+              )
+            )
+
             unquote(doc_attribute_ast(if(nif_name == wrapper_name, do: nif.doc, else: false)))
 
             def unquote(nif_name)(unquote_splicing(args_ast)),
@@ -162,6 +174,16 @@ defmodule Kinda.CodeGen do
   defp doc_attribute_ast(doc) do
     quote do
       @doc unquote(doc)
+    end
+  end
+
+  defp typespec_attribute_ast(_name, nil, _return_type), do: nil
+  defp typespec_attribute_ast(_name, _params, nil), do: nil
+
+  defp typespec_attribute_ast(name, params, return_type) do
+    quote do
+      @spec unquote(name)(unquote_splicing(Enum.map(params, &TypeSpecRef.to_quoted/1))) ::
+              unquote(TypeSpecRef.to_quoted(return_type))
     end
   end
 end

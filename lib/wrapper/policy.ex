@@ -16,6 +16,7 @@ defmodule Kinda.Wrapper.Policy do
 
   alias Kinda.Wrapper.CallbackBridge
   alias Kinda.Wrapper.Function
+  alias Kinda.CodeGen.TypeSpecRef
 
   @type function_name :: atom()
   @type params :: [atom()]
@@ -40,7 +41,13 @@ defmodule Kinda.Wrapper.Policy do
   @callback elixir_params(variant(), params()) :: params()
   @callback dirty(variant()) :: Kinda.CodeGen.NIFDecl.dirty()
   @callback doc(variant(), Function.t()) :: String.t() | nil
+  @callback typespec_params(variant(), Function.t()) :: [TypeSpecRef.t()]
+  @callback typespec_return(variant(), Function.t()) :: TypeSpecRef.t()
   @callback zig_entry(variant()) :: String.t()
 
-  @optional_callbacks unsupported_entries: 0, unsupported?: 1, unsupported_reason: 1
+  @optional_callbacks unsupported_entries: 0,
+                      unsupported?: 1,
+                      unsupported_reason: 1,
+                      typespec_params: 2,
+                      typespec_return: 2
 end

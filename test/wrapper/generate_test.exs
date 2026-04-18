@@ -5,7 +5,8 @@ defmodule Kinda.Wrapper.GenerateTest do
   alias Kinda.Wrapper.Generate
   alias Kinda.Wrapper.Manifest
   alias Kinda.Wrapper.Policy
-  alias Kinda.CodeGen.NIFDecl
+  alias Kinda.CodeGen.{NIFDecl, TypeSpecRef}
+  alias Kinda.Wrapper.CType
 
   defmodule FakePolicy do
     @behaviour Policy
@@ -111,15 +112,67 @@ defmodule Kinda.Wrapper.GenerateTest do
     }
 
     assert Generate.elixir_nif_decls(manifest, FakePolicy) == [
-             %NIFDecl{wrapper_name: :bar, params: [:ctx], doc: "Creates bar.", dirty: false},
+             %NIFDecl{
+               wrapper_name: :bar,
+               params: [:ctx],
+               doc: "Creates bar.",
+               param_ctypes: [],
+               return_ctype: nil,
+               param_typespecs: [TypeSpecRef.term()],
+               return_typespec: TypeSpecRef.term(),
+               dirty: false
+             },
              %NIFDecl{
                wrapper_name: :barWithDiagnostics,
                params: [:context, :ctx],
                doc: "Creates bar.",
+               param_ctypes: [],
+               return_ctype: nil,
+               param_typespecs: [TypeSpecRef.term(), TypeSpecRef.term()],
+               return_typespec: TypeSpecRef.term(),
                dirty: false
              },
-             %NIFDecl{wrapper_name: :foo, params: [], doc: "Creates foo.", dirty: false}
+             %NIFDecl{
+               wrapper_name: :foo,
+               params: [],
+               doc: "Creates foo.",
+               param_ctypes: [],
+               return_ctype: nil,
+               param_typespecs: [],
+               return_typespec: TypeSpecRef.term(),
+               dirty: false
+             }
            ]
+  end
+
+  test "preserves typed c signature metadata in generated nif decls" do
+    manifest = %Manifest{
+      functions: [
+        %Function{
+          name: "foo",
+          params: ["ctx", "count"],
+          param_ctypes: [
+            %CType{spelling: "MlirContext", kind: :unknown},
+            %CType{spelling: "intptr_t", kind: :integer}
+          ],
+          arity: 2,
+          return_ctype: %CType{spelling: "bool", kind: :bool}
+        }
+      ]
+    }
+
+    assert [
+             %NIFDecl{
+               wrapper_name: :foo,
+               param_ctypes: [
+                 %CType{spelling: "MlirContext", kind: :unknown},
+                 %CType{spelling: "intptr_t", kind: :integer}
+               ],
+               return_ctype: %CType{spelling: "bool", kind: :bool},
+               param_typespecs: [:term, :integer],
+               return_typespec: :boolean
+             }
+           ] = Generate.elixir_nif_decls(manifest, FakePolicy)
   end
 
   test "preserves dirty metadata in generated nif decls" do
@@ -139,6 +192,10 @@ defmodule Kinda.Wrapper.GenerateTest do
                wrapper_name: :invoke_dirty_cpu,
                params: [:engine, :args],
                doc: "Invokes a function.",
+               param_ctypes: [],
+               return_ctype: nil,
+               param_typespecs: [TypeSpecRef.term(), TypeSpecRef.term()],
+               return_typespec: TypeSpecRef.term(),
                dirty: :dirty_cpu
              }
            ]

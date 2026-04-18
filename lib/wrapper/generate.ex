@@ -4,10 +4,12 @@ defmodule Kinda.Wrapper.Generate do
   """
 
   alias Kinda.Wrapper.CallbackBridge
+  alias Kinda.Wrapper.CType
   alias Kinda.Wrapper.Function
   alias Kinda.Wrapper.Manifest
   alias Kinda.Wrapper.Policy
   alias Kinda.CodeGen.NIFDecl
+  alias Kinda.CodeGen.TypeSpecRef
 
   @spec elixir_functions(Manifest.t(), module()) :: [{atom(), [atom()]}]
   def elixir_functions(%Manifest{functions: functions}, policy) do
@@ -36,6 +38,10 @@ defmodule Kinda.Wrapper.Generate do
           wrapper_name: policy.public_name(variant),
           params: policy.elixir_params(variant, params),
           doc: policy.doc(variant, function),
+          param_ctypes: function.param_ctypes,
+          return_ctype: function.return_ctype,
+          param_typespecs: typespec_params(policy, variant, function),
+          return_typespec: typespec_return(policy, variant, function),
           dirty: policy.dirty(variant)
         )
       end
@@ -220,5 +226,35 @@ defmodule Kinda.Wrapper.Generate do
       raise ArgumentError,
             "expected #{inspect(policy)} to implement #{inspect(Policy)}"
     end
+  end
+
+  defp typespec_params(policy, variant, %Function{} = function) do
+    if function_exported?(policy, :typespec_params, 2) do
+      policy.typespec_params(variant, function)
+    else
+      emitted_params =
+        variant
+        |> policy.elixir_params(Enum.map(function.params, &String.to_atom/1))
+
+      Function.typespec_params(function, emitted_params, &CType.to_public_typespec_ref/1)
+    end
+  end
+
+  defp typespec_return(policy, variant, %Function{} = function) do
+    if function_exported?(policy, :typespec_return, 2) do
+      policy.typespec_return(variant, function)
+    else
+      function.return_ctype
+      |> CType.to_public_typespec_ref()
+      |> default_return_typespec()
+    end
+  end
+
+  defp default_return_typespec(typespec)
+       when typespec in [:ok, :boolean, :integer, :float, :term],
+       do: typespec
+
+  defp default_return_typespec(typespec) do
+    TypeSpecRef.union([typespec, TypeSpecRef.term()])
   end
 end

@@ -114,6 +114,13 @@ By contrast, `kinda` currently exposes mostly primitives:
   entry strings
 - and classic `use Kinda.CodeGen` modules now expose their generated
   declaration manifest through `__kinda_nif_decls__/0`
+- and the wrapper/extraction pipeline now preserves raw C parameter/return
+  types in framework-owned IR:
+  - `Kinda.Wrapper.Function`
+  - `Kinda.CodeGen.NIFDecl`
+- and consumer policy can now project those raw C signature facts into
+  generated public `@spec` declarations instead of leaving the Elixir surface
+  purely name-driven
 
 This is real progress, but the runtime surface is still too thin for the full
 set of `beaver`-style adapter needs.
@@ -148,6 +155,17 @@ surface is still mostly:
 This is exactly why `beaver` had to grow a substantial adapter layer in
 [lib/beaver/native.ex](/Users/tsai/oss/beaver/lib/beaver/native.ex:1).
 
+The first typespec-driven conversion slice has also now landed:
+
+- `Kinda.Wrapper.Extract` captures raw C param/return types as
+  `Kinda.Wrapper.CType`
+- `Kinda.Wrapper.Generate` preserves those facts into generated `NIFDecl`
+  metadata
+- `Kinda.CodeGen` now emits `@spec` declarations when that typed metadata is
+  present
+- `beaver` now acts as the first consumer probe by mapping MLIR handle-like
+  C types to public remote wrapper types
+
 #### Needed evolution
 
 - Define a public wrap/unwrap protocol or behaviour layer
@@ -162,7 +180,11 @@ This is exactly why `beaver` had to grow a substantial adapter layer in
   - tuples
   - maps
   - tagged error tuples
-- Generate `@opaque` / `@type` / `@spec` more systematically
+- Generalize the new typespec-driven projection slice from the first
+  consumer-specific MLIR mapping into a stable framework contract for C
+  structs, pointers, enums, and common result shapes
+- Generate `@opaque` / `@type` / `@spec` more systematically from that typed
+  contract
 
 ### 3. Scheduler strategy
 
@@ -299,7 +321,9 @@ Goal: make `kinda` feel like a framework, not just a substrate.
 - Add real `Kinda.Prebuilt`
 - Continue growing `Kinda.Forwarder` from the first public runtime slice into
   a fuller behaviour/API
-- Extend `NIFDecl` with name, docs, scheduler flags, and typed params
+- Continue extending `NIFDecl` from the newly-landed typed C signature slice
+  into a stable declaration contract with names, docs, scheduler flags, typed
+  params, and typed returns
 
 ### Phase 2. Stabilize conversion semantics
 
@@ -307,7 +331,8 @@ Goal: reduce consumer-specific adapter code.
 
 - Formalize resource wrapper contracts
 - Add common term conversion helpers as public APIs
-- Generate richer typespecs and opaque types
+- Lift the current consumer-projected C signature facts into richer framework
+  typespec and opaque-type generation
 - Provide standard error-shape helpers
 
 ### Phase 3. Scheduler-aware NIF declaration
@@ -352,7 +377,8 @@ iterations, the highest-value order is:
    kind-call surfaces, instead of keeping root raw stubs as the long-term
    public raw story
 4. Add integration tests that exercise `beaver`-style resource flows
-5. Generate stronger Elixir-side types/specs/docs from codegen
+5. Turn the newly-landed typed C signature slice into a reusable framework
+   contract, then generate stronger Elixir-side types/specs/docs from it
 
 ## Bottom Line
 

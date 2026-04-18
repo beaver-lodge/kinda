@@ -2,7 +2,7 @@ defmodule Kinda.CodeGenTest do
   use ExUnit.Case, async: true
 
   alias Kinda.CodeGen
-  alias Kinda.CodeGen.NIFDecl
+  alias Kinda.CodeGen.{NIFDecl, TypeSpecRef}
 
   defmodule GeneratedDecls do
     @behaviour Kinda.CodeGen
@@ -42,7 +42,9 @@ defmodule Kinda.CodeGenTest do
           %NIFDecl{
             wrapper_name: :mlirFoo,
             params: [:ctx],
-            doc: "Creates foo.\n\nParameters:\n- `ctx`: Context value."
+            doc: "Creates foo.\n\nParameters:\n- `ctx`: Context value.",
+            param_typespecs: [TypeSpecRef.term()],
+            return_typespec: TypeSpecRef.integer()
           }
         ],
         Module.concat(__MODULE__, GeneratedDocs),
@@ -52,6 +54,7 @@ defmodule Kinda.CodeGenTest do
     ast_string = ast |> then(&{:__block__, [], &1}) |> Macro.to_string()
 
     assert ast_string =~ ~s(@doc "Creates foo.)
+    assert ast_string =~ "@spec mlirFoo(term()) :: integer()"
     assert ast_string =~ "defmodule Raw"
     assert ast_string =~ "def mlirFoo(ctx)"
     assert ast_string =~ "GeneratedDocs.Raw"

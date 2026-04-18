@@ -1,0 +1,73 @@
+defmodule Kinda.CodeGen.TypeSpecRef do
+  @moduledoc false
+
+  @type builtin() :: :term | :integer | :float | :boolean | :binary | :atom | :ok
+  @type t() ::
+          builtin()
+          | {:remote, module(), atom()}
+          | {:list, t()}
+          | {:tuple, [t()]}
+          | {:union, [t()]}
+
+  @spec term() :: :term
+  def term, do: :term
+
+  @spec integer() :: :integer
+  def integer, do: :integer
+
+  @spec float() :: :float
+  def float, do: :float
+
+  @spec boolean() :: :boolean
+  def boolean, do: :boolean
+
+  @spec binary() :: :binary
+  def binary, do: :binary
+
+  @spec atom() :: :atom
+  def atom, do: :atom
+
+  @spec ok() :: :ok
+  def ok, do: :ok
+
+  @spec remote(module(), atom()) :: {:remote, module(), atom()}
+  def remote(module, type_name \\ :t), do: {:remote, module, type_name}
+
+  @spec list(t()) :: {:list, t()}
+  def list(inner), do: {:list, inner}
+
+  @spec tuple([t()]) :: {:tuple, [t()]}
+  def tuple(elements), do: {:tuple, elements}
+
+  @spec union([t()]) :: {:union, [t()]}
+  def union(types), do: {:union, types}
+
+  @spec to_quoted(t()) :: Macro.t()
+  def to_quoted(:term), do: quote(do: term())
+  def to_quoted(:integer), do: quote(do: integer())
+  def to_quoted(:float), do: quote(do: float())
+  def to_quoted(:boolean), do: quote(do: boolean())
+  def to_quoted(:binary), do: quote(do: binary())
+  def to_quoted(:atom), do: quote(do: atom())
+  def to_quoted(:ok), do: quote(do: :ok)
+
+  def to_quoted({:remote, module, type_name}) do
+    quote(do: unquote(module).unquote(type_name)())
+  end
+
+  def to_quoted({:list, inner}) do
+    quote(do: [unquote(to_quoted(inner))])
+  end
+
+  def to_quoted({:tuple, elements}) do
+    {:{}, [], Enum.map(elements, &to_quoted/1)}
+  end
+
+  def to_quoted({:union, [type]}), do: to_quoted(type)
+
+  def to_quoted({:union, [head | tail]}) do
+    Enum.reduce(tail, to_quoted(head), fn type, ast ->
+      {:|, [], [ast, to_quoted(type)]}
+    end)
+  end
+end

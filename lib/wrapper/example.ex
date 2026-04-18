@@ -4,6 +4,7 @@ defmodule Kinda.Wrapper.Example do
   """
 
   alias Kinda.Wrapper.CallbackBridge
+  alias Kinda.CodeGen.TypeSpecRef
   alias Kinda.Wrapper.Extract
   alias Kinda.Wrapper.Function
   alias Kinda.Wrapper.Generate
@@ -73,6 +74,16 @@ defmodule Kinda.Wrapper.Example do
     def doc({_kind, _public_name, _base_name}, %Function{doc: doc}), do: doc
 
     @impl true
+    def typespec_params({_kind, _public_name, _base_name}, %Function{}), do: []
+
+    @impl true
+    def typespec_return({:dirty_cpu, _public_name, _base_name}, %Function{}),
+      do: TypeSpecRef.term()
+
+    def typespec_return({_kind, _public_name, _base_name}, %Function{}),
+      do: TypeSpecRef.term()
+
+    @impl true
     def zig_entry({:dirty_cpu, public_name, base_name}),
       do: ~s|nifDirtyCPU("#{base_name}", "#{public_name}"),|
 
@@ -88,12 +99,18 @@ defmodule Kinda.Wrapper.Example do
           "kind" => "FunctionDecl",
           "name" => "mlirTypeConverterAddConversion",
           "inner" => [
-            %{"kind" => "ParmVarDecl", "name" => "converter"}
-          ]
+            %{
+              "kind" => "ParmVarDecl",
+              "name" => "converter",
+              "type" => %{"qualType" => "MlirTypeConverter"}
+            }
+          ],
+          "type" => %{"qualType" => "void (MlirTypeConverter)"}
         },
         %{
           "kind" => "FunctionDecl",
           "name" => "mlirContextCreate",
+          "type" => %{"qualType" => "MlirContext (void)"},
           "inner" => [
             %{
               "kind" => "FullComment",

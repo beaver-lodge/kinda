@@ -43,6 +43,14 @@ What is already true:
 - and classic `use Kinda.CodeGen` modules now expose those generated
   declarations through `__kinda_nif_decls__/0`, so the manifest is no longer
   only an intermediate file concern
+- and the framework-owned wrapper manifest now preserves raw C parameter and
+  return type facts via:
+  - `Kinda.Wrapper.CType`
+  - `Kinda.Wrapper.Function.param_ctypes`
+  - `Kinda.Wrapper.Function.return_ctype`
+- and `Kinda.Wrapper.Generate` / `Kinda.CodeGen` can now carry those typed
+  facts forward into generated `NIFDecl` metadata and public `@spec`
+  declarations
 - and the policy surface now treats callback-heavy exclusions as
   generation-blockers first, with the older `unsupported_*` names retained only
   as compatibility aliases
@@ -52,8 +60,9 @@ What is not yet true:
 - `beaver` still owns final emission policy
 - callback-heavy MLIR APIs are still generation-blocked backlog, not yet
   bridged
-- pure kind-surface gaps are still consumer-owned coordination work between the
-  Zig-side kind list and the Elixir-side `KindDecl` list
+- pure kind-surface gaps are now single-sourced in `beaver`, but the typed C
+  signature projection contract is still consumer-specific rather than a full
+  framework-level API
 - scheduler metadata is now preserved in manifest IR, but `kinda` still does
   not expose a fully user-facing scheduler declaration/codegen contract
 - but they are no longer only a flat reason atom
@@ -119,7 +128,8 @@ Responsibility:
   - function name
   - parameter names
   - arity
-  - basic declaration metadata
+  - extracted docs when available
+  - raw C parameter and return type facts
 
 Important:
 
@@ -134,7 +144,12 @@ Output shape should be stable and framework-owned, something like:
     %Kinda.Wrapper.Function{
       name: "mlirFooBar",
       params: ["ctx", "value"],
-      arity: 2
+      arity: 2,
+      param_ctypes: [
+        %Kinda.Wrapper.CType{spelling: "MlirContext", kind: :unknown},
+        %Kinda.Wrapper.CType{spelling: "intptr_t", kind: :integer}
+      ],
+      return_ctype: %Kinda.Wrapper.CType{spelling: "bool", kind: :bool}
     }
   ]
 }
@@ -215,8 +230,19 @@ The first formalization step has now landed on the `beaver` side:
   - consumer-defined Elixir-only handwritten kinds such as
     `Beaver.MLIR.UnrankedMemRefDescriptor`
 
-The next step should not be more prose either. It should be turning this
-consumer-specific slice into a framework and consumer contract.
+The next slice has now landed too, but it is still consumer-biased rather than
+framework-complete:
+
+- `Kinda.Wrapper.Extract` now preserves raw C param/return types in
+  framework-owned IR
+- `Kinda.Wrapper.Generate` now carries those raw C signature facts into
+  `Kinda.CodeGen.NIFDecl`
+- `Kinda.CodeGen` now emits public `@spec` declarations from that typed IR
+- `beaver` is the first downstream to project those C types into remote MLIR
+  resource wrapper types
+
+That means the next step is no longer "invent typed IR". It is turning this
+consumer-specific projection slice into a reusable framework contract.
 
 Recommended direction:
 
@@ -233,9 +259,12 @@ Recommended direction:
   - Zig resource-kind registration generation
   - Elixir `KindDecl` emission
   - handwritten helper-module generation
-- extend the same formalism beyond resource kinds toward C struct/CAPI function
-  specs, where the same "one typed contract, many consumers" pattern should
-  apply
+- generalize the newly-landed typed signature slice so downstreams do not have
+  to hand-roll their own projection from:
+  - extracted raw C param/return types
+  - public wrapper/resource types
+  - generated `@spec` declarations
+  - future `@opaque` / result-shape contracts
 
 That is the path from today's landed `beaver` slice to a real framework-level
 generation contract.
@@ -342,7 +371,8 @@ Add:
 Goal:
 
 - keep `beaver` output behavior unchanged
-- just formalize the intermediate representation
+- formalize the intermediate representation for names, docs, and raw C
+  signature facts
 
 ### Phase 2: Extract generic generation from `gen_stub.exs`
 
@@ -377,6 +407,14 @@ thin project-local adapter.
 
 The split is only complete once a second consumer can use the same `kinda`
 wrapper extraction/generation path without inheriting MLIR-specific policy.
+
+At that point, the typed single-source contract should also no longer be
+"`beaver` knows how to map MLIR C types". It should be:
+
+- `kinda` owns the typed C signature schema
+- downstream policy optionally projects raw C types into richer public wrapper
+  types
+- codegen/runtime/docs all consume the same typed declaration contract
 
 Without that, the code is merely moved, not generalized.
 
