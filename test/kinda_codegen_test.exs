@@ -216,6 +216,19 @@ defmodule Kinda.CodeGenTest do
            } = GeneratedModule.__kinda_declaration_manifest__()
   end
 
+  test "exposes resolved declaration surfaces as module metadata" do
+    assert %DeclarationSurfaces{
+             source_declaration_manifest: nil,
+             signature_manifest: %{"version" => 1},
+             nif_decls: [%NIFDecl{wrapper_name: :invoke_dirty_cpu}],
+             type_decls: [%TypeDecl{name: :foo_handle_record}],
+             declaration_manifest: %DeclarationManifest{
+               nif_decls: [%NIFDecl{wrapper_name: :invoke_dirty_cpu}],
+               type_decls: [%TypeDecl{name: :foo_handle_record}]
+             }
+           } = GeneratedModule.__kinda_declaration_surfaces__()
+  end
+
   test "can source generated surfaces directly from declaration manifests" do
     expected_nif_name = Module.concat(Kinda.CodeGenTest.ManifestBackedModule, :invoke_from_manifest)
 
@@ -320,6 +333,7 @@ defmodule Kinda.CodeGenTest do
     assert DeclarationSurfaces.signature_manifest(surfaces) == ManifestBackedModule.__kinda_signature_manifest__()
     assert DeclarationSurfaces.declaration_manifest(surfaces) == ManifestBackedModule.__kinda_declaration_manifest__()
     assert match?(%DeclarationManifest{}, DeclarationSurfaces.source_declaration_manifest(surfaces))
+    assert surfaces == ManifestBackedModule.__kinda_declaration_surfaces__()
   end
 
   test "emits raw companion entries for kind-scoped generated functions" do

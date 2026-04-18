@@ -35,6 +35,7 @@ defmodule Kinda.CodeGen do
       Module.put_attribute(__MODULE__, :kinda_signature_manifest, signature_manifest)
       Module.put_attribute(__MODULE__, :kinda_type_decls, type_decls)
       Module.put_attribute(__MODULE__, :kinda_declaration_manifest, declaration_manifest)
+      Module.put_attribute(__MODULE__, :kinda_declaration_surfaces, surfaces)
 
       @doc false
       def __kinda_nif_decls__, do: @kinda_nif_decls
@@ -47,6 +48,9 @@ defmodule Kinda.CodeGen do
 
       @doc false
       def __kinda_declaration_manifest__, do: @kinda_declaration_manifest
+
+      @doc false
+      def __kinda_declaration_surfaces__, do: @kinda_declaration_surfaces
 
       mf
     end
