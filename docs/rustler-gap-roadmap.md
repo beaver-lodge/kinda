@@ -226,6 +226,16 @@ The first typespec-driven conversion slice has also now landed:
   C types, including `struct Mlir...` field spellings inside records, to public
   remote wrapper types
 
+Current audit status:
+
+- declaration surfaces are formalized and single-sourced enough to drive the
+  ordinary generated wrapper path
+- wrapper generation is still not complete end to end
+- `beaver` still has 11 callback-bridge generation blockers, so not every CAPI
+  is emitted as a plain generated wrapper today
+- `beaver` now emits callback-bridge audit artifacts in its generated build
+  output so that remaining omissions are explicit rather than implicit
+
 #### Needed evolution
 
 - Define a public wrap/unwrap protocol or behaviour layer

@@ -223,6 +223,17 @@ not modeled yet", while some is truly "callback bridge still required".
 The current `beaver` blocker set is firmly in the second category; updating the
 kind surface alone will not emit those APIs.
 
+Current audit status:
+
+- the declaration-side single-source refactor is materially landed
+- the wrapper-generation refactor is not complete end to end
+- `beaver` still carries 11 callback-bridge generation blockers in
+  [Beaver.MLIR.WrapperPolicy](/Users/tsai/oss/beaver/lib/beaver/mlir/wrapper_policy.ex:1)
+- so the answer to "are all CAPIs now supported without omission?" is still no
+- `beaver` now emits build-time audit artifacts for that gap:
+  - `generated/capi_callback_bridge_manifest.json`
+  - `generated/capi_callback_bridge_report.txt`
+
 ## How To Formalize This Further
 
 The first formalization step has now landed on the `beaver` side:
