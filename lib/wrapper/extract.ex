@@ -4,15 +4,24 @@ defmodule Kinda.Wrapper.Extract do
   """
 
   alias Kinda.Wrapper.CType
+  alias Kinda.Wrapper.CField
+  alias Kinda.Wrapper.CRecord
   alias Kinda.Wrapper.Function
   alias Kinda.Wrapper.Manifest
 
   @spec from_clang_ast(map() | list()) :: Manifest.t()
   def from_clang_ast(ast) do
+    typedef_record_aliases = collect_typedef_record_aliases(ast)
+
     %Manifest{
       functions:
         ast
         |> collect_functions()
+        |> Enum.sort_by(& &1.name),
+      records:
+        ast
+        |> collect_records(typedef_record_aliases)
+        |> dedupe_records()
         |> Enum.sort_by(& &1.name)
     }
   end
@@ -47,7 +56,129 @@ defmodule Kinda.Wrapper.Extract do
   defp collect_functions(node) when is_map(node), do: collect_children(node)
   defp collect_functions(_node), do: []
 
+  defp collect_records(nodes, typedef_record_aliases) when is_list(nodes) do
+    Enum.flat_map(nodes, &collect_records(&1, typedef_record_aliases))
+  end
+
+  defp collect_records(%{"kind" => "RecordDecl"} = node, typedef_record_aliases) do
+    case record_from_node(node, typedef_record_aliases) do
+      nil -> collect_record_children(node, typedef_record_aliases)
+      record -> [record | collect_record_children(node, typedef_record_aliases)]
+    end
+  end
+
+  defp collect_records(node, typedef_record_aliases) when is_map(node),
+    do: collect_record_children(node, typedef_record_aliases)
+
+  defp collect_records(_node, _typedef_record_aliases), do: []
+
+  defp collect_record_children(node, typedef_record_aliases) do
+    node
+    |> Map.get("inner", [])
+    |> collect_records(typedef_record_aliases)
+  end
+
   defp collect_children(node), do: node |> Map.get("inner", []) |> collect_functions()
+
+  defp record_from_node(%{} = node, typedef_record_aliases) do
+    with true <- Map.get(node, "completeDefinition", false),
+         name when is_binary(name) and name != "" <- record_name(node, typedef_record_aliases) do
+      %CRecord{
+        name: name,
+        kind: record_kind(node),
+        fields:
+          node
+          |> Map.get("inner", [])
+          |> Enum.with_index()
+          |> Enum.filter(fn {elem, _index} -> Map.get(elem, "kind") == "FieldDecl" end)
+          |> Enum.map(fn {field, index} ->
+            %CField{
+              name: Map.get(field, "name", "field_#{index}"),
+              ctype: CType.from_clang_type(Map.get(field, "type"))
+            }
+          end)
+      }
+    else
+      _ -> nil
+    end
+  end
+
+  defp record_name(node, typedef_record_aliases) do
+    case Map.get(node, "name") do
+      nil -> Map.get(typedef_record_aliases, Map.get(node, "id"))
+      "" -> Map.get(typedef_record_aliases, Map.get(node, "id"))
+      name -> name
+    end
+  end
+
+  defp record_kind(node) do
+    case Map.get(node, "tagUsed") do
+      "struct" -> :struct
+      "union" -> :union
+      _ -> :record
+    end
+  end
+
+  defp collect_typedef_record_aliases(ast) do
+    collect_typedef_record_aliases(ast, %{})
+  end
+
+  defp collect_typedef_record_aliases(nodes, aliases) when is_list(nodes) do
+    Enum.reduce(nodes, aliases, fn node, aliases_acc ->
+      collect_typedef_record_aliases(node, aliases_acc)
+    end)
+  end
+
+  defp collect_typedef_record_aliases(%{} = node, aliases) do
+    aliases =
+      case Map.get(node, "kind") do
+        "TypedefDecl" ->
+          typedef_name = Map.get(node, "name")
+
+          node
+          |> record_ids_from_node()
+          |> Enum.reduce(aliases, fn record_id, acc ->
+            Map.put_new(acc, record_id, typedef_name)
+          end)
+
+        _ ->
+          aliases
+      end
+
+    Map.get(node, "inner", [])
+    |> collect_typedef_record_aliases(aliases)
+  end
+
+  defp collect_typedef_record_aliases(_node, aliases), do: aliases
+
+  defp record_ids_from_node(node) when is_list(node) do
+    node
+    |> Enum.flat_map(&record_ids_from_node/1)
+    |> Enum.uniq()
+  end
+
+  defp record_ids_from_node(%{"ownedTagDecl" => %{"id" => id, "kind" => "RecordDecl"}} = node) do
+    [id | record_ids_from_node(Map.get(node, "inner", []))]
+  end
+
+  defp record_ids_from_node(%{"decl" => %{"id" => id, "kind" => "RecordDecl"}} = node) do
+    [id | record_ids_from_node(Map.get(node, "inner", []))]
+  end
+
+  defp record_ids_from_node(%{} = node), do: record_ids_from_node(Map.values(node))
+  defp record_ids_from_node(_node), do: []
+
+  defp dedupe_records(records) do
+    records
+    |> Enum.reduce(%{}, fn %CRecord{name: name} = record, acc ->
+      Map.update(acc, name, record, fn existing ->
+        if richer_record?(record, existing), do: record, else: existing
+      end)
+    end)
+    |> Map.values()
+  end
+
+  defp richer_record?(left, right), do: length(left.fields) > length(right.fields)
 
   defp extract_doc(node) when is_map(node) do
     node

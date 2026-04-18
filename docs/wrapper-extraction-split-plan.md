@@ -48,6 +48,9 @@ What is already true:
   - `Kinda.Wrapper.CType`
   - `Kinda.Wrapper.Function.param_ctypes`
   - `Kinda.Wrapper.Function.return_ctype`
+- and that same manifest now also preserves named C records and fields via:
+  - `Kinda.Wrapper.CRecord`
+  - `Kinda.Wrapper.CField`
 - and `Kinda.Wrapper.Generate` / `Kinda.CodeGen` can now carry those typed
   facts forward into generated `NIFDecl` metadata and public `@spec`
   declarations
@@ -239,6 +242,8 @@ framework-complete:
 
 - `Kinda.Wrapper.Extract` now preserves raw C param/return types in
   framework-owned IR
+- `Kinda.Wrapper.Extract` now also preserves named C records and field types in
+  that same IR
 - `Kinda.Wrapper.Generate` now carries those raw C signature facts into
   `Kinda.CodeGen.NIFDecl`
 - `Kinda.CodeGen` now emits public `@spec` declarations from that typed IR
@@ -267,6 +272,7 @@ Recommended direction:
   - handwritten helper-module generation
 - generalize the newly-landed typed signature slice so downstreams do not have
   to hand-roll their own projection and export from:
+  - extracted named C records and field types
   - extracted raw C param/return types
   - public wrapper/resource types
   - generated `@spec` declarations

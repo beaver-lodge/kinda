@@ -2,6 +2,8 @@ defmodule Kinda.Wrapper.GenerateTest do
   use ExUnit.Case, async: true
 
   alias Kinda.Wrapper.Function
+  alias Kinda.Wrapper.CField
+  alias Kinda.Wrapper.CRecord
   alias Kinda.Wrapper.Generate
   alias Kinda.Wrapper.Manifest
   alias Kinda.Wrapper.Policy
@@ -177,6 +179,15 @@ defmodule Kinda.Wrapper.GenerateTest do
 
   test "builds a versioned typed signature manifest contract" do
     manifest = %Manifest{
+      records: [
+        %CRecord{
+          name: "MlirContext",
+          kind: :struct,
+          fields: [
+            %CField{name: "ptr", ctype: %CType{spelling: "void*", kind: :pointer}}
+          ]
+        }
+      ],
       functions: [
         %Function{
           name: "baz",
@@ -200,6 +211,18 @@ defmodule Kinda.Wrapper.GenerateTest do
 
     assert Generate.signature_manifest(manifest, FakePolicy) == %{
              "version" => 1,
+             "records" => [
+               %{
+                 "name" => "MlirContext",
+                 "kind" => "struct",
+                 "fields" => [
+                   %{
+                     "name" => "ptr",
+                     "ctype" => %{"spelling" => "void*", "kind" => "pointer"}
+                   }
+                 ]
+               }
+             ],
              "entries" => [
                %{
                  "function" => %{

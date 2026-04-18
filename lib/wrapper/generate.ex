@@ -4,6 +4,8 @@ defmodule Kinda.Wrapper.Generate do
   """
 
   alias Kinda.Wrapper.CallbackBridge
+  alias Kinda.Wrapper.CField
+  alias Kinda.Wrapper.CRecord
   alias Kinda.Wrapper.CType
   alias Kinda.Wrapper.Function
   alias Kinda.Wrapper.Manifest
@@ -97,13 +99,22 @@ defmodule Kinda.Wrapper.Generate do
           String.t() => String.t() | false | [String.t()] | [map()] | map() | nil
         }
 
+  @type signature_manifest_record_field :: %{
+          String.t() => String.t() | map() | nil
+        }
+
+  @type signature_manifest_record :: %{
+          String.t() => String.t() | [signature_manifest_record_field()]
+        }
+
   @type signature_manifest_entry :: %{
           String.t() =>
             signature_manifest_function() | [signature_manifest_variant()] | String.t() | nil
         }
 
   @type signature_manifest :: %{
-          String.t() => pos_integer() | [signature_manifest_entry()]
+          String.t() =>
+            pos_integer() | [signature_manifest_entry()] | [signature_manifest_record()]
         }
 
   @spec callback_bridge_backlog(Manifest.t(), module()) :: [callback_bridge_backlog_entry()]
@@ -154,11 +165,12 @@ defmodule Kinda.Wrapper.Generate do
   end
 
   @spec signature_manifest(Manifest.t(), module()) :: signature_manifest()
-  def signature_manifest(%Manifest{functions: functions}, policy) do
+  def signature_manifest(%Manifest{functions: functions, records: records}, policy) do
     assert_policy!(policy)
 
     %{
       "version" => 1,
+      "records" => Enum.map(records, &signature_manifest_record/1),
       "entries" => Enum.map(functions, &signature_manifest_entry(&1, policy))
     }
   end
@@ -345,6 +357,20 @@ defmodule Kinda.Wrapper.Generate do
 
   defp encode_dirty(false), do: false
   defp encode_dirty(dirty), do: Atom.to_string(dirty)
+
+  defp signature_manifest_record(%CRecord{name: name, kind: kind, fields: fields}) do
+    %{
+      "name" => name,
+      "kind" => Atom.to_string(kind),
+      "fields" =>
+        Enum.map(fields, fn %CField{name: field_name, ctype: ctype} ->
+          %{
+            "name" => field_name,
+            "ctype" => CType.to_manifest(ctype)
+          }
+        end)
+    }
+  end
 
   defp signature_manifest_blocker_reason(function_name, policy) do
     policy.generation_blocker_reason(function_name) ||

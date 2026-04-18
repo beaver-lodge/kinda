@@ -9,6 +9,7 @@ The shortest useful description is:
 
 - `kinda` treats a wrapper header as the binding surface
 - extracts functions into a framework-owned manifest
+- extracts named C records into that same framework-owned manifest
 - preserves Clang-extracted function docs when comments are available
 - preserves raw C parameter/return type facts in that manifest
 - generates generic Zig/Elixir wrapper outputs
@@ -170,6 +171,18 @@ The result is a framework-owned shape:
 
 ```elixir
 %Kinda.Wrapper.Manifest{
+  records: [
+    %Kinda.Wrapper.CRecord{
+      name: "MlirContext",
+      kind: :struct,
+      fields: [
+        %Kinda.Wrapper.CField{
+          name: "ptr",
+          ctype: %Kinda.Wrapper.CType{spelling: "const void*", kind: :pointer}
+        }
+      ]
+    }
+  ],
   functions: [
     %Kinda.Wrapper.Function{
       name: "mlirContextCreate",
@@ -267,6 +280,7 @@ Kinda.Wrapper.Generate.signature_manifest(manifest, policy)
 
 This is versioned and JSON-friendly. It keeps:
 
+- named C records and fields from extraction
 - raw C param/return type facts from extraction
 - consumer-projected public params and return typespecs
 - dirty scheduler metadata on emitted variants

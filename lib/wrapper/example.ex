@@ -96,6 +96,20 @@ defmodule Kinda.Wrapper.Example do
       "kind" => "TranslationUnitDecl",
       "inner" => [
         %{
+          "kind" => "RecordDecl",
+          "id" => "0xctx",
+          "name" => "MlirContext",
+          "tagUsed" => "struct",
+          "completeDefinition" => true,
+          "inner" => [
+            %{
+              "kind" => "FieldDecl",
+              "name" => "ptr",
+              "type" => %{"qualType" => "const void *"}
+            }
+          ]
+        },
+        %{
           "kind" => "FunctionDecl",
           "name" => "mlirTypeConverterAddConversion",
           "inner" => [

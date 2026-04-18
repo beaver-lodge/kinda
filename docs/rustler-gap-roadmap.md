@@ -118,6 +118,10 @@ By contrast, `kinda` currently exposes mostly primitives:
   types in framework-owned IR:
   - `Kinda.Wrapper.Function`
   - `Kinda.CodeGen.NIFDecl`
+- and the same manifest now also preserves named C record declarations and
+  fields through:
+  - `Kinda.Wrapper.CRecord`
+  - `Kinda.Wrapper.CField`
 - and consumer policy can now project those raw C signature facts into
   generated public `@spec` declarations instead of leaving the Elixir surface
   purely name-driven
@@ -162,6 +166,7 @@ The first typespec-driven conversion slice has also now landed:
 
 - `Kinda.Wrapper.Extract` captures raw C param/return types as
   `Kinda.Wrapper.CType`
+- `Kinda.Wrapper.Extract` also captures named C record declarations and fields
 - `Kinda.Wrapper.Generate` preserves those facts into generated `NIFDecl`
   metadata
 - `Kinda.CodeGen` now emits `@spec` declarations when that typed metadata is
@@ -187,7 +192,7 @@ The first typespec-driven conversion slice has also now landed:
   - tagged error tuples
 - Generalize the new typespec-driven projection slice from the first
   consumer-specific MLIR mapping into a stable framework contract for C
-  structs, pointers, enums, and common result shapes
+  structs, struct fields, pointers, enums, and common result shapes
 - Generate `@opaque` / `@type` / `@spec` more systematically from that typed
   contract
 

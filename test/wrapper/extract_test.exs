@@ -2,6 +2,8 @@ defmodule Kinda.Wrapper.ExtractTest do
   use ExUnit.Case, async: true
 
   alias Kinda.Wrapper.Extract
+  alias Kinda.Wrapper.CField
+  alias Kinda.Wrapper.CRecord
   alias Kinda.Wrapper.CType
   alias Kinda.Wrapper.Function
   alias Kinda.Wrapper.Manifest
@@ -10,6 +12,50 @@ defmodule Kinda.Wrapper.ExtractTest do
     ast = %{
       "kind" => "TranslationUnitDecl",
       "inner" => [
+        %{
+          "kind" => "RecordDecl",
+          "id" => "0xctx",
+          "name" => "MlirContext",
+          "tagUsed" => "struct",
+          "completeDefinition" => true,
+          "inner" => [
+            %{
+              "kind" => "FieldDecl",
+              "name" => "ptr",
+              "type" => %{"qualType" => "void *"}
+            }
+          ]
+        },
+        %{
+          "kind" => "RecordDecl",
+          "id" => "0xpayload",
+          "name" => "",
+          "tagUsed" => "struct",
+          "completeDefinition" => true,
+          "inner" => [
+            %{
+              "kind" => "FieldDecl",
+              "name" => "count",
+              "type" => %{"qualType" => "intptr_t"}
+            }
+          ]
+        },
+        %{
+          "kind" => "TypedefDecl",
+          "name" => "FooPayload",
+          "inner" => [
+            %{
+              "kind" => "ElaboratedType",
+              "ownedTagDecl" => %{"id" => "0xpayload", "kind" => "RecordDecl"},
+              "inner" => [
+                %{
+                  "kind" => "RecordType",
+                  "decl" => %{"id" => "0xpayload", "kind" => "RecordDecl", "name" => ""}
+                }
+              ]
+            }
+          ]
+        },
         %{
           "kind" => "FunctionDecl",
           "name" => "mlirFoo",
@@ -75,6 +121,28 @@ defmodule Kinda.Wrapper.ExtractTest do
                  arity: 2,
                  doc: "Creates foo.\n\nParameters:\n- `ctx`: Context value.",
                  return_ctype: %CType{spelling: "MlirContext", kind: :unknown}
+               }
+             ],
+             records: [
+               %CRecord{
+                 name: "FooPayload",
+                 kind: :struct,
+                 fields: [
+                   %CField{
+                     name: "count",
+                     ctype: %CType{spelling: "intptr_t", kind: :integer}
+                   }
+                 ]
+               },
+               %CRecord{
+                 name: "MlirContext",
+                 kind: :struct,
+                 fields: [
+                   %CField{
+                     name: "ptr",
+                     ctype: %CType{spelling: "void*", kind: :pointer}
+                   }
+                 ]
                }
              ]
            }
