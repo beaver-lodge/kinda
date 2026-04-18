@@ -15,8 +15,8 @@ defmodule Kinda.Declaration do
 
   That boundary is intentionally independent from downstream DSL naming.
   Repos such as Beaver can rename or consolidate their public IR, dialect,
-  rewrite, and pass surfaces without pulling declaration resolution back out of
-  `kinda`.
+  rewrite, and pass surfaces, including collapsing historical shim layers,
+  without pulling declaration resolution back out of `kinda`.
   """
 
   alias Kinda.CodeGen.{DeclarationManifest, DeclarationSurfaces, NIFDecl, TypeDecl}
