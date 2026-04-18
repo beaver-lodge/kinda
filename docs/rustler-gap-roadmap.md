@@ -18,6 +18,10 @@ The gap is not mainly about raw capability. The gap is about productization:
 - release/distribution flow
 - testing and documentation
 
+The example/docs track now also has a dedicated companion plan:
+
+- [example-surface-unification-plan.md](/Users/tsai/oss/kinda/docs/example-surface-unification-plan.md:1)
+
 ## Current State
 
 ### What Kinda clearly already has
@@ -209,6 +213,9 @@ documented.
 
 #### Needed evolution
 
+- Formalize `examples/` and `kinda_example/` as one coherent example program
+  via:
+  - [example-surface-unification-plan.md](/Users/tsai/oss/kinda/docs/example-surface-unification-plan.md:1)
 - Add real integration tests, not just doctests
 - Add matrix tests for:
   - resources
@@ -274,6 +281,9 @@ Goal: make precompiled distribution a first-class feature.
 
 Goal: reach Rustler-like trust, not just Rustler-like cleverness.
 
+- Formalize one example ladder across:
+  - `examples/`
+  - `kinda_example/`
 - add real integration tests
 - add CI matrix for OTP / Zig / targets
 - add at least one large example
