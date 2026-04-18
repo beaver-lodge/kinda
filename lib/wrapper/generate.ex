@@ -12,6 +12,7 @@ defmodule Kinda.Wrapper.Generate do
   alias Kinda.Wrapper.Policy
   alias Kinda.CodeGen.NIFDecl
   alias Kinda.CodeGen.DeclarationManifest
+  alias Kinda.CodeGen.DeclarationSurfaces
   alias Kinda.CodeGen.TypeSpecRef
 
   @spec elixir_functions(Manifest.t(), module()) :: [{atom(), [atom()]}]
@@ -118,6 +119,7 @@ defmodule Kinda.Wrapper.Generate do
             pos_integer() | [signature_manifest_entry()] | [signature_manifest_record()]
         }
 
+  @type declaration_surfaces_struct :: DeclarationSurfaces.t()
   @type declaration_manifest_struct :: DeclarationManifest.t()
   @type declaration_manifest :: map()
 
@@ -171,12 +173,12 @@ defmodule Kinda.Wrapper.Generate do
   @spec signature_manifest(Manifest.t(), module()) :: signature_manifest()
   def signature_manifest(%Manifest{} = manifest, policy) do
     manifest
-    |> declaration_manifest_struct(policy)
-    |> DeclarationManifest.signature_manifest()
+    |> declaration_surfaces_struct(policy)
+    |> DeclarationSurfaces.signature_manifest()
   end
 
-  @spec declaration_manifest_struct(Manifest.t(), module()) :: declaration_manifest_struct()
-  def declaration_manifest_struct(%Manifest{functions: functions, records: records} = manifest, policy) do
+  @spec declaration_surfaces_struct(Manifest.t(), module()) :: declaration_surfaces_struct()
+  def declaration_surfaces_struct(%Manifest{functions: functions, records: records} = manifest, policy) do
     assert_policy!(policy)
 
     signature_manifest = %{
@@ -185,15 +187,26 @@ defmodule Kinda.Wrapper.Generate do
       "entries" => Enum.map(functions, &signature_manifest_entry(&1, policy))
     }
 
+    declaration_manifest =
+      manifest
+      |> elixir_nif_decls(policy)
+      |> DeclarationManifest.build(signature_manifest)
+
+    DeclarationSurfaces.from_parts(nil, declaration_manifest)
+  end
+
+  @spec declaration_manifest_struct(Manifest.t(), module()) :: declaration_manifest_struct()
+  def declaration_manifest_struct(%Manifest{} = manifest, policy) do
     manifest
-    |> elixir_nif_decls(policy)
-    |> DeclarationManifest.build(signature_manifest)
+    |> declaration_surfaces_struct(policy)
+    |> DeclarationSurfaces.declaration_manifest()
   end
 
   @spec declaration_manifest(Manifest.t(), module()) :: declaration_manifest()
   def declaration_manifest(%Manifest{} = manifest, policy) do
     manifest
-    |> declaration_manifest_struct(policy)
+    |> declaration_surfaces_struct(policy)
+    |> DeclarationSurfaces.declaration_manifest()
     |> DeclarationManifest.to_manifest()
   end
 
@@ -270,8 +283,8 @@ defmodule Kinda.Wrapper.Generate do
   def write_signature_manifest(manifest, policy, path, encoder)
       when is_function(encoder, 1) do
     manifest
-    |> declaration_manifest_struct(policy)
-    |> DeclarationManifest.signature_manifest()
+    |> declaration_surfaces_struct(policy)
+    |> DeclarationSurfaces.signature_manifest()
     |> encoder.()
     |> IO.iodata_to_binary()
     |> then(&write_file(Path.expand(path), &1))
@@ -288,7 +301,8 @@ defmodule Kinda.Wrapper.Generate do
   def write_declaration_manifest(manifest, policy, path, encoder)
       when is_function(encoder, 1) do
     manifest
-    |> declaration_manifest_struct(policy)
+    |> declaration_surfaces_struct(policy)
+    |> DeclarationSurfaces.declaration_manifest()
     |> DeclarationManifest.to_manifest()
     |> encoder.()
     |> IO.iodata_to_binary()

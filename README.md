@@ -174,21 +174,24 @@ wins. Declaration-manifest-backed generators no longer need a parallel
 `nifs()/0`; kind-derived helper NIFs still come from `kinds()/0`.
 
 `kinda` now also formalizes the distinction between the declaration source and
-the generated module surface:
+the generated module surface inside
+`Kinda.CodeGen.DeclarationSurfaces` itself:
 
-- `Kinda.CodeGen.source_declaration_manifest/1` reads the canonical source
+- `Kinda.CodeGen.DeclarationSurfaces.load_source/1` reads the canonical source
   contract from a generator module
-- `Kinda.CodeGen.declaration_surfaces/2` resolves that source contract into the
-  final generated surfaces for a specific root module, including normalized
-  `nif_name`s, kind-derived helper entries, guaranteed/materialized generated
-  `TypeDecl`s, and the derived signature view
-- that resolved surface now lands as a formal framework-owned IR:
+- `Kinda.CodeGen.DeclarationSurfaces.from_generator/2` resolves that source
+  contract into the final generated surfaces for a specific root module,
+  including normalized `nif_name`s, kind-derived helper entries,
+  guaranteed/materialized generated `TypeDecl`s, and the derived signature
+  view
+- that resolved surface lands as the formal framework-owned IR:
   `Kinda.CodeGen.DeclarationSurfaces`
 
-Downstreams should treat `declaration_surfaces/2` as the formalized public
-interface when they want to compare against `__kinda_nif_decls__/0`,
-`__kinda_type_decls__/0`, or `__kinda_declaration_manifest__/0`. Generated
-modules now expose that same resolved IR directly through
+Downstreams should treat `Kinda.CodeGen.DeclarationSurfaces.from_generator/2`
+as the formalized public resolution interface when they want to compare against
+`__kinda_nif_decls__/0`, `__kinda_type_decls__/0`, or
+`__kinda_declaration_manifest__/0`. Generated modules now expose that same
+resolved IR directly through
 `__kinda_declaration_surfaces__/0`, and the split metadata accessors are now
 derived views over that IR rather than separately stored module state.
 Inside that IR, the canonical resolved payload is the declaration manifest
@@ -277,6 +280,7 @@ end
 ```elixir
 Kinda.Wrapper.Generate.render_elixir_manifest(manifest, MyLib.WrapperPolicy)
 Kinda.Wrapper.Generate.render_zig_nif_entries(manifest, MyLib.WrapperPolicy)
+Kinda.Wrapper.Generate.declaration_surfaces_struct(manifest, MyLib.WrapperPolicy)
 Kinda.Wrapper.Generate.declaration_manifest_struct(manifest, MyLib.WrapperPolicy)
 Kinda.Wrapper.Generate.declaration_manifest(manifest, MyLib.WrapperPolicy)
 ```
@@ -319,8 +323,22 @@ specifically for the remainder that kind-surface sync cannot solve.
 Kinda now exposes one canonical declaration contract plus one derived signature
 view around that wrapper surface:
 
-1. unified declaration manifest
-2. callback-bridge manifest
+1. resolved declaration surfaces
+2. unified declaration manifest
+3. callback-bridge manifest
+
+Resolved declaration surfaces:
+
+```elixir
+Kinda.Wrapper.Generate.declaration_surfaces_struct(manifest, policy)
+```
+
+This is now the canonical wrapper-side in-memory declaration IR in `kinda`.
+It carries:
+
+- the source declaration-manifest slot, set to `nil` for wrapper-generated
+  surfaces
+- the canonical resolved declaration manifest
 
 Unified declaration manifest:
 
@@ -329,8 +347,8 @@ Kinda.Wrapper.Generate.declaration_manifest_struct(manifest, policy)
 Kinda.Wrapper.Generate.declaration_manifest(manifest, policy)
 ```
 
-This is the canonical wrapper-declaration source in `kinda`. The struct form is
-the framework-owned in-memory contract; the map form is the JSON-friendly
+The declaration-manifest struct is now the canonical resolved payload stored
+inside `DeclarationSurfaces`, and the map form is the JSON-friendly
 serialization. It keeps:
 
 - named C records and fields from extraction
@@ -349,8 +367,8 @@ generated `TypeDecl` layer. That keeps type declarations sourced from the same
 declaration contract rather than from a parallel signature-only path.
 
 When that declaration contract is consumed by `use Kinda.CodeGen`, the formal
-resolution path now lives in `Kinda.CodeGen.declaration_surfaces/2`, so
-downstreams do not have to reimplement normalization or merge logic just to
+resolution path now lives in `Kinda.CodeGen.DeclarationSurfaces.from_generator/2`,
+so downstreams do not have to reimplement normalization or merge logic just to
 observe the final generated declaration surface. That resolved surface is now
 materialized as `Kinda.CodeGen.DeclarationSurfaces`, rather than an ad hoc map.
 

@@ -255,8 +255,10 @@ framework-complete:
 - `Kinda.Wrapper.Generate` now carries those raw C signature facts into
   `Kinda.CodeGen.NIFDecl`
 - `Kinda.CodeGen` now emits public `@spec` declarations from that typed IR
+- `Kinda.Wrapper.Generate.declaration_surfaces_struct/2` now materializes the
+  canonical wrapper-side in-memory declaration IR
 - `Kinda.Wrapper.Generate.declaration_manifest_struct/2` now materializes the
-  canonical framework-owned declaration contract for the same typed IR
+  canonical resolved declaration payload for that same typed IR
 - `Kinda.Wrapper.Generate.declaration_manifest/2` now exposes that same typed
   IR as a versioned, machine-readable wrapper contract
 - `Kinda.Wrapper.Generate.signature_manifest/2` now derives its compatibility
@@ -286,14 +288,15 @@ framework-complete:
   `Kinda.CodeGen.DeclarationManifest.load!/1`, so downstreams can hand back a
   `.ex` / `.json` declaration-manifest path instead of reimplementing loading
   logic locally
-- and `Kinda.CodeGen.source_declaration_manifest/1` plus
-  `Kinda.CodeGen.declaration_surfaces/2` now make the source-vs-resolved split
-  explicit, so the final generated declaration surface is formalized inside
-  `kinda` rather than re-normalized ad hoc by each consumer, including the
-  final materialization of generated `TypeDecl`s
+- and `Kinda.CodeGen.DeclarationSurfaces.load_source/1` plus
+  `Kinda.CodeGen.DeclarationSurfaces.from_generator/2` now make the
+  source-vs-resolved split explicit, so the final generated declaration
+  surface is formalized inside `kinda` rather than re-normalized ad hoc by
+  each consumer, including the final materialization of generated `TypeDecl`s
 - and that resolved surface is now carried by
   `Kinda.CodeGen.DeclarationSurfaces`, so the declaration-side IR no longer
-  stops at the checked-in/source contract
+  stops at the checked-in/source contract and the construction API no longer
+  hangs off generic `Kinda.CodeGen` helpers
 - and generated modules now re-expose that same resolved declaration IR
   through `__kinda_declaration_surfaces__/0`, so the formalized interface does
   not stop at a helper API inside `Kinda.CodeGen`

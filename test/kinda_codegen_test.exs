@@ -288,7 +288,7 @@ defmodule Kinda.CodeGenTest do
     assert [%NIFDecl{wrapper_name: :invoke_from_manifest}] = ManifestBackedModule.__kinda_nif_decls__()
   end
 
-  test "formalizes resolved declaration surfaces through Kinda.CodeGen" do
+  test "formalizes resolved declaration surfaces through Kinda.CodeGen.DeclarationSurfaces" do
     expected_nif_name = Module.concat(Kinda.CodeGenTest.ManifestBackedModule, :invoke_from_manifest)
 
     assert %DeclarationSurfaces{
@@ -305,13 +305,13 @@ defmodule Kinda.CodeGenTest do
                ]
              }
            } =
-             CodeGen.declaration_surfaces(
+             DeclarationSurfaces.from_generator(
                Kinda.CodeGenTest.ManifestBackedDecls,
                Kinda.CodeGenTest.ManifestBackedModule
              )
 
     surfaces =
-      CodeGen.declaration_surfaces(
+      DeclarationSurfaces.from_generator(
         Kinda.CodeGenTest.ManifestBackedDecls,
         Kinda.CodeGenTest.ManifestBackedModule
       )
@@ -321,6 +321,8 @@ defmodule Kinda.CodeGenTest do
     assert DeclarationSurfaces.signature_manifest(surfaces) == ManifestBackedModule.__kinda_signature_manifest__()
     assert DeclarationSurfaces.declaration_manifest(surfaces) == ManifestBackedModule.__kinda_declaration_manifest__()
     assert match?(%DeclarationManifest{}, DeclarationSurfaces.source_declaration_manifest(surfaces))
+    assert DeclarationSurfaces.load_source(Kinda.CodeGenTest.ManifestBackedDecls) ==
+             DeclarationSurfaces.source_declaration_manifest(surfaces)
     assert surfaces == ManifestBackedModule.__kinda_declaration_surfaces__()
     assert ManifestBackedModule.__kinda_source_declaration_manifest__() ==
              DeclarationSurfaces.source_declaration_manifest(surfaces)

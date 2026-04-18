@@ -7,7 +7,7 @@ defmodule Kinda.Wrapper.GenerateTest do
   alias Kinda.Wrapper.Generate
   alias Kinda.Wrapper.Manifest
   alias Kinda.Wrapper.Policy
-  alias Kinda.CodeGen.{NIFDecl, TypeSpecRef}
+  alias Kinda.CodeGen.{DeclarationManifest, DeclarationSurfaces, NIFDecl, TypeSpecRef}
   alias Kinda.Wrapper.CType
 
   defmodule FakePolicy do
@@ -277,6 +277,45 @@ defmodule Kinda.Wrapper.GenerateTest do
            }
   end
 
+  test "builds a canonical declaration surfaces struct" do
+    manifest = %Manifest{
+      records: [
+        %CRecord{
+          name: "MlirContext",
+          kind: :struct,
+          fields: [
+            %CField{name: "ptr", ctype: %CType{spelling: "void*", kind: :pointer}}
+          ]
+        }
+      ],
+      functions: [
+        %Function{
+          name: "foo",
+          params: ["ctx"],
+          param_ctypes: [%CType{spelling: "MlirContext", kind: :unknown}],
+          arity: 1,
+          doc: "Creates foo.",
+          return_ctype: %CType{spelling: "bool", kind: :bool}
+        }
+      ]
+    }
+
+    assert %DeclarationSurfaces{
+             source_declaration_manifest: nil,
+             declaration_manifest: %DeclarationManifest{
+               version: 1,
+               signature_manifest_version: 1,
+               signature_manifest: %{
+                 "version" => 1,
+                 "records" => [_],
+                 "entries" => [_]
+               },
+               nif_decls: [%NIFDecl{wrapper_name: :foo}],
+               type_decls: [%Kinda.CodeGen.TypeDecl{name: :mlir_context_record}]
+             }
+           } = Generate.declaration_surfaces_struct(manifest, FakePolicy)
+  end
+
   test "builds a canonical declaration manifest struct" do
     manifest = %Manifest{
       records: [
@@ -311,6 +350,10 @@ defmodule Kinda.Wrapper.GenerateTest do
              nif_decls: [%NIFDecl{wrapper_name: :foo}],
              type_decls: [%Kinda.CodeGen.TypeDecl{name: :mlir_context_record}]
            } = Generate.declaration_manifest_struct(manifest, FakePolicy)
+
+    assert Generate.declaration_surfaces_struct(manifest, FakePolicy)
+           |> DeclarationSurfaces.declaration_manifest() ==
+             Generate.declaration_manifest_struct(manifest, FakePolicy)
   end
 
   test "builds a unified declaration manifest contract" do

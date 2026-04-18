@@ -113,7 +113,7 @@ By contrast, `kinda` currently exposes mostly primitives:
   metadata in framework-owned `NIFDecl` IR instead of only encoding it in Zig
   entry strings
 - and classic `use Kinda.CodeGen` modules now expose their generated
-  declaration manifest through `__kinda_nif_decls__/0`
+  NIF declaration metadata through `__kinda_nif_decls__/0`
 - and `use Kinda.CodeGen` modules now also expose a machine-readable typed
   signature surface through `__kinda_signature_manifest__/0`, whether it comes
   directly from `signature_manifest/0` or is derived from the canonical
@@ -183,8 +183,10 @@ The first typespec-driven conversion slice has also now landed:
   present
 - `Kinda.Wrapper.Generate.signature_manifest/2` now also projects record fields
   into public typespecs and emits record-level public map types
+- `Kinda.Wrapper.Generate.declaration_surfaces_struct/2` now materializes the
+  canonical wrapper-side in-memory declaration IR
 - `Kinda.Wrapper.Generate.declaration_manifest_struct/2` now materializes the
-  canonical framework-owned declaration contract for that typed slice
+  canonical resolved declaration payload inside that IR
 - `Kinda.Wrapper.Generate.declaration_manifest/2` now makes the same typed
   slice available as a JSON-friendly contract for CI/build consumers
 - `Kinda.Wrapper.Generate.signature_manifest/2` now derives its compatibility
@@ -212,13 +214,14 @@ The first typespec-driven conversion slice has also now landed:
 - and the final file-backed declaration loading interface now lives in
   `Kinda.CodeGen.DeclarationManifest.load!/1`, so downstreams do not have to
   hand-roll `File.read!/Code.eval_string/JSON.decode!` adapters
-- and `Kinda.CodeGen.source_declaration_manifest/1` /
-  `Kinda.CodeGen.declaration_surfaces/2` now formalize the distinction between
-  the checked-in declaration source and the final generated declaration
-  surfaces, so downstreams do not have to guess when `nif_name`
+- and `Kinda.CodeGen.DeclarationSurfaces.load_source/1` /
+  `Kinda.CodeGen.DeclarationSurfaces.from_generator/2` now formalize the
+  distinction between the checked-in declaration source and the final generated
+  declaration surfaces, so downstreams do not have to guess when `nif_name`
   canonicalization, kind-helper merging, and `TypeDecl` materialization happen
-- and that resolved layer is now itself a framework-owned IR through
-  `Kinda.CodeGen.DeclarationSurfaces`, rather than a bare internal map shape
+- and that source/load+resolve layer now itself lands in the
+  `Kinda.CodeGen.DeclarationSurfaces` module, rather than hanging off generic
+  helpers on `Kinda.CodeGen`
 - and generated modules now expose that same resolved IR through
   `__kinda_declaration_surfaces__/0`, so downstreams can consume the formalized
   declaration surface directly instead of reassembling it from split metadata
