@@ -199,24 +199,46 @@ kind surface alone will not emit those APIs.
 
 ## How To Formalize This Further
 
-The next formalization step should not be more prose. It should be a framework
-and consumer contract.
+The first formalization step has now landed on the `beaver` side:
+
+- one checked-in manifest in
+  [lib/beaver/mlir/capi_kind_manifest.ex](/Users/tsai/oss/beaver/lib/beaver/mlir/capi_kind_manifest.ex:1)
+  now drives:
+  - Zig kind/resource registration generation for
+    [native/src/mlir_capi.zig](/Users/tsai/oss/beaver/native/src/mlir_capi.zig:1)
+  - Elixir `KindDecl` emission in
+    [lib/beaver/mlir/capi_codegen.ex](/Users/tsai/oss/beaver/lib/beaver/mlir/capi_codegen.ex:1)
+  - helper-module generation in
+    [lib/beaver/mlir/capi_kinds.ex](/Users/tsai/oss/beaver/lib/beaver/mlir/capi_kinds.ex:1)
+- that manifest also made one more important distinction explicit:
+  - consumer-defined but Zig-registered external kinds such as `Beaver.Printer`
+  - consumer-defined Elixir-only handwritten kinds such as
+    `Beaver.MLIR.UnrankedMemRefDescriptor`
+
+The next step should not be more prose either. It should be turning this
+consumer-specific slice into a framework and consumer contract.
 
 Recommended direction:
 
-- make the consumer kind surface explicit and machine-readable, instead of
-  keeping two loosely synchronized lists
+- keep the consumer kind surface explicit and machine-readable, instead of
+  letting it drift back into parallel lists
 - classify generated surface entries as:
   - generated Zig/Elixir paired kinds
-  - consumer-defined handwritten kinds
+  - consumer-defined Zig-registered external kinds
+  - consumer-defined handwritten Elixir-only kinds
 - reserve callback-bridge manifests for blockers whose unblock path is
   callback-runtime work, not kind-surface sync
-- eventually let one checked-in manifest drive both:
-  - Zig resource-kind registration
+- generalize the checked-in manifest pattern so downstreams do not have to
+  hand-roll their own version of:
+  - Zig resource-kind registration generation
   - Elixir `KindDecl` emission
+  - handwritten helper-module generation
+- extend the same formalism beyond resource kinds toward C struct/CAPI function
+  specs, where the same "one typed contract, many consumers" pattern should
+  apply
 
-That would turn the current "update both files carefully" convention into a
-formal generation contract.
+That is the path from today's landed `beaver` slice to a real framework-level
+generation contract.
 
 ## Layer 3: Consumer Policy
 

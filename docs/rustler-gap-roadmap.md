@@ -122,9 +122,11 @@ set of `beaver`-style adapter needs.
 
 - Add a real top-level library module such as `Kinda.Library`
 - Make NIF declaration metadata first-class, not hidden in manual codegen lists
-- Promote consumer kind surfaces such as `beaver`'s Zig `allKinds` list and
-  Elixir `KindDecl` list into a formal manifest contract, so pure handle-like
-  CAPI additions stop looking like ad hoc "unsupported" gaps
+- Generalize the first manifest-backed consumer slice that `beaver` has now
+  landed: one checked-in contract driving Zig registration generation, Elixir
+  `KindDecl` emission, and handwritten consumer-defined entries from one source
+- Lift that consumer contract into a reusable `kinda` surface so pure
+  handle-like CAPI additions stop looking like ad hoc "unsupported" gaps
 - Generate docs/specs/names from declarations
 - Replace the remaining ad hoc handwritten raw-export conventions with explicit
   public APIs
