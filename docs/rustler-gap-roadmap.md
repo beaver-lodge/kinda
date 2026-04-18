@@ -221,8 +221,8 @@ The first typespec-driven conversion slice has also now landed:
   views like `nif_decls` and `type_decls` are derived accessors instead of
   duplicate stored fields
 - and that same downstream declaration boundary is now explicit enough that
-  Beaver's DSL-unification work can keep renaming pass/rewrite entry points
-  without dragging declaration resolution back out of `kinda`
+  Beaver's DSL-unification work can keep renaming pass/rewrite/dialect entry
+  points without dragging declaration resolution back out of `kinda`
 - when a declaration manifest is present, the typed signature surface is now a
   derived view over its embedded `signature_manifest`, rather than a required
   parallel build/source artifact
