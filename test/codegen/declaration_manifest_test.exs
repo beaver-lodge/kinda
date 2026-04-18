@@ -61,4 +61,42 @@ defmodule Kinda.CodeGen.DeclarationManifestTest do
       File.rm(path)
     end
   end
+
+  test "build derives type declarations from the embedded signature contract" do
+    declaration_manifest =
+      DeclarationManifest.build(
+        [],
+        %{
+          "version" => 5,
+          "records" => [
+            %{
+              "name" => "Foo",
+              "public_typespec" => %{
+                "kind" => "map",
+                "fields" => [
+                  %{
+                    "name" => "ctx",
+                    "type" => %{
+                      "kind" => "remote",
+                      "module" => "Elixir.Foo.Context",
+                      "type" => "t"
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "entries" => []
+        }
+      )
+
+    assert DeclarationManifest.type_decls(declaration_manifest) == [
+             %TypeDecl{
+               name: :foo_record,
+               source_record_name: "Foo",
+               doc: "Typed projection for extracted C record Foo.",
+               typespec: TypeSpecRef.map([{"ctx", TypeSpecRef.remote(Foo.Context)}])
+             }
+           ]
+  end
 end

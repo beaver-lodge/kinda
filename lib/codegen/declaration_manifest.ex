@@ -20,6 +20,13 @@ defmodule Kinda.CodeGen.DeclarationManifest do
             nif_decls: [],
             type_decls: []
 
+  @spec build([NIFDecl.t()], map() | nil) :: t()
+  def build(nif_decls, signature_manifest \\ nil) do
+    signature_manifest
+    |> TypeDecl.from_signature_manifest()
+    |> then(&from_parts(nif_decls, &1, signature_manifest))
+  end
+
   @spec from_parts([NIFDecl.t()], [TypeDecl.t()], map() | nil) :: t()
   def from_parts(nif_decls, type_decls, signature_manifest \\ nil) do
     %__MODULE__{
@@ -76,6 +83,10 @@ defmodule Kinda.CodeGen.DeclarationManifest do
   @spec signature_manifest(t()) :: map() | nil
   def signature_manifest(%__MODULE__{} = declaration_manifest),
     do: declaration_manifest.signature_manifest
+
+  @spec type_decls(t()) :: [TypeDecl.t()]
+  def type_decls(%__MODULE__{} = declaration_manifest),
+    do: declaration_manifest.type_decls
 
   @spec to_manifest(t()) :: map()
   def to_manifest(%__MODULE__{} = declaration_manifest) do

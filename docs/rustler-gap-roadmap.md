@@ -189,6 +189,9 @@ The first typespec-driven conversion slice has also now landed:
   slice available as a JSON-friendly contract for CI/build consumers
 - `Kinda.Wrapper.Generate.signature_manifest/2` now derives its compatibility
   view from that canonical declaration contract
+- `Kinda.CodeGen.DeclarationManifest.build/2` now also owns the derivation of
+  generated `TypeDecl` metadata from that typed declaration contract, so
+  type-alias generation no longer depends on a signature-only source path
 - `Kinda.CodeGen` can now consume that same manifest contract and emit
   deterministic public record type aliases on generated modules
 - those generated aliases use atom field keys derived from extracted C field

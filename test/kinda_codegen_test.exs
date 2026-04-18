@@ -138,29 +138,33 @@ defmodule Kinda.CodeGenTest do
            }
   end
 
-  test "emits generated record type aliases from signature manifest" do
+  test "emits generated record type aliases from declaration manifests" do
     type_decls =
-      CodeGen.type_decls(%{
-        "records" => [
-          %{
-            "name" => "FooHandle",
-            "public_typespec" => %{
-              "kind" => "map",
-              "fields" => [
-                %{"name" => "ptr", "type" => %{"kind" => "builtin", "name" => "term"}},
-                %{
-                  "name" => "location",
-                  "type" => %{
-                    "kind" => "remote",
-                    "module" => "Elixir.Foo.Location",
-                    "type" => "t"
+      DeclarationManifest.build(
+        [],
+        %{
+          "records" => [
+            %{
+              "name" => "FooHandle",
+              "public_typespec" => %{
+                "kind" => "map",
+                "fields" => [
+                  %{"name" => "ptr", "type" => %{"kind" => "builtin", "name" => "term"}},
+                  %{
+                    "name" => "location",
+                    "type" => %{
+                      "kind" => "remote",
+                      "module" => "Elixir.Foo.Location",
+                      "type" => "t"
+                    }
                   }
-                }
-              ]
+                ]
+              }
             }
-          }
-        ]
-      })
+          ]
+        }
+      )
+      |> CodeGen.type_decls()
 
     assert type_decls == [
              %TypeDecl{

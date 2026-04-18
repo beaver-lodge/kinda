@@ -319,6 +319,11 @@ serialization. It keeps:
 - generation-blocker reasons when the function is not emitted as a plain
   generated wrapper
 
+Internally, `Kinda.CodeGen.DeclarationManifest.build/2` is now the canonical
+way to derive declaration metadata from typed wrapper facts, including the
+generated `TypeDecl` layer. That keeps type declarations sourced from the same
+declaration contract rather than from a parallel signature-only path.
+
 The typed signature manifest remains available as a derived compatibility view:
 
 ```elixir

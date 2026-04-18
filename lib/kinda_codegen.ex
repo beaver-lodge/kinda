@@ -201,6 +201,9 @@ defmodule Kinda.CodeGen do
     {asts ++ List.wrap(raw_module_ast), exports}
   end
 
+  def type_decls(%DeclarationManifest{} = declaration_manifest),
+    do: DeclarationManifest.type_decls(declaration_manifest)
+
   def type_decls(nil), do: []
 
   def type_decls(signature_manifest), do: TypeDecl.from_signature_manifest(signature_manifest)
@@ -213,8 +216,8 @@ defmodule Kinda.CodeGen do
 
   def resolve_declaration_surfaces(nil, mod, root_module, signature_manifest) do
     decls = nif_decls(kinds_for(mod), nifs_for(mod), root_module)
-    type_decls = type_decls(signature_manifest)
-    declaration_manifest = declaration_manifest(decls, type_decls, signature_manifest)
+    declaration_manifest = DeclarationManifest.build(decls, signature_manifest)
+    type_decls = type_decls(declaration_manifest)
     {decls, type_decls, declaration_manifest}
   end
 

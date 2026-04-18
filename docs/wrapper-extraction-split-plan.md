@@ -261,6 +261,9 @@ framework-complete:
   IR as a versioned, machine-readable wrapper contract
 - `Kinda.Wrapper.Generate.signature_manifest/2` now derives its compatibility
   view from that canonical declaration contract
+- `Kinda.CodeGen.DeclarationManifest.build/2` now owns the derivation of
+  generated `TypeDecl` metadata from that same declaration contract, so record
+  alias generation is no longer routed through a signature-only path
 - `Kinda.Wrapper.Generate.signature_manifest/2` now also projects record fields
   into public typespecs and emits record-level public map types
 - `Kinda.CodeGen` can now read that same typed manifest contract and emit

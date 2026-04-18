@@ -12,7 +12,6 @@ defmodule Kinda.Wrapper.Generate do
   alias Kinda.Wrapper.Policy
   alias Kinda.CodeGen.NIFDecl
   alias Kinda.CodeGen.DeclarationManifest
-  alias Kinda.CodeGen.TypeDecl
   alias Kinda.CodeGen.TypeSpecRef
 
   @spec elixir_functions(Manifest.t(), module()) :: [{atom(), [atom()]}]
@@ -186,11 +185,9 @@ defmodule Kinda.Wrapper.Generate do
       "entries" => Enum.map(functions, &signature_manifest_entry(&1, policy))
     }
 
-    type_decls = TypeDecl.from_signature_manifest(signature_manifest)
-
     manifest
     |> elixir_nif_decls(policy)
-    |> DeclarationManifest.from_parts(type_decls, signature_manifest)
+    |> DeclarationManifest.build(signature_manifest)
   end
 
   @spec declaration_manifest(Manifest.t(), module()) :: declaration_manifest()
