@@ -222,9 +222,8 @@ The first typespec-driven conversion slice has also now landed:
   duplicate stored fields
 - and that same downstream declaration boundary is now explicit enough that
   Beaver's DSL-unification work can keep renaming or collapsing
-  pass/rewrite/dialect entry points, including historical shim surfaces such
-  as `Beaver.Pattern`, without dragging declaration resolution back out of
-  `kinda`
+  pass/rewrite/dialect entry points, including deleting historical public
+  shims outright, without dragging declaration resolution back out of `kinda`
 - when a declaration manifest is present, the typed signature surface is now a
   derived view over its embedded `signature_manifest`, rather than a required
   parallel build/source artifact
