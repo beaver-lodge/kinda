@@ -12,10 +12,13 @@ defmodule Mix.Tasks.Kinda.Wrapper.ExampleTest do
       end)
 
     assert output =~ "== Elixir Manifest =="
+    assert output =~ "== Signature Manifest =="
     assert output =~ "== Callback Bridge Report =="
     assert output =~ "== Callback Bridge Manifest =="
     assert output =~ "callback_bridge_required"
     assert output =~ "dirty: :dirty_cpu"
+    assert output =~ "\"param_ctypes\""
+    assert output =~ "\"return_typespec\""
     assert output =~ "\"version\":1"
   end
 
@@ -44,6 +47,7 @@ defmodule Mix.Tasks.Kinda.Wrapper.ExampleTest do
     assert output =~ "== Callback Bridge Report =="
     assert output =~ "callback_bridge_required"
     refute output =~ "== Elixir Manifest =="
+    refute output =~ "== Signature Manifest =="
     refute output =~ "== Callback Bridge Manifest =="
   end
 end

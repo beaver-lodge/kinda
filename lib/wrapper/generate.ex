@@ -88,6 +88,24 @@ defmodule Kinda.Wrapper.Generate do
           String.t() => pos_integer() | [callback_bridge_manifest_entry()]
         }
 
+  @type signature_manifest_function :: %{
+          String.t() =>
+            String.t() | non_neg_integer() | [String.t() | nil] | map() | [map() | nil] | nil
+        }
+
+  @type signature_manifest_variant :: %{
+          String.t() => String.t() | false | [String.t()] | [map()] | map() | nil
+        }
+
+  @type signature_manifest_entry :: %{
+          String.t() =>
+            signature_manifest_function() | [signature_manifest_variant()] | String.t() | nil
+        }
+
+  @type signature_manifest :: %{
+          String.t() => pos_integer() | [signature_manifest_entry()]
+        }
+
   @spec callback_bridge_backlog(Manifest.t(), module()) :: [callback_bridge_backlog_entry()]
   def callback_bridge_backlog(%Manifest{functions: functions}, policy) do
     assert_policy!(policy)
@@ -132,6 +150,16 @@ defmodule Kinda.Wrapper.Generate do
             }
           }
         end)
+    }
+  end
+
+  @spec signature_manifest(Manifest.t(), module()) :: signature_manifest()
+  def signature_manifest(%Manifest{functions: functions}, policy) do
+    assert_policy!(policy)
+
+    %{
+      "version" => 1,
+      "entries" => Enum.map(functions, &signature_manifest_entry(&1, policy))
     }
   end
 
@@ -197,6 +225,23 @@ defmodule Kinda.Wrapper.Generate do
     |> then(&write_file(Path.expand(path), &1))
   end
 
+  @spec write_signature_manifest(
+          Manifest.t(),
+          module(),
+          nil | String.t(),
+          (signature_manifest() -> iodata())
+        ) :: :ok
+  def write_signature_manifest(_manifest, _policy, nil, _encoder), do: :ok
+
+  def write_signature_manifest(manifest, policy, path, encoder)
+      when is_function(encoder, 1) do
+    manifest
+    |> signature_manifest(policy)
+    |> encoder.()
+    |> IO.iodata_to_binary()
+    |> then(&write_file(Path.expand(path), &1))
+  end
+
   defp write_file(dst, txt) do
     tmp_dir = System.get_env("MIX_APP_PATH") || System.tmp_dir() || make_tmp_dir()
     tmp = Path.join(tmp_dir, "tmp-#{System.pid()}--#{Path.basename(dst)}")
@@ -256,5 +301,56 @@ defmodule Kinda.Wrapper.Generate do
 
   defp default_return_typespec(typespec) do
     TypeSpecRef.union([typespec, TypeSpecRef.term()])
+  end
+
+  defp signature_manifest_entry(%Function{} = function, policy) do
+    function_name = String.to_atom(function.name)
+    blocker_reason = signature_manifest_blocker_reason(function_name, policy)
+
+    %{
+      "function" => %{
+        "name" => function.name,
+        "arity" => function.arity,
+        "params" => function.params,
+        "doc" => function.doc,
+        "param_ctypes" => Enum.map(function.param_ctypes, &CType.to_manifest/1),
+        "return_ctype" => CType.to_manifest(function.return_ctype)
+      },
+      "generation_blocker_reason" => blocker_reason && Atom.to_string(blocker_reason),
+      "variants" => signature_manifest_variants(function, function_name, policy)
+    }
+  end
+
+  defp signature_manifest_variants(%Function{} = function, function_name, policy) do
+    params = Enum.map(function.params, &String.to_atom/1)
+
+    for variant <- policy.variants(function_name) do
+      %{
+        "wrapper_name" => variant |> policy.public_name() |> Atom.to_string(),
+        "params" =>
+          variant
+          |> policy.elixir_params(params)
+          |> Enum.map(&Atom.to_string/1),
+        "doc" => policy.doc(variant, function),
+        "dirty" => encode_dirty(policy.dirty(variant)),
+        "param_typespecs" =>
+          typespec_params(policy, variant, function)
+          |> Enum.map(&TypeSpecRef.to_manifest/1),
+        "return_typespec" =>
+          typespec_return(policy, variant, function)
+          |> TypeSpecRef.to_manifest()
+      }
+    end
+  end
+
+  defp encode_dirty(false), do: false
+  defp encode_dirty(dirty), do: Atom.to_string(dirty)
+
+  defp signature_manifest_blocker_reason(function_name, policy) do
+    policy.generation_blocker_reason(function_name) ||
+      case policy.callback_bridge(function_name) do
+        nil -> nil
+        bridge -> bridge.reason
+      end
   end
 end

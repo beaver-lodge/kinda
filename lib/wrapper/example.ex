@@ -156,6 +156,10 @@ defmodule Kinda.Wrapper.Example do
         [
           "== Elixir Manifest ==\n",
           Generate.render_elixir_manifest(manifest, policy),
+          "\n\n== Signature Manifest ==\n",
+          manifest
+          |> Generate.signature_manifest(policy)
+          |> encode_json(),
           "\n\n== Callback Bridge Report ==\n",
           Generate.render_callback_bridge_report(manifest, policy),
           "\n\n== Callback Bridge Manifest ==\n",

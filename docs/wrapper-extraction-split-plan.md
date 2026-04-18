@@ -51,6 +51,9 @@ What is already true:
 - and `Kinda.Wrapper.Generate` / `Kinda.CodeGen` can now carry those typed
   facts forward into generated `NIFDecl` metadata and public `@spec`
   declarations
+- and `Kinda.Wrapper.Generate.signature_manifest/2` now exposes that same typed
+  surface as a versioned, machine-readable contract instead of leaving it only
+  in generated Elixir source and runtime structs
 - and the policy surface now treats callback-heavy exclusions as
   generation-blockers first, with the older `unsupported_*` names retained only
   as compatibility aliases
@@ -87,6 +90,7 @@ The build currently does this:
 4. emit:
    - `generated/wrapper.zig`
    - `generated/capi_functions.ex`
+   - `generated/capi_signature_manifest.json`
 
 This works, but it bundles together two different responsibilities:
 
@@ -238,6 +242,8 @@ framework-complete:
 - `Kinda.Wrapper.Generate` now carries those raw C signature facts into
   `Kinda.CodeGen.NIFDecl`
 - `Kinda.CodeGen` now emits public `@spec` declarations from that typed IR
+- `Kinda.Wrapper.Generate.signature_manifest/2` now exposes the same typed IR
+  as a versioned, machine-readable wrapper contract
 - `beaver` is the first downstream to project those C types into remote MLIR
   resource wrapper types
 
@@ -260,10 +266,11 @@ Recommended direction:
   - Elixir `KindDecl` emission
   - handwritten helper-module generation
 - generalize the newly-landed typed signature slice so downstreams do not have
-  to hand-roll their own projection from:
+  to hand-roll their own projection and export from:
   - extracted raw C param/return types
   - public wrapper/resource types
   - generated `@spec` declarations
+  - machine-readable typed signature manifests
   - future `@opaque` / result-shape contracts
 
 That is the path from today's landed `beaver` slice to a real framework-level

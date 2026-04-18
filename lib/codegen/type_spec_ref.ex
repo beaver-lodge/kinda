@@ -70,4 +70,33 @@ defmodule Kinda.CodeGen.TypeSpecRef do
       {:|, [], [ast, to_quoted(type)]}
     end)
   end
+
+  @spec to_manifest(t()) :: map()
+  def to_manifest(:term), do: %{"kind" => "builtin", "name" => "term"}
+  def to_manifest(:integer), do: %{"kind" => "builtin", "name" => "integer"}
+  def to_manifest(:float), do: %{"kind" => "builtin", "name" => "float"}
+  def to_manifest(:boolean), do: %{"kind" => "builtin", "name" => "boolean"}
+  def to_manifest(:binary), do: %{"kind" => "builtin", "name" => "binary"}
+  def to_manifest(:atom), do: %{"kind" => "builtin", "name" => "atom"}
+  def to_manifest(:ok), do: %{"kind" => "literal", "name" => "ok"}
+
+  def to_manifest({:remote, module, type_name}) do
+    %{
+      "kind" => "remote",
+      "module" => Atom.to_string(module),
+      "type" => Atom.to_string(type_name)
+    }
+  end
+
+  def to_manifest({:list, inner}) do
+    %{"kind" => "list", "inner" => to_manifest(inner)}
+  end
+
+  def to_manifest({:tuple, elements}) do
+    %{"kind" => "tuple", "elements" => Enum.map(elements, &to_manifest/1)}
+  end
+
+  def to_manifest({:union, types}) do
+    %{"kind" => "union", "types" => Enum.map(types, &to_manifest/1)}
+  end
 end

@@ -175,6 +175,75 @@ defmodule Kinda.Wrapper.GenerateTest do
            ] = Generate.elixir_nif_decls(manifest, FakePolicy)
   end
 
+  test "builds a versioned typed signature manifest contract" do
+    manifest = %Manifest{
+      functions: [
+        %Function{
+          name: "baz",
+          params: ["value"],
+          arity: 1,
+          doc: "Needs a callback bridge."
+        },
+        %Function{
+          name: "foo",
+          params: ["ctx", "count"],
+          param_ctypes: [
+            %CType{spelling: "MlirContext", kind: :unknown},
+            %CType{spelling: "intptr_t", kind: :integer}
+          ],
+          arity: 2,
+          doc: "Creates foo.",
+          return_ctype: %CType{spelling: "bool", kind: :bool}
+        }
+      ]
+    }
+
+    assert Generate.signature_manifest(manifest, FakePolicy) == %{
+             "version" => 1,
+             "entries" => [
+               %{
+                 "function" => %{
+                   "name" => "baz",
+                   "arity" => 1,
+                   "params" => ["value"],
+                   "doc" => "Needs a callback bridge.",
+                   "param_ctypes" => [],
+                   "return_ctype" => nil
+                 },
+                 "generation_blocker_reason" => "callback_bridge_required",
+                 "variants" => []
+               },
+               %{
+                 "function" => %{
+                   "name" => "foo",
+                   "arity" => 2,
+                   "params" => ["ctx", "count"],
+                   "doc" => "Creates foo.",
+                   "param_ctypes" => [
+                     %{"spelling" => "MlirContext", "kind" => "unknown"},
+                     %{"spelling" => "intptr_t", "kind" => "integer"}
+                   ],
+                   "return_ctype" => %{"spelling" => "bool", "kind" => "bool"}
+                 },
+                 "generation_blocker_reason" => nil,
+                 "variants" => [
+                   %{
+                     "wrapper_name" => "foo",
+                     "params" => ["ctx", "count"],
+                     "doc" => "Creates foo.",
+                     "dirty" => false,
+                     "param_typespecs" => [
+                       %{"kind" => "builtin", "name" => "term"},
+                       %{"kind" => "builtin", "name" => "integer"}
+                     ],
+                     "return_typespec" => %{"kind" => "builtin", "name" => "boolean"}
+                   }
+                 ]
+               }
+             ]
+           }
+  end
+
   test "preserves dirty metadata in generated nif decls" do
     manifest = %Manifest{
       functions: [

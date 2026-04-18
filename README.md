@@ -65,6 +65,7 @@ elixir examples/wrapper_reporting.exs
 It prints:
 
 - the generated Elixir wrapper manifest
+- the machine-readable typed signature manifest
 - the human-readable callback-bridge backlog report
 - the machine-readable callback-bridge manifest
 - including dirty scheduler metadata when the example policy emits it
@@ -214,6 +215,7 @@ end
 ```elixir
 Kinda.Wrapper.Generate.render_elixir_manifest(manifest, MyLib.WrapperPolicy)
 Kinda.Wrapper.Generate.render_zig_nif_entries(manifest, MyLib.WrapperPolicy)
+Kinda.Wrapper.Generate.signature_manifest(manifest, MyLib.WrapperPolicy)
 ```
 
 ## Callback-Bridge Backlog
@@ -251,7 +253,27 @@ specifically for the remainder that kind-surface sync cannot solve.
 
 ## Reporting Surface
 
-Kinda now exposes two reporting modes for that backlog:
+Kinda now exposes two machine-readable reporting contracts around that wrapper
+surface:
+
+1. typed signature manifest
+2. callback-bridge manifest
+
+Typed signature manifest:
+
+```elixir
+Kinda.Wrapper.Generate.signature_manifest(manifest, policy)
+```
+
+This is versioned and JSON-friendly. It keeps:
+
+- raw C param/return type facts from extraction
+- consumer-projected public params and return typespecs
+- dirty scheduler metadata on emitted variants
+- generation-blocker reasons when the function is not emitted as a plain
+  generated wrapper
+
+The callback-bridge backlog remains a separate reporting mode:
 
 1. human-readable report
 2. machine-readable manifest

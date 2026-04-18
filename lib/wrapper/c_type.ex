@@ -60,6 +60,16 @@ defmodule Kinda.Wrapper.CType do
   def to_public_typespec_ref(%__MODULE__{kind: :float}), do: TypeSpecRef.float()
   def to_public_typespec_ref(%__MODULE__{}), do: TypeSpecRef.term()
 
+  @spec to_manifest(t() | nil) :: map() | nil
+  def to_manifest(nil), do: nil
+
+  def to_manifest(%__MODULE__{spelling: spelling, kind: kind}) do
+    %{
+      "spelling" => spelling,
+      "kind" => Atom.to_string(kind)
+    }
+  end
+
   defp extract_return_spelling(nil), do: nil
 
   defp extract_return_spelling(qual_type) when is_binary(qual_type) do

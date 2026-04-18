@@ -121,6 +121,9 @@ By contrast, `kinda` currently exposes mostly primitives:
 - and consumer policy can now project those raw C signature facts into
   generated public `@spec` declarations instead of leaving the Elixir surface
   purely name-driven
+- and `Kinda.Wrapper.Generate.signature_manifest/2` now exposes that typed
+  wrapper surface as a versioned, machine-readable contract instead of keeping
+  it only in generated AST and runtime structs
 
 This is real progress, but the runtime surface is still too thin for the full
 set of `beaver`-style adapter needs.
@@ -163,6 +166,8 @@ The first typespec-driven conversion slice has also now landed:
   metadata
 - `Kinda.CodeGen` now emits `@spec` declarations when that typed metadata is
   present
+- `Kinda.Wrapper.Generate.signature_manifest/2` now makes the same typed slice
+  available as a JSON-friendly contract for CI/build consumers
 - `beaver` now acts as the first consumer probe by mapping MLIR handle-like
   C types to public remote wrapper types
 
