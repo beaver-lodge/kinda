@@ -67,7 +67,7 @@ defmodule Kinda.CodeGen.TypeSpecRef do
   def to_quoted({:map, fields}) do
     {:%{}, [],
      Enum.map(fields, fn {name, type} ->
-       {{:required, [], [name]}, to_quoted(type)}
+       {{:required, [], [normalize_map_key_for_typespec(name)]}, to_quoted(type)}
      end)}
   end
 
@@ -121,4 +121,39 @@ defmodule Kinda.CodeGen.TypeSpecRef do
   def to_manifest({:union, types}) do
     %{"kind" => "union", "types" => Enum.map(types, &to_manifest/1)}
   end
+
+  @spec from_manifest(map()) :: t()
+  def from_manifest(%{"kind" => "builtin", "name" => "term"}), do: :term
+  def from_manifest(%{"kind" => "builtin", "name" => "integer"}), do: :integer
+  def from_manifest(%{"kind" => "builtin", "name" => "float"}), do: :float
+  def from_manifest(%{"kind" => "builtin", "name" => "boolean"}), do: :boolean
+  def from_manifest(%{"kind" => "builtin", "name" => "binary"}), do: :binary
+  def from_manifest(%{"kind" => "builtin", "name" => "atom"}), do: :atom
+  def from_manifest(%{"kind" => "literal", "name" => "ok"}), do: :ok
+
+  def from_manifest(%{"kind" => "remote", "module" => module_name, "type" => type_name}) do
+    {:remote, Module.concat([module_name]), String.to_atom(type_name)}
+  end
+
+  def from_manifest(%{"kind" => "list", "inner" => inner}) do
+    {:list, from_manifest(inner)}
+  end
+
+  def from_manifest(%{"kind" => "map", "fields" => fields}) when is_list(fields) do
+    {:map,
+     Enum.map(fields, fn %{"name" => name, "type" => type} ->
+       {name, from_manifest(type)}
+     end)}
+  end
+
+  def from_manifest(%{"kind" => "tuple", "elements" => elements}) when is_list(elements) do
+    {:tuple, Enum.map(elements, &from_manifest/1)}
+  end
+
+  def from_manifest(%{"kind" => "union", "types" => types}) when is_list(types) do
+    {:union, Enum.map(types, &from_manifest/1)}
+  end
+
+  defp normalize_map_key_for_typespec(name) when is_atom(name), do: name
+  defp normalize_map_key_for_typespec(name) when is_binary(name), do: String.to_atom(name)
 end

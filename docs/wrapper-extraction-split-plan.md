@@ -254,6 +254,10 @@ framework-complete:
   as a versioned, machine-readable wrapper contract
 - `Kinda.Wrapper.Generate.signature_manifest/2` now also projects record fields
   into public typespecs and emits record-level public map types
+- `Kinda.CodeGen` can now read that same typed manifest contract and emit
+  deterministic public record aliases on generated modules
+- those generated aliases atomize field names only at typespec-emission time,
+  while the checked-in/machine-readable manifest stays string-keyed
 - `beaver` is the first downstream to project those C types, including
   `struct Mlir...` record fields, into remote MLIR resource wrapper types
 
@@ -282,6 +286,7 @@ Recommended direction:
   - public wrapper/resource types
   - projected record field typespecs
   - projected record-level public types
+  - generated record type aliases on wrapper modules
   - generated `@spec` declarations
   - machine-readable typed signature manifests
   - future `@opaque` / result-shape contracts

@@ -180,6 +180,11 @@ The first typespec-driven conversion slice has also now landed:
   into public typespecs and emits record-level public map types
 - `Kinda.Wrapper.Generate.signature_manifest/2` now makes the same typed slice
   available as a JSON-friendly contract for CI/build consumers
+- `Kinda.CodeGen` can now consume that same manifest contract and emit
+  deterministic public record type aliases on generated modules
+- those generated aliases use atom field keys derived from extracted C field
+  names, while the underlying manifest remains string-keyed and
+  machine-readable
 - `beaver` now acts as the first consumer probe by mapping MLIR handle-like
   C types, including `struct Mlir...` field spellings inside records, to public
   remote wrapper types
@@ -202,8 +207,8 @@ The first typespec-driven conversion slice has also now landed:
   consumer-specific MLIR mapping into a stable framework contract for C
   pointers, pointer-arrays, enums, and common result shapes
 - Generate `@opaque` / `@type` / `@spec` more systematically from that typed
-  contract, especially for projected record manifests that are currently
-  machine-readable but not yet emitted as public type declarations
+  contract, especially beyond the first generated record aliases that now land
+  on `use Kinda.CodeGen` modules
 
 ### 3. Scheduler strategy
 

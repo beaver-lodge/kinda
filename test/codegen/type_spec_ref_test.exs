@@ -31,4 +31,35 @@ defmodule Kinda.CodeGen.TypeSpecRefTest do
              ]
            }
   end
+
+  test "round-trips manifest-backed map typespec refs with string field names" do
+    manifest = %{
+      "kind" => "map",
+      "fields" => [
+        %{"name" => "name", "type" => %{"kind" => "builtin", "name" => "term"}},
+        %{
+          "name" => "location",
+          "type" => %{
+            "kind" => "remote",
+            "module" => "Elixir.Foo.Location",
+            "type" => "t"
+          }
+        }
+      ]
+    }
+
+    typespec = TypeSpecRef.from_manifest(manifest)
+
+    assert typespec ==
+             {:map,
+              [
+                {"name", :term},
+                {"location", {:remote, Foo.Location, :t}}
+              ]}
+
+    assert Macro.to_string(TypeSpecRef.to_quoted(typespec)) ==
+             "%{required(:name) => term(), required(:location) => Foo.Location.t()}"
+
+    assert TypeSpecRef.to_manifest(typespec) == manifest
+  end
 end

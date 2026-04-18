@@ -103,6 +103,36 @@ defmodule Kinda.CodeGenTest do
            }
   end
 
+  test "emits generated record type aliases from signature manifest" do
+    ast =
+      CodeGen.record_types_ast(%{
+        "records" => [
+          %{
+            "name" => "FooHandle",
+            "public_typespec" => %{
+              "kind" => "map",
+              "fields" => [
+                %{"name" => "ptr", "type" => %{"kind" => "builtin", "name" => "term"}},
+                %{
+                  "name" => "location",
+                  "type" => %{
+                    "kind" => "remote",
+                    "module" => "Elixir.Foo.Location",
+                    "type" => "t"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      })
+
+    ast_string = ast |> then(&{:__block__, [], &1}) |> Macro.to_string()
+
+    assert ast_string =~ "@typedoc \"Typed projection for extracted C record FooHandle.\""
+    assert ast_string =~ "@type foo_handle_record() :: %{required(:ptr) => term(), required(:location) => Foo.Location.t()}"
+  end
+
   test "emits raw companion entries for kind-scoped generated functions" do
     {ast, _exports} =
       CodeGen.nif_ast(

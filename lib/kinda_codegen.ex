@@ -15,7 +15,10 @@ defmodule Kinda.CodeGen do
         if function_exported?(mod, :signature_manifest, 0), do: mod.signature_manifest(), else: nil
 
       {ast, mf} = Kinda.CodeGen.nif_ast_from_decls(decls, root, forward)
-      ast |> Code.eval_quoted([], __ENV__)
+
+      (Kinda.CodeGen.record_types_ast(signature_manifest) ++ ast)
+      |> Code.eval_quoted([], __ENV__)
+
       Module.put_attribute(__MODULE__, :kinda_nif_decls, decls)
       Module.put_attribute(__MODULE__, :kinda_signature_manifest, signature_manifest)
 
@@ -166,6 +169,12 @@ defmodule Kinda.CodeGen do
     {asts ++ List.wrap(raw_module_ast), exports}
   end
 
+  def record_types_ast(nil), do: []
+
+  def record_types_ast(%{"records" => records}) when is_list(records) do
+    Enum.flat_map(records, &record_type_ast/1)
+  end
+
   defp normalize_nif_decl(%NIFDecl{nif_name: nil, wrapper_name: wrapper_name} = nif, root_module)
        when not is_nil(wrapper_name) do
     %{nif | nif_name: Module.concat(root_module, wrapper_name)}
@@ -195,5 +204,29 @@ defmodule Kinda.CodeGen do
       @spec unquote(name)(unquote_splicing(Enum.map(params, &TypeSpecRef.to_quoted/1))) ::
               unquote(TypeSpecRef.to_quoted(return_type))
     end
+  end
+
+  defp record_type_ast(%{"name" => name, "public_typespec" => public_typespec})
+       when is_binary(name) and is_map(public_typespec) do
+    type_name = record_type_name(name)
+    typespec = TypeSpecRef.from_manifest(public_typespec)
+
+    [
+      quote do
+        @typedoc unquote("Typed projection for extracted C record #{name}.")
+      end,
+      quote do
+        @type unquote(type_name)() :: unquote(TypeSpecRef.to_quoted(typespec))
+      end
+    ]
+  end
+
+  defp record_type_ast(_record), do: []
+
+  defp record_type_name(record_name) do
+    record_name
+    |> Macro.underscore()
+    |> Kernel.<>("_record")
+    |> String.to_atom()
   end
 end
