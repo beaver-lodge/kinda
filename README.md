@@ -184,9 +184,9 @@ The result is a framework-owned shape:
 defmodule MyLib.WrapperPolicy do
   @behaviour Kinda.Wrapper.Policy
 
-  def unsupported_entries, do: %{}
-  def unsupported?(_name), do: false
-  def unsupported_reason(_name), do: nil
+  def generation_blocker_entries, do: %{}
+  def generation_blocked?(_name), do: false
+  def generation_blocker_reason(_name), do: nil
 
   def callback_bridge_entries, do: %{}
   def callback_bridge?(_name), do: false

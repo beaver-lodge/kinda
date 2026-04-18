@@ -10,9 +10,12 @@ defmodule Kinda.Wrapper.GenerateTest do
   defmodule FakePolicy do
     @behaviour Policy
 
-    def unsupported_entries, do: %{}
-    def unsupported?(_name), do: false
-    def unsupported_reason(_name), do: nil
+    def generation_blocker_entries, do: %{}
+    def generation_blocked?(_name), do: false
+    def generation_blocker_reason(_name), do: nil
+    def unsupported_entries, do: generation_blocker_entries()
+    def unsupported?(name), do: generation_blocked?(name)
+    def unsupported_reason(name), do: generation_blocker_reason(name)
 
     def callback_bridge_entries do
       %{
@@ -57,9 +60,12 @@ defmodule Kinda.Wrapper.GenerateTest do
   defmodule DirtyPolicy do
     @behaviour Policy
 
-    def unsupported_entries, do: %{}
-    def unsupported?(_name), do: false
-    def unsupported_reason(_name), do: nil
+    def generation_blocker_entries, do: %{}
+    def generation_blocked?(_name), do: false
+    def generation_blocker_reason(_name), do: nil
+    def unsupported_entries, do: generation_blocker_entries()
+    def unsupported?(name), do: generation_blocked?(name)
+    def unsupported_reason(name), do: generation_blocker_reason(name)
     def callback_bridge_entries, do: %{}
     def callback_bridge?(_name), do: false
     def callback_bridge(_name), do: nil

@@ -5,10 +5,13 @@ defmodule Kinda.Wrapper.Policy do
   `Kinda.Wrapper.Extract` and `Kinda.Wrapper.Generate` stay generic.
   Downstream projects provide the policy that decides:
 
-  - which extracted functions are unsupported
+  - which extracted functions are generation-blocked
   - which extracted functions require a future callback-bridge layer
   - which public variants are emitted
   - how Elixir arities and Zig NIF entries are derived
+
+  The older `unsupported_*` callbacks remain as compatibility aliases, but they
+  are no longer the preferred public vocabulary for new policy code.
   """
 
   alias Kinda.Wrapper.CallbackBridge
@@ -16,8 +19,15 @@ defmodule Kinda.Wrapper.Policy do
 
   @type function_name :: atom()
   @type params :: [atom()]
+  @type generation_blocker_reason :: atom()
   @type unsupported_reason :: atom()
   @type variant :: term()
+
+  @callback generation_blocker_entries() :: %{
+              optional(function_name()) => generation_blocker_reason()
+            }
+  @callback generation_blocked?(function_name()) :: boolean()
+  @callback generation_blocker_reason(function_name()) :: generation_blocker_reason() | nil
 
   @callback unsupported_entries() :: %{optional(function_name()) => unsupported_reason()}
   @callback unsupported?(function_name()) :: boolean()
@@ -31,4 +41,6 @@ defmodule Kinda.Wrapper.Policy do
   @callback dirty(variant()) :: Kinda.CodeGen.NIFDecl.dirty()
   @callback doc(variant(), Function.t()) :: String.t() | nil
   @callback zig_entry(variant()) :: String.t()
+
+  @optional_callbacks unsupported_entries: 0, unsupported?: 1, unsupported_reason: 1
 end

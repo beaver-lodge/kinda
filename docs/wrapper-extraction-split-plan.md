@@ -43,11 +43,14 @@ What is already true:
 - and classic `use Kinda.CodeGen` modules now expose those generated
   declarations through `__kinda_nif_decls__/0`, so the manifest is no longer
   only an intermediate file concern
+- and the policy surface now treats callback-heavy exclusions as
+  generation-blockers first, with the older `unsupported_*` names retained only
+  as compatibility aliases
 
 What is not yet true:
 
 - `beaver` still owns final emission policy
-- callback-heavy MLIR APIs are still documented as unsupported backlog, not yet
+- callback-heavy MLIR APIs are still generation-blocked backlog, not yet
   bridged
 - scheduler metadata is now preserved in manifest IR, but `kinda` still does
   not expose a fully user-facing scheduler declaration/codegen contract
@@ -299,10 +302,9 @@ wrapper extraction/generation path without inheriting MLIR-specific policy.
 
 Without that, the code is merely moved, not generalized.
 
-## Unsupported API Backlog
+## Callback-Bridge Generation Blockers
 
-The current `beaver` policy still excludes a small MLIR CAPI subset through
-`unsupported_nifs`.
+The current `beaver` policy still generation-blocks a small MLIR CAPI subset.
 
 That set should not remain an untyped blacklist forever. The current best
 classification is:
@@ -322,7 +324,8 @@ The right future move is:
 - keep generic extraction/generation in `kinda`
 - keep callback-bridge metadata in `kinda`
 - add a later callback-bridge layer in `kinda`
-- then migrate these APIs out of the flat `unsupported_nifs` bucket
+- then retire the old `unsupported_*` compatibility vocabulary completely in
+  favor of generation-blocker and callback-bridge terminology
 
 This is intentionally a later phase. It should not block the current split of:
 

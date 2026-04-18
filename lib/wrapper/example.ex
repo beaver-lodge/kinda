@@ -12,13 +12,22 @@ defmodule Kinda.Wrapper.Example do
     @behaviour Kinda.Wrapper.Policy
 
     @impl true
-    def unsupported_entries, do: %{}
+    def generation_blocker_entries, do: %{}
 
     @impl true
-    def unsupported?(_name), do: false
+    def generation_blocked?(_name), do: false
 
     @impl true
-    def unsupported_reason(_name), do: nil
+    def generation_blocker_reason(_name), do: nil
+
+    @impl true
+    def unsupported_entries, do: generation_blocker_entries()
+
+    @impl true
+    def unsupported?(name), do: generation_blocked?(name)
+
+    @impl true
+    def unsupported_reason(name), do: generation_blocker_reason(name)
 
     @impl true
     def callback_bridge_entries do
