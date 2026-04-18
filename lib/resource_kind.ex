@@ -18,7 +18,7 @@ defmodule Kinda.ResourceKind do
 
       def make(value) do
         %__MODULE__{
-          ref: unquote(forward_module).forward(__MODULE__, "make", [value])
+          ref: Kinda.Forwarder.call_kind(unquote(forward_module), __MODULE__, :make, [value])
         }
       end
 

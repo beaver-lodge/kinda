@@ -72,16 +72,21 @@ defmodule Kinda.CodeGen do
         if nif_name != wrapper_name do
           quote do
             unquote(doc_attribute_ast(nif.doc))
+
             def unquote(wrapper_name)(unquote_splicing(args_ast)) do
-              refs = Kinda.unwrap_ref([unquote_splicing(args_ast)])
-              ret = apply(__MODULE__, unquote(nif_name), refs)
-              unquote(forward_module).check!(ret)
+              Kinda.Forwarder.invoke_public_nif(
+                unquote(forward_module),
+                __MODULE__,
+                unquote(nif_name),
+                [unquote_splicing(args_ast)]
+              )
             end
           end
         end
 
       quote do
         unquote(doc_attribute_ast(if(nif_name == wrapper_name, do: nif.doc, else: false)))
+
         def unquote(nif_name)(unquote_splicing(args_ast)),
           do: :erlang.nif_error(:not_loaded)
 

@@ -22,6 +22,10 @@ The example/docs track now also has a dedicated companion plan:
 
 - [example-surface-unification-plan.md](/Users/tsai/oss/kinda/docs/example-surface-unification-plan.md:1)
 
+The runtime/ref-wrap track now also has a dedicated companion plan:
+
+- [nif-ref-runtime-surface-plan.md](/Users/tsai/oss/kinda/docs/nif-ref-runtime-surface-plan.md:1)
+
 ## Current State
 
 ### What Kinda clearly already has
@@ -93,8 +97,12 @@ By contrast, `kinda` currently exposes mostly primitives:
 - `use Kinda.CodeGen`
 - a first public `Kinda.Forwarder` runtime slice:
   - `check!/1`
+  - `raw_call/3`
+  - `call/3`
   - `forward/3`
   - `to_term/1`
+- and generated public wrappers now route through an explicit runtime helper
+  instead of each wrapper hand-rolling unwrap + raw invoke + `check!/1`
 
 This is real progress, but the runtime surface is still too thin for the full
 set of `beaver`-style adapter needs.
@@ -307,8 +315,8 @@ iterations, the highest-value order is:
 
 1. Ship `Kinda.Prebuilt` for real
 2. Make scheduler flags first-class in `NIFDecl`
-3. Grow `Kinda.Forwarder` beyond the first `check!/1` / `forward/3` /
-   `to_term/1` runtime slice
+3. Turn the new explicit `raw_call/3` / `call/3` seam into a real raw-vs-public
+   generated surface split
 4. Add integration tests that exercise `beaver`-style resource flows
 5. Generate stronger Elixir-side types/specs/docs from codegen
 

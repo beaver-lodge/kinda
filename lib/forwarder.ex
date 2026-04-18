@@ -19,6 +19,8 @@ defmodule Kinda.Forwarder do
   @type args() :: [term()]
 
   @callback check!(term()) :: term() | no_return()
+  @callback raw_call(kind_module(), kind_function(), args()) :: term() | no_return()
+  @callback call(kind_module(), kind_function(), args()) :: term() | no_return()
   @callback forward(kind_module(), kind_function(), args()) :: term() | no_return()
   @callback to_term(term()) :: term() | no_return()
 
@@ -33,18 +35,29 @@ defmodule Kinda.Forwarder do
       def check!(value), do: Kinda.Forwarder.check!(value)
 
       @impl true
+      def raw_call(element_kind, kind_func_name, args) do
+        Kinda.Forwarder.raw_call(@kinda_nif_module, element_kind, kind_func_name, args)
+      end
+
+      @impl true
+      def call(element_kind, kind_func_name, args) do
+        raw_call(element_kind, kind_func_name, args)
+        |> check!()
+      end
+
+      @impl true
       def forward(element_kind, kind_func_name, args) do
-        Kinda.Forwarder.forward(@kinda_nif_module, element_kind, kind_func_name, args)
+        call(element_kind, kind_func_name, args)
       end
 
       @impl true
       def to_term(%mod{ref: ref}) do
-        forward(mod, :primitive, [ref])
+        call(mod, :primitive, [ref])
       end
 
       def to_term(value), do: value
 
-      defoverridable check!: 1, forward: 3, to_term: 1
+      defoverridable check!: 1, raw_call: 3, call: 3, forward: 3, to_term: 1
     end
   end
 
@@ -66,12 +79,62 @@ defmodule Kinda.Forwarder do
   def check!(value), do: value
 
   @doc """
-  Dispatches a kind-scoped function through the provided NIF module and applies
-  the default `check!/1` normalization.
+  Performs the raw kind-scoped NIF call without Elixir-side result
+  normalization.
   """
-  def forward(nif_module, element_kind, kind_func_name, args) when is_list(args) do
-    apply(nif_module, Module.concat(element_kind, kind_func_name), args)
+  def raw_call(nif_module, element_kind, kind_func_name, args) when is_list(args) do
+    apply(nif_module, Module.concat(element_kind, kind_func_name), Kinda.unwrap_ref(args))
+  end
+
+  @doc """
+  Performs a kind-scoped NIF call and applies the default `check!/1`
+  normalization.
+  """
+  def call(nif_module, element_kind, kind_func_name, args) when is_list(args) do
+    raw_call(nif_module, element_kind, kind_func_name, args)
     |> check!()
+  end
+
+  @doc """
+  Compatibility entry for runtime modules that still expose only `forward/3`.
+  New runtime code should prefer `call/3`.
+  """
+  def call_kind(runtime_module, element_kind, kind_func_name, args)
+      when is_atom(runtime_module) do
+    try do
+      apply(runtime_module, :call, [element_kind, kind_func_name, args])
+    rescue
+      UndefinedFunctionError ->
+        try do
+          apply(runtime_module, :forward, [element_kind, kind_func_name, args])
+        rescue
+          UndefinedFunctionError ->
+            raise ArgumentError,
+                  "runtime module #{inspect(runtime_module)} must export call/3 or forward/3"
+        end
+    end
+  end
+
+  @doc """
+  Normalizes the return value from a raw/public generated NIF wrapper call.
+  """
+  def normalize_result(ret, runtime_module) when is_atom(runtime_module) do
+    try do
+      apply(runtime_module, :check!, [ret])
+    rescue
+      UndefinedFunctionError ->
+        ret
+    end
+  end
+
+  @doc """
+  Dispatches a raw generated NIF function and routes the return value through
+  the runtime module's normalization path.
+  """
+  def invoke_public_nif(runtime_module, raw_module, raw_function, args)
+      when is_atom(runtime_module) and is_atom(raw_module) and is_list(args) do
+    apply(raw_module, raw_function, Kinda.unwrap_ref(args))
+    |> normalize_result(runtime_module)
   end
 
   defp raise_error(%{__struct__: _, __exception__: true} = error) do

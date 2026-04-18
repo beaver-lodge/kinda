@@ -29,9 +29,29 @@ defmodule Kinda.ForwarderTest do
     assert %RawKind{ref: 7} = RawKind.make(7)
   end
 
+  test "raw_call/3 leaves wrapping to the caller" do
+    assert {:kind, DecodedKind, _ref} = Runtime.raw_call(DecodedKind, :wrap, [])
+  end
+
+  test "call_kind/4 prefers call/3 when available" do
+    assert %DecodedKind{} = Kinda.Forwarder.call_kind(Runtime, DecodedKind, :wrap, [])
+  end
+
   test "forward/3 wraps decoded kind tuples" do
     assert %DecodedKind{ref: ref} = Runtime.forward(DecodedKind, :wrap, [])
     assert is_reference(ref)
+  end
+
+  test "invoke_public_nif/4 unwraps refs and normalizes the result" do
+    ref = make_ref()
+
+    assert {:primitive, ^ref} =
+             Kinda.Forwarder.invoke_public_nif(
+               Runtime,
+               FakeNIF,
+               Module.concat(DecodedKind, :primitive),
+               [%DecodedKind{ref: ref}]
+             )
   end
 
   test "check!/1 preserves metadata alongside wrapped kinds" do

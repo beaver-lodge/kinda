@@ -28,6 +28,6 @@ defmodule Kinda.CodeGenTest do
     assert ast_string =~ ~s(@doc "Creates foo.)
     assert ast_string =~ "def mlirFoo(ctx)"
     assert ast_string =~ "@doc false"
-    assert ast_string =~ ".check!(ret)"
+    assert ast_string =~ "Kinda.Forwarder.invoke_public_nif"
   end
 end
