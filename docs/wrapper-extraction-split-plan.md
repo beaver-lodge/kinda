@@ -40,6 +40,9 @@ What is already true:
 - wrapper policy now also preserves dirty scheduler metadata through
   framework-owned `Kinda.CodeGen.NIFDecl` IR instead of only burying it inside
   Zig entry-string emission
+- and classic `use Kinda.CodeGen` modules now expose those generated
+  declarations through `__kinda_nif_decls__/0`, so the manifest is no longer
+  only an intermediate file concern
 
 What is not yet true:
 

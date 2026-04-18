@@ -37,7 +37,12 @@ defmodule Kinda.Wrapper.Example do
     def callback_bridge(name), do: Map.get(callback_bridge_entries(), name)
 
     @impl true
-    def variants(:mlirContextCreate), do: [{:normal, :mlirContextCreate, :mlirContextCreate}]
+    def variants(:mlirContextCreate) do
+      [
+        {:normal, :mlirContextCreate, :mlirContextCreate},
+        {:dirty_cpu, :mlirContextCreate_dirty_cpu, :mlirContextCreate}
+      ]
+    end
 
     def variants(_name), do: []
 
@@ -48,12 +53,20 @@ defmodule Kinda.Wrapper.Example do
     def elixir_params({_kind, _public_name, _base_name}, params), do: params
 
     @impl true
+    def dirty({:dirty_cpu, _public_name, _base_name}), do: :dirty_cpu
     def dirty({_kind, _public_name, _base_name}), do: false
 
     @impl true
+    def doc({:dirty_cpu, _public_name, _base_name}, %Function{doc: doc}) when is_binary(doc) do
+      doc <> "\n\nThis variant runs on a dirty CPU scheduler."
+    end
+
     def doc({_kind, _public_name, _base_name}, %Function{doc: doc}), do: doc
 
     @impl true
+    def zig_entry({:dirty_cpu, public_name, base_name}),
+      do: ~s|nifDirtyCPU("#{base_name}", "#{public_name}"),|
+
     def zig_entry({_kind, _public_name, base_name}), do: ~s|nif("#{base_name}"),|
   end
 

@@ -4,8 +4,34 @@ defmodule Kinda.CodeGenTest do
   alias Kinda.CodeGen
   alias Kinda.CodeGen.NIFDecl
 
+  defmodule GeneratedDecls do
+    @behaviour Kinda.CodeGen
+
+    @impl true
+    def kinds, do: []
+
+    @impl true
+    def nifs do
+      [
+        %NIFDecl{
+          wrapper_name: :invoke_dirty_cpu,
+          params: [:engine],
+          doc: "Invokes the engine.",
+          dirty: :dirty_cpu
+        }
+      ]
+    end
+  end
+
   defmodule Forward do
     def check!(value), do: value
+  end
+
+  defmodule GeneratedModule do
+    use Kinda.CodeGen,
+      with: Kinda.CodeGenTest.GeneratedDecls,
+      root: Kinda.CodeGenTest.GeneratedModule,
+      forward: Kinda.CodeGenTest.Forward
   end
 
   test "emits docs on generated public wrappers" do
@@ -30,6 +56,17 @@ defmodule Kinda.CodeGenTest do
     assert ast_string =~ "def mlirFoo(ctx)"
     assert ast_string =~ "GeneratedDocs.Raw"
     assert ast_string =~ "Kinda.Forwarder.invoke_public_nif"
+  end
+
+  test "exposes generated nif declarations as module metadata" do
+    assert [
+             %NIFDecl{
+               wrapper_name: :invoke_dirty_cpu,
+               params: [:engine],
+               doc: "Invokes the engine.",
+               dirty: :dirty_cpu
+             }
+           ] = GeneratedModule.__kinda_nif_decls__()
   end
 
   test "emits raw companion entries for kind-scoped generated functions" do

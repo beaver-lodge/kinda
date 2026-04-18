@@ -73,6 +73,7 @@ What this surface is good at:
 - framework-owned manifest extraction
 - policy application
 - callback-bridge report rendering
+- scheduler-metadata rendering in generated Elixir manifests
 - JSON/human-readable output smoke
 
 What this surface is not good at:
@@ -250,6 +251,9 @@ Status:
   runtime slice instead of carrying its own ad hoc implementation
 - with real green verification on the active Zig `0.16` line via:
   - `mix kinda.example.verify`
+- and the micro-example lane now demonstrates dirty scheduler metadata in the
+  rendered Elixir manifest instead of keeping scheduler rendering purely
+  aspirational
 
 ### Phase 2. Shared example contract
 

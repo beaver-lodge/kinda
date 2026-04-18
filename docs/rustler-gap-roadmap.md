@@ -112,6 +112,8 @@ By contrast, `kinda` currently exposes mostly primitives:
 - and the wrapper-policy pipeline now preserves per-variant dirty scheduler
   metadata in framework-owned `NIFDecl` IR instead of only encoding it in Zig
   entry strings
+- and classic `use Kinda.CodeGen` modules now expose their generated
+  declaration manifest through `__kinda_nif_decls__/0`
 
 This is real progress, but the runtime surface is still too thin for the full
 set of `beaver`-style adapter needs.
@@ -174,6 +176,9 @@ The framework has now landed a first scheduler-metadata slice:
   exposes a `dirty/1` callback
 - [lib/wrapper/generate.ex](/Users/tsai/oss/kinda/lib/wrapper/generate.ex:1)
   preserves that metadata in generated `NIFDecl` manifests
+- [lib/kinda_codegen.ex](/Users/tsai/oss/kinda/lib/kinda_codegen.ex:1)
+  now exposes those generated declarations on the public module surface via
+  `__kinda_nif_decls__/0`
 
 But the current Elixir-facing codegen still does not make scheduling a full
 first-class user feature end to end.
@@ -244,6 +249,8 @@ documented.
 - a first explicit repo-root entry point split between:
   - `mix kinda.wrapper.example`
   - `mix kinda.example.verify`
+- the wrapper micro-example lane now also renders dirty scheduler metadata in
+  its generated Elixir manifest output
 - real green repo-level verification for that split on the active Zig `0.16`
   line via:
   - `mix kinda.verify`

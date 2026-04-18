@@ -10,8 +10,14 @@ defmodule Kinda.CodeGen do
       mod = Keyword.fetch!(unquote(opts), :with)
       root = Keyword.fetch!(unquote(opts), :root)
       forward = Keyword.fetch!(unquote(opts), :forward)
-      {ast, mf} = Kinda.CodeGen.nif_ast(mod.kinds(), mod.nifs(), root, forward)
+      decls = Kinda.CodeGen.nif_decls(mod.kinds(), mod.nifs(), root)
+      {ast, mf} = Kinda.CodeGen.nif_ast_from_decls(decls, root, forward)
       ast |> Code.eval_quoted([], __ENV__)
+      Module.put_attribute(__MODULE__, :kinda_nif_decls, decls)
+
+      @doc false
+      def __kinda_nif_decls__, do: @kinda_nif_decls
+
       mf
     end
   end
@@ -26,7 +32,7 @@ defmodule Kinda.CodeGen do
     Module.concat(root_module, Raw)
   end
 
-  def nif_ast(kinds, nifs, root_module, forward_module) do
+  def nif_decls(kinds, nifs, root_module) do
     # generate stubs for generated NIFs
     extra_kind_nifs =
       kinds
@@ -35,28 +41,37 @@ defmodule Kinda.CodeGen do
 
     nifs = nifs ++ extra_kind_nifs
 
+    for nif <- nifs do
+      case nif do
+        {wrapper_name, arity} when is_atom(wrapper_name) and is_integer(arity) ->
+          %NIFDecl{
+            wrapper_name: wrapper_name,
+            nif_name: Module.concat(root_module, wrapper_name),
+            params: arity
+          }
+
+        {wrapper_name, params} when is_atom(wrapper_name) and is_list(params) ->
+          %NIFDecl{
+            wrapper_name: wrapper_name,
+            nif_name: Module.concat(root_module, wrapper_name),
+            params: params
+          }
+
+        %NIFDecl{} ->
+          normalize_nif_decl(nif, root_module)
+      end
+    end
+  end
+
+  def nif_ast(kinds, nifs, root_module, forward_module) do
+    kinds
+    |> nif_decls(nifs, root_module)
+    |> nif_ast_from_decls(root_module, forward_module)
+  end
+
+  def nif_ast_from_decls(decls, root_module, forward_module) do
     {entries, raw_entries} =
-      for nif <- nifs do
-        nif =
-          case nif do
-            {wrapper_name, arity} when is_atom(wrapper_name) and is_integer(arity) ->
-              %NIFDecl{
-                wrapper_name: wrapper_name,
-                nif_name: Module.concat(root_module, wrapper_name),
-                params: arity
-              }
-
-            {wrapper_name, params} when is_atom(wrapper_name) and is_list(params) ->
-              %NIFDecl{
-                wrapper_name: wrapper_name,
-                nif_name: Module.concat(root_module, wrapper_name),
-                params: params
-              }
-
-            %NIFDecl{} ->
-              normalize_nif_decl(nif, root_module)
-          end
-
+      for nif <- decls do
         {args_ast, arity} =
           if is_list(nif.params) do
             {Enum.map(nif.params, &Macro.var(&1, __MODULE__)), length(nif.params)}

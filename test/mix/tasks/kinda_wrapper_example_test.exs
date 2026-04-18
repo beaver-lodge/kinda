@@ -15,6 +15,7 @@ defmodule Mix.Tasks.Kinda.Wrapper.ExampleTest do
     assert output =~ "== Callback Bridge Report =="
     assert output =~ "== Callback Bridge Manifest =="
     assert output =~ "callback_bridge_required"
+    assert output =~ "dirty: :dirty_cpu"
     assert output =~ "\"version\":1"
   end
 

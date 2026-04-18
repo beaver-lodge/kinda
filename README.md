@@ -65,6 +65,7 @@ It prints:
 - the generated Elixir wrapper manifest
 - the human-readable callback-bridge backlog report
 - the machine-readable callback-bridge manifest
+- including dirty scheduler metadata when the example policy emits it
 
 The formal plan for how:
 
@@ -145,6 +146,9 @@ end
 ```
 
 This is the older `ResourceKind + CodeGen` side of `kinda`.
+
+Generated `use Kinda.CodeGen` modules now also expose their declaration
+manifest via `__kinda_nif_decls__/0`.
 
 For larger generated bindings, the newer wrapper pipeline is usually more
 important.
