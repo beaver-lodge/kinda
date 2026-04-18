@@ -70,6 +70,16 @@ defmodule Kinda.Wrapper.CType do
     }
   end
 
+  @spec from_manifest(map() | nil) :: t() | nil
+  def from_manifest(nil), do: nil
+
+  def from_manifest(%{"spelling" => spelling, "kind" => kind}) when is_binary(kind) do
+    %__MODULE__{
+      spelling: spelling,
+      kind: String.to_existing_atom(kind)
+    }
+  end
+
   defp extract_return_spelling(nil), do: nil
 
   defp extract_return_spelling(qual_type) when is_binary(qual_type) do

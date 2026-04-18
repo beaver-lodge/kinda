@@ -161,6 +161,11 @@ the same typed source:
   the generator module implements `signature_manifest/0`
 - and a unified declaration manifest through `__kinda_declaration_manifest__/0`
 
+When a generator module implements `declaration_manifest/0`, `Kinda.CodeGen`
+can now source generated function/type declarations directly from that unified
+manifest instead of reconstructing them from parallel callbacks. Kind-derived
+helper NIFs still come from `kinds()/0`.
+
 When that manifest includes projected records, `Kinda.CodeGen` also emits
 deterministic public type aliases such as `foo_handle_record()/0` from the same
 single source. These generated aliases use atom field keys derived from

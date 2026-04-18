@@ -266,6 +266,10 @@ framework-complete:
   types share one framework-owned metadata surface
 - and `Kinda.Wrapper.Generate.declaration_manifest/2` now exports that same
   unified surface as a machine-readable contract for build/CI consumers
+- and `Kinda.CodeGen` can now also re-ingest that unified declaration manifest
+  through `declaration_manifest/0`, so the machine-readable contract can serve
+  as the direct source for generated function/type surfaces, while kind-derived
+  helper NIFs still come from the explicit kind surface
 - `beaver` is the first downstream to project those C types, including
   `struct Mlir...` record fields, into remote MLIR resource wrapper types
 

@@ -26,6 +26,21 @@ defmodule Kinda.CodeGen.NIFDecl do
             return_typespec: nil,
             dirty: false
 
+  @spec from_manifest(map()) :: t()
+  def from_manifest(%{} = manifest) do
+    %__MODULE__{
+      wrapper_name: denormalize_name(Map.get(manifest, "wrapper_name")),
+      nif_name: denormalize_name(Map.get(manifest, "nif_name")),
+      params: denormalize_params(Map.get(manifest, "params")),
+      doc: Map.get(manifest, "doc"),
+      param_ctypes: Enum.map(Map.get(manifest, "param_ctypes", []), &denormalize_ctype/1),
+      return_ctype: denormalize_ctype(Map.get(manifest, "return_ctype")),
+      param_typespecs: denormalize_typespecs(Map.get(manifest, "param_typespecs")),
+      return_typespec: denormalize_typespec(Map.get(manifest, "return_typespec")),
+      dirty: denormalize_dirty(Map.get(manifest, "dirty", false))
+    }
+  end
+
   @spec to_manifest(t()) :: map()
   def to_manifest(%__MODULE__{} = nif_decl) do
     %{
@@ -91,5 +106,28 @@ defmodule Kinda.CodeGen.NIFDecl do
       "spelling" => spelling,
       "kind" => Atom.to_string(kind)
     }
+  end
+
+  defp denormalize_name(nil), do: nil
+  defp denormalize_name(name) when is_binary(name), do: String.to_atom(name)
+
+  defp denormalize_params(params) when is_integer(params), do: params
+  defp denormalize_params(params) when is_list(params), do: Enum.map(params, &denormalize_name/1)
+  defp denormalize_params(nil), do: nil
+
+  defp denormalize_typespecs(nil), do: nil
+  defp denormalize_typespecs(typespecs) when is_list(typespecs), do: Enum.map(typespecs, &TypeSpecRef.from_manifest/1)
+
+  defp denormalize_typespec(nil), do: nil
+  defp denormalize_typespec(typespec), do: TypeSpecRef.from_manifest(typespec)
+
+  defp denormalize_dirty(false), do: false
+  defp denormalize_dirty(nil), do: false
+  defp denormalize_dirty(dirty) when is_binary(dirty), do: String.to_atom(dirty)
+
+  defp denormalize_ctype(nil), do: nil
+
+  defp denormalize_ctype(%{"spelling" => spelling, "kind" => kind}) when is_binary(kind) do
+    struct(CType, spelling: spelling, kind: String.to_existing_atom(kind))
   end
 end

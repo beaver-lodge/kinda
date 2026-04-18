@@ -39,6 +39,41 @@ defmodule Kinda.CodeGenTest do
     end
   end
 
+  defmodule ManifestBackedDecls do
+    @behaviour Kinda.CodeGen
+
+    @impl true
+    def kinds, do: []
+
+    @impl true
+    def nifs, do: []
+
+    @impl true
+    def declaration_manifest do
+      DeclarationManifest.from_parts(
+        [
+          %NIFDecl{
+            wrapper_name: :invoke_from_manifest,
+            params: [:engine],
+            doc: "Invokes from the unified declaration manifest.",
+            param_typespecs: [TypeSpecRef.term()],
+            return_typespec: TypeSpecRef.ok(),
+            dirty: :dirty_io
+          }
+        ],
+        [
+          %TypeDecl{
+            name: :bar_handle_record,
+            source_record_name: "BarHandle",
+            doc: "Typed projection for extracted C record BarHandle.",
+            typespec: TypeSpecRef.map([])
+          }
+        ],
+        %{"version" => 7}
+      )
+    end
+  end
+
   defmodule Forward do
     def check!(value), do: value
   end
@@ -47,6 +82,13 @@ defmodule Kinda.CodeGenTest do
     use Kinda.CodeGen,
       with: Kinda.CodeGenTest.GeneratedDecls,
       root: Kinda.CodeGenTest.GeneratedModule,
+      forward: Kinda.CodeGenTest.Forward
+  end
+
+  defmodule ManifestBackedModule do
+    use Kinda.CodeGen,
+      with: Kinda.CodeGenTest.ManifestBackedDecls,
+      root: Kinda.CodeGenTest.ManifestBackedModule,
       forward: Kinda.CodeGenTest.Forward
   end
 
@@ -175,6 +217,42 @@ defmodule Kinda.CodeGenTest do
                }
              ]
            } = GeneratedModule.__kinda_declaration_manifest__()
+  end
+
+  test "can source generated surfaces directly from declaration manifests" do
+    expected_nif_name = Module.concat(Kinda.CodeGenTest.ManifestBackedModule, :invoke_from_manifest)
+
+    assert ManifestBackedModule.__kinda_signature_manifest__() == nil
+
+    assert [
+             %NIFDecl{
+               wrapper_name: :invoke_from_manifest,
+               nif_name: ^expected_nif_name,
+               dirty: :dirty_io,
+               return_typespec: :ok
+             }
+           ] = ManifestBackedModule.__kinda_nif_decls__()
+
+    assert [
+             %TypeDecl{
+               name: :bar_handle_record,
+               source_record_name: "BarHandle"
+             }
+           ] = ManifestBackedModule.__kinda_type_decls__()
+
+    assert %DeclarationManifest{
+             version: 1,
+             signature_manifest_version: 7,
+             nif_decls: [
+               %NIFDecl{
+                 wrapper_name: :invoke_from_manifest,
+                 nif_name: ^expected_nif_name
+               }
+             ],
+             type_decls: [
+               %TypeDecl{name: :bar_handle_record}
+             ]
+           } = ManifestBackedModule.__kinda_declaration_manifest__()
   end
 
   test "emits raw companion entries for kind-scoped generated functions" do

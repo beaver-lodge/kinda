@@ -193,6 +193,10 @@ The first typespec-driven conversion slice has also now landed:
   are no longer split across ad hoc module probes
 - `Kinda.Wrapper.Generate.declaration_manifest/2` now exports the same unified
   declaration surface as a JSON-friendly machine-readable contract
+- `Kinda.CodeGen` can now also ingest `declaration_manifest/0` as a direct
+  generation source, so checked-in declaration sidecars can drive module
+  generation instead of only mirroring it after the fact, while kind-derived
+  helper NIFs still come from the explicit kind surface
 - `beaver` now acts as the first consumer probe by mapping MLIR handle-like
   C types, including `struct Mlir...` field spellings inside records, to public
   remote wrapper types

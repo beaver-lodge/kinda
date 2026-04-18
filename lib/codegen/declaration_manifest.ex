@@ -27,6 +27,16 @@ defmodule Kinda.CodeGen.DeclarationManifest do
     }
   end
 
+  @spec from_manifest(map()) :: t()
+  def from_manifest(%{} = manifest) do
+    %__MODULE__{
+      version: Map.get(manifest, "version", 1),
+      signature_manifest_version: Map.get(manifest, "signature_manifest_version"),
+      nif_decls: manifest |> Map.get("nif_decls", []) |> Enum.map(&NIFDecl.from_manifest/1),
+      type_decls: manifest |> Map.get("type_decls", []) |> Enum.map(&TypeDecl.from_manifest/1)
+    }
+  end
+
   @spec to_manifest(t()) :: map()
   def to_manifest(%__MODULE__{} = declaration_manifest) do
     %{

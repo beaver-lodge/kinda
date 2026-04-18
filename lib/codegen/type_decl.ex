@@ -31,6 +31,16 @@ defmodule Kinda.CodeGen.TypeDecl do
     }
   end
 
+  @spec from_manifest(map()) :: t()
+  def from_manifest(%{} = manifest) do
+    %__MODULE__{
+      name: manifest |> Map.fetch!("name") |> String.to_atom(),
+      source_record_name: Map.get(manifest, "source_record_name"),
+      doc: Map.get(manifest, "doc"),
+      typespec: manifest |> Map.fetch!("typespec") |> TypeSpecRef.from_manifest()
+    }
+  end
+
   @spec from_record_manifest(map()) :: [t()]
   def from_record_manifest(%{"name" => name, "public_typespec" => public_typespec})
       when is_binary(name) and is_map(public_typespec) do
