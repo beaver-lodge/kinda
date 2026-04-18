@@ -158,8 +158,9 @@ the same typed source:
 
 - NIF declarations through `__kinda_nif_decls__/0`
 - the typed signature manifest through `__kinda_signature_manifest__/0`
-- and a unified declaration manifest through `__kinda_declaration_manifest__/0`
-- plus the resolved declaration IR through `__kinda_declaration_surfaces__/0`
+- a unified declaration manifest through `__kinda_declaration_manifest__/0`
+- the source declaration manifest through `__kinda_source_declaration_manifest__/0`
+- and the resolved declaration IR through `__kinda_declaration_surfaces__/0`
 
 When a generator module implements `declaration_manifest/0`, `Kinda.CodeGen`
 can now source generated function/type declarations directly from that unified
@@ -188,7 +189,8 @@ Downstreams should treat `declaration_surfaces/2` as the formalized public
 interface when they want to compare against `__kinda_nif_decls__/0`,
 `__kinda_type_decls__/0`, or `__kinda_declaration_manifest__/0`. Generated
 modules now expose that same resolved IR directly through
-`__kinda_declaration_surfaces__/0`.
+`__kinda_declaration_surfaces__/0`, and the split metadata accessors are now
+derived views over that IR rather than separately stored module state.
 
 When that manifest includes projected records, `Kinda.CodeGen` also emits
 deterministic public type aliases such as `foo_handle_record()/0` from the same

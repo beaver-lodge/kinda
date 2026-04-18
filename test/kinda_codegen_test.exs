@@ -227,6 +227,8 @@ defmodule Kinda.CodeGenTest do
                type_decls: [%TypeDecl{name: :foo_handle_record}]
              }
            } = GeneratedModule.__kinda_declaration_surfaces__()
+
+    assert GeneratedModule.__kinda_source_declaration_manifest__() == nil
   end
 
   test "can source generated surfaces directly from declaration manifests" do
@@ -334,6 +336,8 @@ defmodule Kinda.CodeGenTest do
     assert DeclarationSurfaces.declaration_manifest(surfaces) == ManifestBackedModule.__kinda_declaration_manifest__()
     assert match?(%DeclarationManifest{}, DeclarationSurfaces.source_declaration_manifest(surfaces))
     assert surfaces == ManifestBackedModule.__kinda_declaration_surfaces__()
+    assert ManifestBackedModule.__kinda_source_declaration_manifest__() ==
+             DeclarationSurfaces.source_declaration_manifest(surfaces)
   end
 
   test "emits raw companion entries for kind-scoped generated functions" do

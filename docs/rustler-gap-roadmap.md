@@ -222,6 +222,11 @@ The first typespec-driven conversion slice has also now landed:
 - and generated modules now expose that same resolved IR through
   `__kinda_declaration_surfaces__/0`, so downstreams can consume the formalized
   declaration surface directly instead of reassembling it from split metadata
+- and the split module-level declaration accessors
+  (`__kinda_nif_decls__/0`, `__kinda_type_decls__/0`,
+  `__kinda_signature_manifest__/0`, `__kinda_declaration_manifest__/0`) are
+  now derived from that single declaration-surface IR, with
+  `__kinda_source_declaration_manifest__/0` exposing the checked-in source side
 - when a declaration manifest is present, the typed signature surface is now a
   derived view over its embedded `signature_manifest`, rather than a required
   parallel build/source artifact

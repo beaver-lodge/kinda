@@ -31,26 +31,40 @@ defmodule Kinda.CodeGen do
       (Kinda.CodeGen.type_decls_ast(type_decls) ++ ast)
       |> Code.eval_quoted([], __ENV__)
 
-      Module.put_attribute(__MODULE__, :kinda_nif_decls, decls)
-      Module.put_attribute(__MODULE__, :kinda_signature_manifest, signature_manifest)
-      Module.put_attribute(__MODULE__, :kinda_type_decls, type_decls)
-      Module.put_attribute(__MODULE__, :kinda_declaration_manifest, declaration_manifest)
       Module.put_attribute(__MODULE__, :kinda_declaration_surfaces, surfaces)
 
       @doc false
-      def __kinda_nif_decls__, do: @kinda_nif_decls
-
-      @doc false
-      def __kinda_signature_manifest__, do: @kinda_signature_manifest
-
-      @doc false
-      def __kinda_type_decls__, do: @kinda_type_decls
-
-      @doc false
-      def __kinda_declaration_manifest__, do: @kinda_declaration_manifest
-
-      @doc false
       def __kinda_declaration_surfaces__, do: @kinda_declaration_surfaces
+
+      @doc false
+      def __kinda_source_declaration_manifest__ do
+        @kinda_declaration_surfaces
+        |> Kinda.CodeGen.DeclarationSurfaces.source_declaration_manifest()
+      end
+
+      @doc false
+      def __kinda_nif_decls__ do
+        @kinda_declaration_surfaces
+        |> Kinda.CodeGen.DeclarationSurfaces.nif_decls()
+      end
+
+      @doc false
+      def __kinda_signature_manifest__ do
+        @kinda_declaration_surfaces
+        |> Kinda.CodeGen.DeclarationSurfaces.signature_manifest()
+      end
+
+      @doc false
+      def __kinda_type_decls__ do
+        @kinda_declaration_surfaces
+        |> Kinda.CodeGen.DeclarationSurfaces.type_decls()
+      end
+
+      @doc false
+      def __kinda_declaration_manifest__ do
+        @kinda_declaration_surfaces
+        |> Kinda.CodeGen.DeclarationSurfaces.declaration_manifest()
+      end
 
       mf
     end

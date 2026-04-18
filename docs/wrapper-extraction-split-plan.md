@@ -297,6 +297,9 @@ framework-complete:
 - and generated modules now re-expose that same resolved declaration IR
   through `__kinda_declaration_surfaces__/0`, so the formalized interface does
   not stop at a helper API inside `Kinda.CodeGen`
+- and the older split declaration accessors on generated modules are now
+  compatibility views derived from that same declaration-surface IR, instead of
+  parallel module metadata stores
 - and when that unified declaration manifest is present, the generated
   signature surface is now a derived view over its embedded
   `signature_manifest`, rather than a separate required sidecar
