@@ -121,17 +121,11 @@ For a large binding, this is the important compression:
 
 ## Quick Example
 
-Define a root NIF module and a resource kind:
+Define a root runtime adapter and a resource kind:
 
 ```elixir
 defmodule Foo.Native do
-  @behaviour Kinda.Forwarder
-
-  def forward(module, function, args), do: apply(module, function, args)
-  def check!(value), do: value
-  def array(type, value), do: {type, value}
-  def to_term(value), do: value
-  def opaque_ptr(value), do: value
+  use Kinda.Forwarder, nif_module: Foo.NIF
 end
 
 defmodule Foo.Handle do
@@ -316,7 +310,8 @@ Kinda is not yet a Rustler-complete framework.
 
 What is still missing:
 
-- a productized forwarder/runtime layer
+- a richer productized forwarder/runtime layer beyond the first
+  `Kinda.Forwarder` slice
 - callback bridge runtime implementation
 - richer scheduler-aware NIF declaration surface
 - a complete prebuilt/download/checksum story

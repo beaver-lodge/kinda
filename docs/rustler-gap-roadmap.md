@@ -91,9 +91,13 @@ By contrast, `kinda` currently exposes mostly primitives:
 
 - `use Kinda.ResourceKind`
 - `use Kinda.CodeGen`
-- a minimal `Kinda.Forwarder` behaviour
+- a first public `Kinda.Forwarder` runtime slice:
+  - `check!/1`
+  - `forward/3`
+  - `to_term/1`
 
-This is powerful, but still too low-level and too underspecified.
+This is real progress, but the runtime surface is still too thin for the full
+set of `beaver`-style adapter needs.
 
 #### Needed evolution
 
@@ -254,7 +258,8 @@ Goal: make `kinda` feel like a framework, not just a substrate.
 
 - Add real `Kinda.Library`
 - Add real `Kinda.Prebuilt`
-- Replace placeholder `Kinda.Forwarder` with a meaningful behaviour/API
+- Continue growing `Kinda.Forwarder` from the first public runtime slice into
+  a fuller behaviour/API
 - Extend `NIFDecl` with name, docs, scheduler flags, and typed params
 
 ### Phase 2. Stabilize conversion semantics
@@ -302,7 +307,8 @@ iterations, the highest-value order is:
 
 1. Ship `Kinda.Prebuilt` for real
 2. Make scheduler flags first-class in `NIFDecl`
-3. Replace `Kinda.Forwarder` placeholder callbacks with a real runtime API
+3. Grow `Kinda.Forwarder` beyond the first `check!/1` / `forward/3` /
+   `to_term/1` runtime slice
 4. Add integration tests that exercise `beaver`-style resource flows
 5. Generate stronger Elixir-side types/specs/docs from codegen
 

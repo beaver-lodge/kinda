@@ -105,6 +105,7 @@ What this surface is good at:
 
 - proving a real native app still loads
 - proving generated and handwritten runtime pieces cooperate
+- proving the first public `Kinda.Forwarder` runtime slice in a real bundled app
 - exercising repo-local verification under:
   - [Kinda.ExampleVerifier](/Users/tsai/oss/kinda/lib/kinda/example_verifier.ex:1)
   - [Mix.Tasks.Kinda.Example.Verify](/Users/tsai/oss/kinda/lib/mix/tasks/kinda.example.verify.ex:1)
@@ -245,6 +246,8 @@ Status:
 - and it now includes the first dedicated repo-root entry point for the
   bundled app example:
   - `mix kinda.example.verify`
+- and the bundled app now consumes the first public `Kinda.Forwarder`
+  runtime slice instead of carrying its own ad hoc implementation
 - with real green verification on the active Zig `0.16` line via:
   - `mix kinda.example.verify`
 
