@@ -40,13 +40,9 @@ What is already true:
 - wrapper policy now also preserves dirty scheduler metadata through
   framework-owned `Kinda.CodeGen.NIFDecl` IR instead of only burying it inside
   Zig entry-string emission
-- and classic `use Kinda.CodeGen` modules now expose those generated
-  declarations through `__kinda_nif_decls__/0`, so the manifest is no longer
-  only an intermediate file concern
-- and `use Kinda.CodeGen` modules can now also surface a typed signature
-  manifest through `__kinda_signature_manifest__/0`, whether it is provided
-  directly or derived from the canonical declaration contract, so the typed
-  contract is no longer only a sidecar file concern
+- and classic `use Kinda.CodeGen` modules now expose their resolved generated
+  declaration surface through `__kinda_declaration_surfaces__/0`, so the
+  manifest is no longer only an intermediate file concern
 - and the framework-owned wrapper manifest now preserves raw C parameter and
   return type facts via:
   - `Kinda.Wrapper.CType`
@@ -274,10 +270,7 @@ framework-complete:
   while the checked-in/machine-readable manifest stays string-keyed
 - and `Kinda.CodeGen` now materializes a framework-owned `TypeDecl` metadata
   layer from the same manifest, exposed on generated modules through
-  `__kinda_type_decls__/0`
-- and `Kinda.CodeGen` now also exposes a unified declaration contract through
-  `__kinda_declaration_manifest__/0`, so generated functions and generated
-  types share one framework-owned metadata surface
+  `Kinda.CodeGen.DeclarationSurfaces.type_decls/1`
 - and `Kinda.Wrapper.Generate.declaration_manifest/2` now exports that same
   unified surface as a machine-readable contract for build/CI consumers
 - and `Kinda.CodeGen` can now also re-ingest that unified declaration manifest
@@ -300,9 +293,6 @@ framework-complete:
 - and generated modules now re-expose that same resolved declaration IR
   through `__kinda_declaration_surfaces__/0`, so the formalized interface does
   not stop at a helper API inside `Kinda.CodeGen`
-- and the older split declaration accessors on generated modules are now
-  compatibility views derived from that same declaration-surface IR, instead of
-  parallel module metadata stores
 - and `DeclarationSurfaces` itself now also avoids parallel storage, keeping
   only the canonical source declaration manifest plus the canonical resolved
   declaration manifest while deriving `nif_decls` / `type_decls` /
@@ -310,12 +300,6 @@ framework-complete:
 - and when that unified declaration manifest is present, the generated
   signature surface is now a derived view over its embedded
   `signature_manifest`, rather than a separate required sidecar
-- and when a module exposes both `signature_manifest/0` and
-  `declaration_manifest/0`, `kinda` now treats the declaration manifest as the
-  canonical source of truth for generated declaration/signature surfaces
-- and declaration-manifest-backed generators no longer need a parallel
-  `nifs()/0` callback; only the explicit kind surface remains outside the
-  unified declaration contract
 - `beaver` is the first downstream to project those C types, including
   `struct Mlir...` record fields, into remote MLIR resource wrapper types
 

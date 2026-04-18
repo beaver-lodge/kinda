@@ -153,25 +153,17 @@ end
 
 This is the older `ResourceKind + CodeGen` side of `kinda`.
 
-Generated `use Kinda.CodeGen` modules now expose three related surfaces from
-the same typed source:
+Generated `use Kinda.CodeGen` modules now expose one formalized declaration
+surface from the same typed source:
 
-- NIF declarations through `__kinda_nif_decls__/0`
-- the typed signature manifest through `__kinda_signature_manifest__/0`
-- a unified declaration manifest through `__kinda_declaration_manifest__/0`
-- the source declaration manifest through `__kinda_source_declaration_manifest__/0`
-- and the resolved declaration IR through `__kinda_declaration_surfaces__/0`
+- the resolved declaration IR through `__kinda_declaration_surfaces__/0`
 
 When a generator module implements `declaration_manifest/0`, `Kinda.CodeGen`
 can now source generated function/type declarations directly from that unified
 manifest instead of reconstructing them from parallel callbacks. That callback
 is now the canonical declaration interface in `kinda`: it may return a loaded
-manifest value or a checked-in `.ex` / `.json` sidecar path, and
-`__kinda_signature_manifest__/0` becomes a derived view over the embedded
-signature contract in that declaration manifest. If a module exposes both
-`signature_manifest/0` and `declaration_manifest/0`, the declaration manifest
-wins. Declaration-manifest-backed generators no longer need a parallel
-`nifs()/0`; kind-derived helper NIFs still come from `kinds()/0`.
+manifest value or a checked-in `.ex` / `.json` sidecar path. Kind-derived
+helper NIFs still come from `kinds()/0`.
 
 `kinda` now also formalizes the distinction between the declaration source and
 the generated module surface inside
@@ -188,12 +180,8 @@ the generated module surface inside
   `Kinda.CodeGen.DeclarationSurfaces`
 
 Downstreams should treat `Kinda.CodeGen.DeclarationSurfaces.from_generator/2`
-as the formalized public resolution interface when they want to compare against
-`__kinda_nif_decls__/0`, `__kinda_type_decls__/0`, or
-`__kinda_declaration_manifest__/0`. Generated modules now expose that same
-resolved IR directly through
-`__kinda_declaration_surfaces__/0`, and the split metadata accessors are now
-derived views over that IR rather than separately stored module state.
+as the formalized public resolution interface. Generated modules expose that
+same resolved IR directly through `__kinda_declaration_surfaces__/0`.
 Inside that IR, the canonical resolved payload is the declaration manifest
 itself; `nif_decls`, `type_decls`, and `signature_manifest` are no longer
 stored a second time on the resolved surface.
@@ -202,8 +190,7 @@ When that manifest includes projected records, `Kinda.CodeGen` also emits
 deterministic public type aliases such as `foo_handle_record()/0` from the same
 single source. These generated aliases use atom field keys derived from
 extracted C field names, while the machine-readable manifest keeps the
-original string names. The generated module also exposes the formalized
-type-declaration IR through `__kinda_type_decls__/0`.
+original string names.
 
 For larger generated bindings, the newer wrapper pipeline is usually more
 important.

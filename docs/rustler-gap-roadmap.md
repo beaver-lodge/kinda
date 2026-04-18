@@ -112,12 +112,8 @@ By contrast, `kinda` currently exposes mostly primitives:
 - and the wrapper-policy pipeline now preserves per-variant dirty scheduler
   metadata in framework-owned `NIFDecl` IR instead of only encoding it in Zig
   entry strings
-- and classic `use Kinda.CodeGen` modules now expose their generated
-  NIF declaration metadata through `__kinda_nif_decls__/0`
-- and `use Kinda.CodeGen` modules now also expose a machine-readable typed
-  signature surface through `__kinda_signature_manifest__/0`, whether it comes
-  directly from `signature_manifest/0` or is derived from the canonical
-  declaration contract
+- and classic `use Kinda.CodeGen` modules now expose their resolved generated
+  declaration surface through `__kinda_declaration_surfaces__/0`
 - and the wrapper/extraction pipeline now preserves raw C parameter/return
   types in framework-owned IR:
   - `Kinda.Wrapper.Function`
@@ -199,12 +195,6 @@ The first typespec-driven conversion slice has also now landed:
 - those generated aliases use atom field keys derived from extracted C field
   names, while the underlying manifest remains string-keyed and
   machine-readable
-- `Kinda.CodeGen` now also exposes a formal `TypeDecl` metadata surface through
-  `__kinda_type_decls__/0`, so generated public types are not only observable
-  via emitted AST or BEAM abstract code
-- `Kinda.CodeGen` now also exposes a unified declaration contract through
-  `__kinda_declaration_manifest__/0`, so generated function/type declarations
-  are no longer split across ad hoc module probes
 - `Kinda.Wrapper.Generate.declaration_manifest/2` now exports the same unified
   declaration surface as a JSON-friendly machine-readable contract
 - `Kinda.CodeGen` can now also ingest `declaration_manifest/0` as a direct
@@ -225,11 +215,6 @@ The first typespec-driven conversion slice has also now landed:
 - and generated modules now expose that same resolved IR through
   `__kinda_declaration_surfaces__/0`, so downstreams can consume the formalized
   declaration surface directly instead of reassembling it from split metadata
-- and the split module-level declaration accessors
-  (`__kinda_nif_decls__/0`, `__kinda_type_decls__/0`,
-  `__kinda_signature_manifest__/0`, `__kinda_declaration_manifest__/0`) are
-  now derived from that single declaration-surface IR, with
-  `__kinda_source_declaration_manifest__/0` exposing the checked-in source side
 - and `Kinda.CodeGen.DeclarationSurfaces` now keeps only the canonical source
   declaration manifest plus the canonical resolved declaration manifest; split
   views like `nif_decls` and `type_decls` are derived accessors instead of
@@ -237,12 +222,6 @@ The first typespec-driven conversion slice has also now landed:
 - when a declaration manifest is present, the typed signature surface is now a
   derived view over its embedded `signature_manifest`, rather than a required
   parallel build/source artifact
-- and when a module exposes both `signature_manifest/0` and
-  `declaration_manifest/0`, the declaration manifest is now the canonical
-  source of the generated signature surface
-- and declaration-manifest-backed generators no longer need a parallel
-  `nifs()/0` callback just to satisfy the framework; only the explicit kind
-  surface still remains outside the declaration contract
 - `beaver` now acts as the first consumer probe by mapping MLIR handle-like
   C types, including `struct Mlir...` field spellings inside records, to public
   remote wrapper types
@@ -288,7 +267,7 @@ The framework has now landed a first scheduler-metadata slice:
   preserves that metadata in generated `NIFDecl` manifests
 - [lib/kinda_codegen.ex](/Users/tsai/oss/kinda/lib/kinda_codegen.ex:1)
   now exposes those generated declarations on the public module surface via
-  `__kinda_nif_decls__/0`
+  `__kinda_declaration_surfaces__/0`
 
 But the current Elixir-facing codegen still does not make scheduling a full
 first-class user feature end to end.

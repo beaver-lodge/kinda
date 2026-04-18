@@ -14,34 +14,23 @@ defmodule Kinda.CodeGen.DeclarationSurfaces do
 
   @spec load_source(module()) :: source_declaration_manifest()
   def load_source(mod) when is_atom(mod) do
-    if function_exported?(mod, :declaration_manifest, 0),
-      do: mod.declaration_manifest() |> DeclarationManifest.load!(),
-      else: nil
-  end
-
-  @spec source_signature(module(), source_declaration_manifest()) :: map() | nil
-  def source_signature(mod, source_declaration_manifest \\ nil)
-
-  def source_signature(mod, nil) when is_atom(mod) do
-    if function_exported?(mod, :signature_manifest, 0), do: mod.signature_manifest(), else: nil
-  end
-
-  def source_signature(mod, %DeclarationManifest{} = source_declaration_manifest) when is_atom(mod) do
-    DeclarationManifest.signature_manifest(source_declaration_manifest) ||
-      source_signature(mod, nil)
+    if function_exported?(mod, :declaration_manifest, 0) do
+      mod.declaration_manifest() |> DeclarationManifest.load!()
+    else
+      raise ArgumentError,
+            "#{inspect(mod)} must implement declaration_manifest/0 as the canonical source contract"
+    end
   end
 
   @spec from_generator(module(), module()) :: t()
   def from_generator(mod, root_module) when is_atom(mod) and is_atom(root_module) do
     source_declaration_manifest = load_source(mod)
-    signature_manifest = source_signature(mod, source_declaration_manifest)
 
     declaration_manifest =
       resolve_declaration_manifest(
         source_declaration_manifest,
         mod,
-        root_module,
-        signature_manifest
+        root_module
       )
 
     from_parts(source_declaration_manifest, declaration_manifest)
@@ -75,16 +64,10 @@ defmodule Kinda.CodeGen.DeclarationSurfaces do
   def type_decls(%__MODULE__{} = surfaces),
     do: surfaces |> declaration_manifest() |> DeclarationManifest.type_decls()
 
-  defp resolve_declaration_manifest(nil, mod, root_module, signature_manifest) do
-    decls = nif_decls(kinds_for(mod), nifs_for(mod), root_module)
-    DeclarationManifest.build(decls, signature_manifest)
-  end
-
   defp resolve_declaration_manifest(
          %DeclarationManifest{} = declaration_manifest,
          mod,
-         root_module,
-         signature_manifest
+         root_module
        ) do
     declaration_manifest
     |> DeclarationManifest.put_nif_decls(
@@ -93,7 +76,6 @@ defmodule Kinda.CodeGen.DeclarationSurfaces do
       |> Enum.map(&normalize_nif_decl(&1, root_module))
     )
     |> DeclarationManifest.merge_nif_decls(nif_decls(kinds_for(mod), [], root_module))
-    |> DeclarationManifest.put_signature_manifest(signature_manifest)
     |> then(&DeclarationManifest.put_type_decls(&1, DeclarationManifest.type_decls(&1)))
   end
 
@@ -134,9 +116,5 @@ defmodule Kinda.CodeGen.DeclarationSurfaces do
 
   defp kinds_for(mod) do
     if function_exported?(mod, :kinds, 0), do: mod.kinds(), else: []
-  end
-
-  defp nifs_for(mod) do
-    if function_exported?(mod, :nifs, 0), do: mod.nifs(), else: []
   end
 end

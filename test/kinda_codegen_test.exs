@@ -11,20 +11,15 @@ defmodule Kinda.CodeGenTest do
     def kinds, do: []
 
     @impl true
-    def nifs do
-      [
+    def declaration_manifest do
+      DeclarationManifest.build([
         %NIFDecl{
           wrapper_name: :invoke_dirty_cpu,
           params: [:engine],
           doc: "Invokes the engine.",
           dirty: :dirty_cpu
         }
-      ]
-    end
-
-    @impl true
-    def signature_manifest do
-      %{
+      ], %{
         "version" => 1,
         "records" => [
           %{
@@ -35,7 +30,7 @@ defmodule Kinda.CodeGenTest do
           }
         ],
         "entries" => []
-      }
+      })
     end
   end
 
@@ -52,11 +47,6 @@ defmodule Kinda.CodeGenTest do
 
   defmodule CanonicalManifestDecls do
     @behaviour Kinda.CodeGen
-
-    @impl true
-    def signature_manifest do
-      %{"version" => 99, "records" => [], "entries" => []}
-    end
 
     @impl true
     def declaration_manifest do
@@ -112,32 +102,6 @@ defmodule Kinda.CodeGenTest do
     assert ast_string =~ "Kinda.Forwarder.invoke_public_nif"
   end
 
-  test "exposes generated nif declarations as module metadata" do
-    assert [
-             %NIFDecl{
-               wrapper_name: :invoke_dirty_cpu,
-               params: [:engine],
-               doc: "Invokes the engine.",
-               dirty: :dirty_cpu
-             }
-           ] = GeneratedModule.__kinda_nif_decls__()
-  end
-
-  test "exposes optional typed signature manifest metadata" do
-    assert GeneratedModule.__kinda_signature_manifest__() == %{
-             "version" => 1,
-             "records" => [
-               %{
-                 "name" => "FooHandle",
-                 "kind" => "struct",
-                 "public_typespec" => %{"kind" => "map", "fields" => []},
-                 "fields" => []
-               }
-             ],
-             "entries" => []
-           }
-  end
-
   test "emits generated record type aliases from declaration manifests" do
     type_decls =
       DeclarationManifest.build(
@@ -186,8 +150,46 @@ defmodule Kinda.CodeGenTest do
     assert ast_string =~ "@type foo_handle_record() :: %{required(:ptr) => term(), required(:location) => Foo.Location.t()}"
   end
 
-  test "exposes generated type declarations as module metadata" do
-    assert GeneratedModule.__kinda_type_decls__() == [
+  test "exposes resolved declaration surfaces as module metadata" do
+    surfaces = GeneratedModule.__kinda_declaration_surfaces__()
+
+    assert %DeclarationSurfaces{
+             source_declaration_manifest: %DeclarationManifest{},
+             declaration_manifest: %DeclarationManifest{
+               nif_decls: [
+                 %NIFDecl{
+                   wrapper_name: :invoke_dirty_cpu,
+                   params: [:engine],
+                   doc: "Invokes the engine.",
+                   dirty: :dirty_cpu
+                 }
+               ],
+               type_decls: [
+               %TypeDecl{
+                 name: :foo_handle_record,
+                 source_record_name: "FooHandle",
+                 doc: "Typed projection for extracted C record FooHandle.",
+                 typespec: typespec
+               }
+              ],
+               signature_manifest: %{
+                 "version" => 1,
+                 "records" => [
+                   %{
+                     "name" => "FooHandle",
+                     "kind" => "struct",
+                     "public_typespec" => %{"kind" => "map", "fields" => []},
+                     "fields" => []
+                   }
+                 ],
+                 "entries" => []
+               }
+             }
+           } = surfaces
+
+    assert typespec == TypeSpecRef.map([])
+
+    assert DeclarationSurfaces.type_decls(surfaces) == [
              %TypeDecl{
                name: :foo_handle_record,
                source_record_name: "FooHandle",
@@ -195,43 +197,26 @@ defmodule Kinda.CodeGenTest do
                typespec: TypeSpecRef.map([])
              }
            ]
-  end
-
-  test "exposes unified declaration manifest metadata" do
-    assert %DeclarationManifest{
-             version: 1,
-             signature_manifest_version: 1,
-             nif_decls: [
-               %NIFDecl{
-                 wrapper_name: :invoke_dirty_cpu,
-                 dirty: :dirty_cpu
+    assert DeclarationSurfaces.signature_manifest(surfaces) == %{
+             "version" => 1,
+             "records" => [
+               %{
+                 "name" => "FooHandle",
+                 "kind" => "struct",
+                 "public_typespec" => %{"kind" => "map", "fields" => []},
+                 "fields" => []
                }
              ],
-             type_decls: [
-               %TypeDecl{
-                 name: :foo_handle_record,
-                 source_record_name: "FooHandle"
-               }
-             ]
-           } = GeneratedModule.__kinda_declaration_manifest__()
-  end
-
-  test "exposes resolved declaration surfaces as module metadata" do
-    assert %DeclarationSurfaces{
-             source_declaration_manifest: nil,
-             declaration_manifest: %DeclarationManifest{
-               nif_decls: [%NIFDecl{wrapper_name: :invoke_dirty_cpu}],
-               type_decls: [%TypeDecl{name: :foo_handle_record}]
-             }
-           } = GeneratedModule.__kinda_declaration_surfaces__()
-
-    assert GeneratedModule.__kinda_source_declaration_manifest__() == nil
+             "entries" => []
+           }
   end
 
   test "can source generated surfaces directly from declaration manifests" do
     expected_nif_name = Module.concat(Kinda.CodeGenTest.ManifestBackedModule, :invoke_from_manifest)
 
-    assert ManifestBackedModule.__kinda_signature_manifest__() == %{
+    surfaces = ManifestBackedModule.__kinda_declaration_surfaces__()
+
+    assert DeclarationSurfaces.signature_manifest(surfaces) == %{
              "version" => 7,
              "records" => [
                %{
@@ -251,14 +236,14 @@ defmodule Kinda.CodeGenTest do
                dirty: :dirty_io,
                return_typespec: :ok
              }
-           ] = ManifestBackedModule.__kinda_nif_decls__()
+           ] = DeclarationSurfaces.nif_decls(surfaces)
 
     assert [
              %TypeDecl{
                name: :bar_handle_record,
                source_record_name: "BarHandle"
              }
-           ] = ManifestBackedModule.__kinda_type_decls__()
+           ] = DeclarationSurfaces.type_decls(surfaces)
 
     assert %DeclarationManifest{
              version: 1,
@@ -273,19 +258,22 @@ defmodule Kinda.CodeGenTest do
              type_decls: [
                %TypeDecl{name: :bar_handle_record}
              ]
-           } = ManifestBackedModule.__kinda_declaration_manifest__()
+           } = DeclarationSurfaces.declaration_manifest(surfaces)
   end
 
-  test "prefers declaration manifests over parallel signature callbacks" do
-    assert CanonicalManifestModule.__kinda_signature_manifest__() == %{
+  test "uses the signature embedded in the declaration manifest" do
+    assert CanonicalManifestModule.__kinda_declaration_surfaces__()
+           |> DeclarationSurfaces.signature_manifest() == %{
              "version" => 8,
              "records" => [],
              "entries" => []
            }
   end
 
-  test "declaration-manifest-backed generators do not need a parallel nifs callback" do
-    assert [%NIFDecl{wrapper_name: :invoke_from_manifest}] = ManifestBackedModule.__kinda_nif_decls__()
+  test "declaration-manifest-backed generators do not need a parallel nif source callback" do
+    assert [%NIFDecl{wrapper_name: :invoke_from_manifest}] =
+             ManifestBackedModule.__kinda_declaration_surfaces__()
+             |> DeclarationSurfaces.nif_decls()
   end
 
   test "formalizes resolved declaration surfaces through Kinda.CodeGen.DeclarationSurfaces" do
@@ -316,16 +304,10 @@ defmodule Kinda.CodeGenTest do
         Kinda.CodeGenTest.ManifestBackedModule
       )
 
-    assert DeclarationSurfaces.nif_decls(surfaces) == ManifestBackedModule.__kinda_nif_decls__()
-    assert DeclarationSurfaces.type_decls(surfaces) == ManifestBackedModule.__kinda_type_decls__()
-    assert DeclarationSurfaces.signature_manifest(surfaces) == ManifestBackedModule.__kinda_signature_manifest__()
-    assert DeclarationSurfaces.declaration_manifest(surfaces) == ManifestBackedModule.__kinda_declaration_manifest__()
     assert match?(%DeclarationManifest{}, DeclarationSurfaces.source_declaration_manifest(surfaces))
     assert DeclarationSurfaces.load_source(Kinda.CodeGenTest.ManifestBackedDecls) ==
              DeclarationSurfaces.source_declaration_manifest(surfaces)
     assert surfaces == ManifestBackedModule.__kinda_declaration_surfaces__()
-    assert ManifestBackedModule.__kinda_source_declaration_manifest__() ==
-             DeclarationSurfaces.source_declaration_manifest(surfaces)
   end
 
   test "emits raw companion entries for kind-scoped generated functions" do

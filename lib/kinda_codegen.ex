@@ -23,8 +23,6 @@ defmodule Kinda.CodeGen do
       surfaces = Kinda.CodeGen.DeclarationSurfaces.from_generator(mod, root)
       decls = Kinda.CodeGen.DeclarationSurfaces.nif_decls(surfaces)
       type_decls = Kinda.CodeGen.DeclarationSurfaces.type_decls(surfaces)
-      declaration_manifest = Kinda.CodeGen.DeclarationSurfaces.declaration_manifest(surfaces)
-      signature_manifest = Kinda.CodeGen.DeclarationSurfaces.signature_manifest(surfaces)
 
       {ast, mf} = Kinda.CodeGen.nif_ast_from_decls(decls, root, forward)
 
@@ -35,36 +33,6 @@ defmodule Kinda.CodeGen do
 
       @doc false
       def __kinda_declaration_surfaces__, do: @kinda_declaration_surfaces
-
-      @doc false
-      def __kinda_source_declaration_manifest__ do
-        @kinda_declaration_surfaces
-        |> Kinda.CodeGen.DeclarationSurfaces.source_declaration_manifest()
-      end
-
-      @doc false
-      def __kinda_nif_decls__ do
-        @kinda_declaration_surfaces
-        |> Kinda.CodeGen.DeclarationSurfaces.nif_decls()
-      end
-
-      @doc false
-      def __kinda_signature_manifest__ do
-        @kinda_declaration_surfaces
-        |> Kinda.CodeGen.DeclarationSurfaces.signature_manifest()
-      end
-
-      @doc false
-      def __kinda_type_decls__ do
-        @kinda_declaration_surfaces
-        |> Kinda.CodeGen.DeclarationSurfaces.type_decls()
-      end
-
-      @doc false
-      def __kinda_declaration_manifest__ do
-        @kinda_declaration_surfaces
-        |> Kinda.CodeGen.DeclarationSurfaces.declaration_manifest()
-      end
 
       mf
     end
@@ -77,24 +45,9 @@ defmodule Kinda.CodeGen do
   @type declaration_manifest_source :: DeclarationManifest.source()
 
   @callback kinds() :: [KindDecl.t()]
-  @callback nifs() :: [nif_decl_input()]
-  @callback signature_manifest() :: signature_manifest()
   @callback declaration_manifest() :: declaration_manifest_source()
-  @optional_callbacks kinds: 0, nifs: 0, signature_manifest: 0, declaration_manifest: 0
+  @optional_callbacks kinds: 0
   def kinds(), do: []
-  def nifs(), do: []
-
-  @spec source_declaration_manifest(module()) :: declaration_manifest() | nil
-  def source_declaration_manifest(mod) when is_atom(mod),
-    do: DeclarationSurfaces.load_source(mod)
-
-  @spec source_signature_manifest(module(), declaration_manifest() | nil) :: signature_manifest()
-  def source_signature_manifest(mod, source_declaration_manifest \\ nil),
-    do: DeclarationSurfaces.source_signature(mod, source_declaration_manifest)
-
-  @spec declaration_surfaces(module(), module()) :: declaration_surfaces()
-  def declaration_surfaces(mod, root_module) when is_atom(mod) and is_atom(root_module),
-    do: DeclarationSurfaces.from_generator(mod, root_module)
 
   def raw_module(root_module) when is_atom(root_module) do
     Module.concat(root_module, Raw)
@@ -234,8 +187,6 @@ defmodule Kinda.CodeGen do
   def declaration_manifest(nif_decls, type_decls, signature_manifest \\ nil) do
     DeclarationManifest.from_parts(nif_decls, type_decls, signature_manifest)
   end
-
-  def load_declaration_manifest(declaration_manifest), do: DeclarationManifest.load!(declaration_manifest)
 
   def record_types_ast(signature_manifest), do: signature_manifest |> type_decls() |> type_decls_ast()
 
