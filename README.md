@@ -185,7 +185,9 @@ public resolution interface. Generated modules expose that same resolved IR
 directly through `__kinda_declaration_surfaces__/0`.
 Inside that IR, the canonical resolved payload is the declaration manifest
 itself; `nif_decls`, `type_decls`, and `signature_manifest` are no longer
-stored a second time on the resolved surface.
+stored a second time on the resolved surface. That lets downstream repos such
+as Beaver unify their own public rewrite/pass DSL names without re-owning the
+declaration contract.
 
 When that manifest includes projected records, `Kinda.CodeGen` also emits
 deterministic public type aliases such as `foo_handle_record()/0` from the same

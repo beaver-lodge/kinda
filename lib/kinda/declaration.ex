@@ -12,6 +12,10 @@ defmodule Kinda.Declaration do
   The underlying IR still lives in `Kinda.CodeGen.DeclarationSurfaces`, but
   this facade is the intended stable binding/declaration surface for
   downstreams.
+
+  That boundary is intentionally independent from downstream DSL naming.
+  Repos such as Beaver can rename or consolidate their public IR, rewrite, and
+  pass surfaces without pulling declaration resolution back out of `kinda`.
   """
 
   alias Kinda.CodeGen.{DeclarationManifest, DeclarationSurfaces, NIFDecl, TypeDecl}
