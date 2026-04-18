@@ -215,10 +215,20 @@ defmodule Kinda.Wrapper.GenerateTest do
                %{
                  "name" => "MlirContext",
                  "kind" => "struct",
+                 "public_typespec" => %{
+                   "kind" => "map",
+                   "fields" => [
+                     %{
+                       "name" => "ptr",
+                       "type" => %{"kind" => "builtin", "name" => "term"}
+                     }
+                   ]
+                 },
                  "fields" => [
                    %{
                      "name" => "ptr",
-                     "ctype" => %{"spelling" => "void*", "kind" => "pointer"}
+                     "ctype" => %{"spelling" => "void*", "kind" => "pointer"},
+                     "typespec" => %{"kind" => "builtin", "name" => "term"}
                    }
                  ]
                }

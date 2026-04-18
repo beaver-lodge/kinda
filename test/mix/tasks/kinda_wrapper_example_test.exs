@@ -19,6 +19,7 @@ defmodule Mix.Tasks.Kinda.Wrapper.ExampleTest do
     assert output =~ "dirty: :dirty_cpu"
     assert output =~ "\"param_ctypes\""
     assert output =~ "\"return_typespec\""
+    assert output =~ "\"public_typespec\""
     assert output =~ "\"version\":1"
   end
 

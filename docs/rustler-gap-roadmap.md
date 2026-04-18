@@ -123,8 +123,8 @@ By contrast, `kinda` currently exposes mostly primitives:
   - `Kinda.Wrapper.CRecord`
   - `Kinda.Wrapper.CField`
 - and consumer policy can now project those raw C signature facts into
-  generated public `@spec` declarations instead of leaving the Elixir surface
-  purely name-driven
+  generated public `@spec` declarations and machine-readable record contracts
+  instead of leaving the Elixir surface purely name-driven
 - and `Kinda.Wrapper.Generate.signature_manifest/2` now exposes that typed
   wrapper surface as a versioned, machine-readable contract instead of keeping
   it only in generated AST and runtime structs
@@ -171,10 +171,13 @@ The first typespec-driven conversion slice has also now landed:
   metadata
 - `Kinda.CodeGen` now emits `@spec` declarations when that typed metadata is
   present
+- `Kinda.Wrapper.Generate.signature_manifest/2` now also projects record fields
+  into public typespecs and emits record-level public map types
 - `Kinda.Wrapper.Generate.signature_manifest/2` now makes the same typed slice
   available as a JSON-friendly contract for CI/build consumers
 - `beaver` now acts as the first consumer probe by mapping MLIR handle-like
-  C types to public remote wrapper types
+  C types, including `struct Mlir...` field spellings inside records, to public
+  remote wrapper types
 
 #### Needed evolution
 
@@ -192,9 +195,10 @@ The first typespec-driven conversion slice has also now landed:
   - tagged error tuples
 - Generalize the new typespec-driven projection slice from the first
   consumer-specific MLIR mapping into a stable framework contract for C
-  structs, struct fields, pointers, enums, and common result shapes
+  pointers, pointer-arrays, enums, and common result shapes
 - Generate `@opaque` / `@type` / `@spec` more systematically from that typed
-  contract
+  contract, especially for projected record manifests that are currently
+  machine-readable but not yet emitted as public type declarations
 
 ### 3. Scheduler strategy
 

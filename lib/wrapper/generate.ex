@@ -104,7 +104,7 @@ defmodule Kinda.Wrapper.Generate do
         }
 
   @type signature_manifest_record :: %{
-          String.t() => String.t() | [signature_manifest_record_field()]
+          String.t() => String.t() | map() | [signature_manifest_record_field()]
         }
 
   @type signature_manifest_entry :: %{
@@ -170,7 +170,7 @@ defmodule Kinda.Wrapper.Generate do
 
     %{
       "version" => 1,
-      "records" => Enum.map(records, &signature_manifest_record/1),
+      "records" => Enum.map(records, &signature_manifest_record(&1, policy)),
       "entries" => Enum.map(functions, &signature_manifest_entry(&1, policy))
     }
   end
@@ -358,15 +358,23 @@ defmodule Kinda.Wrapper.Generate do
   defp encode_dirty(false), do: false
   defp encode_dirty(dirty), do: Atom.to_string(dirty)
 
-  defp signature_manifest_record(%CRecord{name: name, kind: kind, fields: fields}) do
+  defp signature_manifest_record(%CRecord{} = record, policy) do
     %{
-      "name" => name,
-      "kind" => Atom.to_string(kind),
+      "name" => record.name,
+      "kind" => Atom.to_string(record.kind),
+      "public_typespec" =>
+        record
+        |> typespec_record(policy)
+        |> TypeSpecRef.to_manifest(),
       "fields" =>
-        Enum.map(fields, fn %CField{name: field_name, ctype: ctype} ->
+        Enum.map(record.fields, fn %CField{} = field ->
           %{
-            "name" => field_name,
-            "ctype" => CType.to_manifest(ctype)
+            "name" => field.name,
+            "ctype" => CType.to_manifest(field.ctype),
+            "typespec" =>
+              record
+              |> typespec_field(field, policy)
+              |> TypeSpecRef.to_manifest()
           }
         end)
     }
@@ -378,5 +386,25 @@ defmodule Kinda.Wrapper.Generate do
         nil -> nil
         bridge -> bridge.reason
       end
+  end
+
+  defp typespec_field(%CRecord{} = record, %CField{} = field, policy) do
+    if function_exported?(policy, :typespec_field, 2) do
+      policy.typespec_field(record, field)
+    else
+      CType.to_public_typespec_ref(field.ctype)
+    end
+  end
+
+  defp typespec_record(%CRecord{} = record, policy) do
+    if function_exported?(policy, :typespec_record, 1) do
+      policy.typespec_record(record)
+    else
+      TypeSpecRef.map(
+        Enum.map(record.fields, fn %CField{name: name} = field ->
+          {name, typespec_field(record, field, policy)}
+        end)
+      )
+    end
   end
 end

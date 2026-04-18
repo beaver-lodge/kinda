@@ -9,11 +9,13 @@ The shortest useful description is:
 
 - `kinda` treats a wrapper header as the binding surface
 - extracts functions into a framework-owned manifest
-- extracts named C records into that same framework-owned manifest
+- extracts named C records and field types into that same framework-owned manifest
 - preserves Clang-extracted function docs when comments are available
 - preserves raw C parameter/return type facts in that manifest
 - generates generic Zig/Elixir wrapper outputs
 - lets consumer policy project those raw C facts into public Elixir typespecs
+- lets the same typed projection describe public record/field types in a
+  machine-readable signature manifest
 - lets the consumer keep product-specific policy outside the framework
 
 This makes `kinda` a better fit for projects like `beaver`, where the problem
@@ -217,6 +219,7 @@ defmodule MyLib.WrapperPolicy do
   def public_name({_kind, public, _base}), do: public
   def elixir_params({_kind, _public, _base}, params), do: params
   def dirty({_kind, _public, _base}), do: false
+  def typespec_field(_record, field), do: ...
   def typespec_params(_variant, function), do: ...
   def typespec_return(_variant, function), do: ...
   def zig_entry({_kind, _public, base}), do: ~s{nif("#{base}"),}
@@ -283,6 +286,7 @@ This is versioned and JSON-friendly. It keeps:
 - named C records and fields from extraction
 - raw C param/return type facts from extraction
 - consumer-projected public params and return typespecs
+- consumer-projected public record and field typespecs
 - dirty scheduler metadata on emitted variants
 - generation-blocker reasons when the function is not emitted as a plain
   generated wrapper

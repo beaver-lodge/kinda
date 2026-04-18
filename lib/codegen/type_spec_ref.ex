@@ -1,11 +1,13 @@
 defmodule Kinda.CodeGen.TypeSpecRef do
   @moduledoc false
 
+  @type map_key() :: atom() | String.t()
   @type builtin() :: :term | :integer | :float | :boolean | :binary | :atom | :ok
   @type t() ::
           builtin()
           | {:remote, module(), atom()}
           | {:list, t()}
+          | {:map, [{map_key(), t()}]}
           | {:tuple, [t()]}
           | {:union, [t()]}
 
@@ -36,6 +38,9 @@ defmodule Kinda.CodeGen.TypeSpecRef do
   @spec list(t()) :: {:list, t()}
   def list(inner), do: {:list, inner}
 
+  @spec map([{map_key(), t()}]) :: {:map, [{map_key(), t()}]}
+  def map(fields), do: {:map, fields}
+
   @spec tuple([t()]) :: {:tuple, [t()]}
   def tuple(elements), do: {:tuple, elements}
 
@@ -57,6 +62,13 @@ defmodule Kinda.CodeGen.TypeSpecRef do
 
   def to_quoted({:list, inner}) do
     quote(do: [unquote(to_quoted(inner))])
+  end
+
+  def to_quoted({:map, fields}) do
+    {:%{}, [],
+     Enum.map(fields, fn {name, type} ->
+       {{:required, [], [name]}, to_quoted(type)}
+     end)}
   end
 
   def to_quoted({:tuple, elements}) do
@@ -90,6 +102,16 @@ defmodule Kinda.CodeGen.TypeSpecRef do
 
   def to_manifest({:list, inner}) do
     %{"kind" => "list", "inner" => to_manifest(inner)}
+  end
+
+  def to_manifest({:map, fields}) do
+    %{
+      "kind" => "map",
+      "fields" =>
+        Enum.map(fields, fn {name, type} ->
+          %{"name" => to_string(name), "type" => to_manifest(type)}
+        end)
+    }
   end
 
   def to_manifest({:tuple, elements}) do

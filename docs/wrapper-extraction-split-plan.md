@@ -249,8 +249,10 @@ framework-complete:
 - `Kinda.CodeGen` now emits public `@spec` declarations from that typed IR
 - `Kinda.Wrapper.Generate.signature_manifest/2` now exposes the same typed IR
   as a versioned, machine-readable wrapper contract
-- `beaver` is the first downstream to project those C types into remote MLIR
-  resource wrapper types
+- `Kinda.Wrapper.Generate.signature_manifest/2` now also projects record fields
+  into public typespecs and emits record-level public map types
+- `beaver` is the first downstream to project those C types, including
+  `struct Mlir...` record fields, into remote MLIR resource wrapper types
 
 That means the next step is no longer "invent typed IR". It is turning this
 consumer-specific projection slice into a reusable framework contract.
@@ -275,6 +277,8 @@ Recommended direction:
   - extracted named C records and field types
   - extracted raw C param/return types
   - public wrapper/resource types
+  - projected record field typespecs
+  - projected record-level public types
   - generated `@spec` declarations
   - machine-readable typed signature manifests
   - future `@opaque` / result-shape contracts

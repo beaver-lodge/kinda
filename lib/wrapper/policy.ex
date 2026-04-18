@@ -9,12 +9,15 @@ defmodule Kinda.Wrapper.Policy do
   - which extracted functions require a future callback-bridge layer
   - which public variants are emitted
   - how Elixir arities and Zig NIF entries are derived
+  - how raw C param/return facts and record fields project into public types
 
   The older `unsupported_*` callbacks remain as compatibility aliases, but they
   are no longer the preferred public vocabulary for new policy code.
   """
 
   alias Kinda.Wrapper.CallbackBridge
+  alias Kinda.Wrapper.CField
+  alias Kinda.Wrapper.CRecord
   alias Kinda.Wrapper.Function
   alias Kinda.CodeGen.TypeSpecRef
 
@@ -41,6 +44,8 @@ defmodule Kinda.Wrapper.Policy do
   @callback elixir_params(variant(), params()) :: params()
   @callback dirty(variant()) :: Kinda.CodeGen.NIFDecl.dirty()
   @callback doc(variant(), Function.t()) :: String.t() | nil
+  @callback typespec_field(CRecord.t(), CField.t()) :: TypeSpecRef.t()
+  @callback typespec_record(CRecord.t()) :: TypeSpecRef.t()
   @callback typespec_params(variant(), Function.t()) :: [TypeSpecRef.t()]
   @callback typespec_return(variant(), Function.t()) :: TypeSpecRef.t()
   @callback zig_entry(variant()) :: String.t()
@@ -48,6 +53,8 @@ defmodule Kinda.Wrapper.Policy do
   @optional_callbacks unsupported_entries: 0,
                       unsupported?: 1,
                       unsupported_reason: 1,
+                      typespec_field: 2,
+                      typespec_record: 1,
                       typespec_params: 2,
                       typespec_return: 2
 end
