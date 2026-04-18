@@ -24,7 +24,7 @@ pub fn build(b: *std.Build) void {
     } else {
         lib.root_module.addRPathSpecial("$ORIGIN");
     }
-    lib.linkSystemLibrary("KindaExample");
+    lib.root_module.linkSystemLibrary("KindaExample", .{});
     lib.linker_allow_shlib_undefined = true;
 
     b.installArtifact(lib);

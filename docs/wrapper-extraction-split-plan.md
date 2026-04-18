@@ -119,13 +119,16 @@ Output shape should be stable and framework-owned, something like:
 %Kinda.Wrapper.Manifest{
   functions: [
     %Kinda.Wrapper.Function{
-      name: :mlirFooBar,
-      params: [:ctx, :value],
+      name: "mlirFooBar",
+      params: ["ctx", "value"],
       arity: 2
     }
   ]
 }
 ```
+
+The current framework-owned IR keeps extracted names and params as strings.
+Policy/generation layers convert to atoms at the consumer boundary when needed.
 
 ## Layer 2: Kinda Stub Generation
 

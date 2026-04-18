@@ -210,6 +210,12 @@ documented.
 - minimal tests
 - minimal example docs
 - README-level claims that outrun the shipped API
+- a first explicit repo-root entry point split between:
+  - `mix kinda.wrapper.example`
+  - `mix kinda.example.verify`
+- real green repo-level verification for that split on the active Zig `0.16`
+  line via:
+  - `mix kinda.verify`
 
 #### Needed evolution
 

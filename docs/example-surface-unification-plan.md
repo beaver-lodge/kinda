@@ -27,6 +27,8 @@ Today `kinda` already uses both surfaces in the root verifier:
   - root `mix test`
   - `mix kinda.wrapper.example --json`
   - bundled `kinda_example`
+- and the bundled app example now also has its own repo-root task:
+  - [Mix.Tasks.Kinda.Example.Verify](/Users/tsai/oss/kinda/lib/mix/tasks/kinda.example.verify.ex:1)
 
 That means the repo already treats these surfaces as more than demos.
 They are part of the checked-in trust boundary.
@@ -36,6 +38,19 @@ What is missing is a formal contract for:
 - what each example is supposed to prove
 - which surface is authoritative for which framework capability
 - how new example work should be added without creating duplication
+
+The first formalization slice beyond documentation has now landed:
+
+- `mix kinda.example.verify`
+  is now the dedicated repo-root entry point for the bundled app example
+- the bundled app example is now green again on the active Zig `0.16` line
+  after updating:
+  - [kinda_example/build.zig](/Users/tsai/oss/kinda/kinda_example/build.zig:1)
+    to the current system-library linking API
+- [examples/README.md](/Users/tsai/oss/kinda/examples/README.md:1)
+  now declares the micro-example lane explicitly
+- [kinda_example/README.md](/Users/tsai/oss/kinda/kinda_example/README.md:1)
+  now declares the bundled app example role explicitly
 
 ## Current Surfaces
 
@@ -92,6 +107,7 @@ What this surface is good at:
 - proving generated and handwritten runtime pieces cooperate
 - exercising repo-local verification under:
   - [Kinda.ExampleVerifier](/Users/tsai/oss/kinda/lib/kinda/example_verifier.ex:1)
+  - [Mix.Tasks.Kinda.Example.Verify](/Users/tsai/oss/kinda/lib/mix/tasks/kinda.example.verify.ex:1)
 
 What this surface is not good at:
 
@@ -196,6 +212,8 @@ After this plan lands, the intended contract is:
 
 - `mix kinda.wrapper.example`
   is the shortest stable proof of the wrapper/reporting framework surface
+- `mix kinda.example.verify`
+  is the canonical repo-root proof of the bundled application example
 - `mix kinda.verify`
   is the canonical repo-level verifier for:
   - root tests
@@ -223,7 +241,12 @@ Goal: make the example hierarchy explicit before restructuring files.
 
 Status:
 
-- this phase is what the current document lands
+- this phase has landed
+- and it now includes the first dedicated repo-root entry point for the
+  bundled app example:
+  - `mix kinda.example.verify`
+- with real green verification on the active Zig `0.16` line via:
+  - `mix kinda.example.verify`
 
 ### Phase 2. Shared example contract
 
@@ -235,6 +258,17 @@ Goal: remove ambiguity between example surfaces.
   - which verifier path covers it
 - keep `mix kinda.verify` as the root umbrella verifier
 - ensure every example surface has one clearly named entry point
+
+Current status:
+
+- the first repo-root entry point symmetry now exists:
+  - `mix kinda.wrapper.example`
+  - `mix kinda.example.verify`
+- and that symmetry is now verifier-backed, not doc-only:
+  - `mix kinda.verify`
+  - `mix kinda.example.verify`
+- the remaining work is to standardize surface-level docs and future intake
+  rules around that symmetry
 
 Exit criteria:
 

@@ -48,6 +48,12 @@ mix kinda.verify
 This is also the root verifier used by the checked-in `.restraint.exs`, and it
 is the command CI should prefer for repo-level verification.
 
+If you only want the bundled application example from the repo root, run:
+
+```sh
+mix kinda.example.verify
+```
+
 If you want the same thing without compiling the project first, run:
 
 ```sh
@@ -59,6 +65,15 @@ It prints:
 - the generated Elixir wrapper manifest
 - the human-readable callback-bridge backlog report
 - the machine-readable callback-bridge manifest
+
+The formal plan for how:
+
+- `examples/`
+- `kinda_example/`
+
+fit together is:
+
+- [docs/example-surface-unification-plan.md](/Users/tsai/oss/kinda/docs/example-surface-unification-plan.md:1)
 
 ## What Kinda Ships Today
 
