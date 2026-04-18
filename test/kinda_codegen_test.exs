@@ -276,6 +276,39 @@ defmodule Kinda.CodeGenTest do
     assert [%NIFDecl{wrapper_name: :invoke_from_manifest}] = ManifestBackedModule.__kinda_nif_decls__()
   end
 
+  test "formalizes resolved declaration surfaces through Kinda.CodeGen" do
+    expected_nif_name = Module.concat(Kinda.CodeGenTest.ManifestBackedModule, :invoke_from_manifest)
+
+    assert %{
+             nif_decls: [
+               %NIFDecl{
+                 wrapper_name: :invoke_from_manifest,
+                 nif_name: ^expected_nif_name,
+                 dirty: :dirty_io
+               }
+             ],
+             type_decls: [
+               %TypeDecl{name: :bar_handle_record}
+             ],
+             declaration_manifest: %DeclarationManifest{
+               nif_decls: [
+                 %NIFDecl{
+                   wrapper_name: :invoke_from_manifest,
+                   nif_name: ^expected_nif_name
+                 }
+               ],
+               type_decls: [
+                 %TypeDecl{name: :bar_handle_record}
+               ]
+             },
+             signature_manifest: %{"version" => 7}
+           } =
+             CodeGen.declaration_surfaces(
+               Kinda.CodeGenTest.ManifestBackedDecls,
+               Kinda.CodeGenTest.ManifestBackedModule
+             )
+  end
+
   test "emits raw companion entries for kind-scoped generated functions" do
     {ast, _exports} =
       CodeGen.nif_ast(

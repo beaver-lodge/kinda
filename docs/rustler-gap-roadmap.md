@@ -212,6 +212,11 @@ The first typespec-driven conversion slice has also now landed:
 - and the final file-backed declaration loading interface now lives in
   `Kinda.CodeGen.DeclarationManifest.load!/1`, so downstreams do not have to
   hand-roll `File.read!/Code.eval_string/JSON.decode!` adapters
+- and `Kinda.CodeGen.source_declaration_manifest/1` /
+  `Kinda.CodeGen.declaration_surfaces/2` now formalize the distinction between
+  the checked-in declaration source and the final generated declaration
+  surfaces, so downstreams do not have to guess when `nif_name`
+  canonicalization, kind-helper merging, and `TypeDecl` materialization happen
 - when a declaration manifest is present, the typed signature surface is now a
   derived view over its embedded `signature_manifest`, rather than a required
   parallel build/source artifact

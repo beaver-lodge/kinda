@@ -22,9 +22,10 @@ defmodule Kinda.CodeGen.DeclarationManifest do
 
   @spec build([NIFDecl.t()], map() | nil) :: t()
   def build(nif_decls, signature_manifest \\ nil) do
-    signature_manifest
-    |> TypeDecl.from_signature_manifest()
-    |> then(&from_parts(nif_decls, &1, signature_manifest))
+    %__MODULE__{}
+    |> put_signature_manifest(signature_manifest)
+    |> put_type_decls(TypeDecl.from_signature_manifest(signature_manifest))
+    |> put_nif_decls(nif_decls)
   end
 
   @spec from_parts([NIFDecl.t()], [TypeDecl.t()], map() | nil) :: t()
@@ -84,9 +85,54 @@ defmodule Kinda.CodeGen.DeclarationManifest do
   def signature_manifest(%__MODULE__{} = declaration_manifest),
     do: declaration_manifest.signature_manifest
 
+  @spec signature_manifest_version(t()) :: pos_integer() | nil
+  def signature_manifest_version(%__MODULE__{} = declaration_manifest),
+    do: declaration_manifest.signature_manifest_version
+
+  @spec nif_decls(t()) :: [NIFDecl.t()]
+  def nif_decls(%__MODULE__{} = declaration_manifest),
+    do: declaration_manifest.nif_decls
+
   @spec type_decls(t()) :: [TypeDecl.t()]
+  def type_decls(%__MODULE__{type_decls: []} = declaration_manifest),
+    do: TypeDecl.from_signature_manifest(signature_manifest(declaration_manifest))
+
   def type_decls(%__MODULE__{} = declaration_manifest),
     do: declaration_manifest.type_decls
+
+  @spec put_signature_manifest(t(), map() | nil) :: t()
+  def put_signature_manifest(%__MODULE__{} = declaration_manifest, signature_manifest) do
+    %{
+      declaration_manifest
+      | signature_manifest: signature_manifest,
+        signature_manifest_version:
+          case signature_manifest do
+            %{"version" => version} when is_integer(version) -> version
+            _ -> nil
+          end
+    }
+  end
+
+  @spec put_nif_decls(t(), [NIFDecl.t()]) :: t()
+  def put_nif_decls(%__MODULE__{} = declaration_manifest, nif_decls) when is_list(nif_decls) do
+    %{declaration_manifest | nif_decls: nif_decls}
+  end
+
+  @spec merge_nif_decls(t(), [NIFDecl.t()]) :: t()
+  def merge_nif_decls(%__MODULE__{} = declaration_manifest, nif_decls) when is_list(nif_decls) do
+    declaration_manifest
+    |> nif_decls()
+    |> Kernel.++(nif_decls)
+    |> Enum.uniq_by(fn %NIFDecl{wrapper_name: wrapper_name, nif_name: nif_name, params: params} ->
+      {wrapper_name, nif_name, params}
+    end)
+    |> then(&put_nif_decls(declaration_manifest, &1))
+  end
+
+  @spec put_type_decls(t(), [TypeDecl.t()]) :: t()
+  def put_type_decls(%__MODULE__{} = declaration_manifest, type_decls) when is_list(type_decls) do
+    %{declaration_manifest | type_decls: type_decls}
+  end
 
   @spec to_manifest(t()) :: map()
   def to_manifest(%__MODULE__{} = declaration_manifest) do

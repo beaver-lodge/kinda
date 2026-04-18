@@ -286,6 +286,11 @@ framework-complete:
   `Kinda.CodeGen.DeclarationManifest.load!/1`, so downstreams can hand back a
   `.ex` / `.json` declaration-manifest path instead of reimplementing loading
   logic locally
+- and `Kinda.CodeGen.source_declaration_manifest/1` plus
+  `Kinda.CodeGen.declaration_surfaces/2` now make the source-vs-resolved split
+  explicit, so the final generated declaration surface is formalized inside
+  `kinda` rather than re-normalized ad hoc by each consumer, including the
+  final materialization of generated `TypeDecl`s
 - and when that unified declaration manifest is present, the generated
   signature surface is now a derived view over its embedded
   `signature_manifest`, rather than a separate required sidecar

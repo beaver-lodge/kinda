@@ -171,6 +171,20 @@ signature contract in that declaration manifest. If a module exposes both
 wins. Declaration-manifest-backed generators no longer need a parallel
 `nifs()/0`; kind-derived helper NIFs still come from `kinds()/0`.
 
+`kinda` now also formalizes the distinction between the declaration source and
+the generated module surface:
+
+- `Kinda.CodeGen.source_declaration_manifest/1` reads the canonical source
+  contract from a generator module
+- `Kinda.CodeGen.declaration_surfaces/2` resolves that source contract into the
+  final generated surfaces for a specific root module, including normalized
+  `nif_name`s, kind-derived helper entries, guaranteed/materialized generated
+  `TypeDecl`s, and the derived signature view
+
+Downstreams should treat `declaration_surfaces/2` as the formalized public
+interface when they want to compare against `__kinda_nif_decls__/0`,
+`__kinda_type_decls__/0`, or `__kinda_declaration_manifest__/0`.
+
 When that manifest includes projected records, `Kinda.CodeGen` also emits
 deterministic public type aliases such as `foo_handle_record()/0` from the same
 single source. These generated aliases use atom field keys derived from
@@ -323,6 +337,11 @@ Internally, `Kinda.CodeGen.DeclarationManifest.build/2` is now the canonical
 way to derive declaration metadata from typed wrapper facts, including the
 generated `TypeDecl` layer. That keeps type declarations sourced from the same
 declaration contract rather than from a parallel signature-only path.
+
+When that declaration contract is consumed by `use Kinda.CodeGen`, the formal
+resolution path now lives in `Kinda.CodeGen.declaration_surfaces/2`, so
+downstreams do not have to reimplement normalization or merge logic just to
+observe the final generated declaration surface.
 
 The typed signature manifest remains available as a derived compatibility view:
 

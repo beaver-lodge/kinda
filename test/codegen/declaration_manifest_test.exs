@@ -99,4 +99,87 @@ defmodule Kinda.CodeGen.DeclarationManifestTest do
              }
            ]
   end
+
+  test "type declarations fall back to the embedded signature contract when omitted" do
+    declaration_manifest =
+      DeclarationManifest.from_manifest(%{
+        "version" => 1,
+        "signature_manifest_version" => 5,
+        "signature_manifest" => %{
+          "version" => 5,
+          "records" => [
+            %{
+              "name" => "Foo",
+              "public_typespec" => %{
+                "kind" => "map",
+                "fields" => [
+                  %{
+                    "name" => "ctx",
+                    "type" => %{
+                      "kind" => "remote",
+                      "module" => "Elixir.Foo.Context",
+                      "type" => "t"
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "entries" => []
+        },
+        "nif_decls" => [],
+        "type_decls" => []
+      })
+
+    assert DeclarationManifest.type_decls(declaration_manifest) == [
+             %TypeDecl{
+               name: :foo_record,
+               source_record_name: "Foo",
+               doc: "Typed projection for extracted C record Foo.",
+               typespec: TypeSpecRef.map([{"ctx", TypeSpecRef.remote(Foo.Context)}])
+             }
+           ]
+  end
+
+  test "can update and merge declaration manifest surfaces through accessors" do
+    declaration_manifest =
+      DeclarationManifest.build(
+        [
+          %NIFDecl{wrapper_name: :foo, nif_name: Module.concat(Foo.Native, :foo), params: 1}
+        ],
+        %{"version" => 1, "records" => [], "entries" => []}
+      )
+
+    updated =
+      declaration_manifest
+      |> DeclarationManifest.put_signature_manifest(%{"version" => 2, "records" => [], "entries" => []})
+      |> DeclarationManifest.put_type_decls([
+        %TypeDecl{
+          name: :foo_record,
+          source_record_name: "Foo",
+          doc: "Typed projection for extracted C record Foo.",
+          typespec: TypeSpecRef.map([])
+        }
+      ])
+      |> DeclarationManifest.merge_nif_decls([
+        %NIFDecl{wrapper_name: :foo, nif_name: Module.concat(Foo.Native, :foo), params: 1},
+        %NIFDecl{wrapper_name: :bar, nif_name: Module.concat(Bar.Native, :bar), params: 2}
+      ])
+
+    assert DeclarationManifest.signature_manifest_version(updated) == 2
+
+    assert DeclarationManifest.nif_decls(updated) == [
+             %NIFDecl{wrapper_name: :foo, nif_name: Module.concat(Foo.Native, :foo), params: 1},
+             %NIFDecl{wrapper_name: :bar, nif_name: Module.concat(Bar.Native, :bar), params: 2}
+           ]
+
+    assert DeclarationManifest.type_decls(updated) == [
+             %TypeDecl{
+               name: :foo_record,
+               source_record_name: "Foo",
+               doc: "Typed projection for extracted C record Foo.",
+               typespec: TypeSpecRef.map([])
+             }
+           ]
+  end
 end
