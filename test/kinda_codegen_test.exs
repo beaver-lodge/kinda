@@ -2,7 +2,7 @@ defmodule Kinda.CodeGenTest do
   use ExUnit.Case, async: true
 
   alias Kinda.CodeGen
-  alias Kinda.CodeGen.{DeclarationManifest, NIFDecl, TypeDecl, TypeSpecRef}
+  alias Kinda.CodeGen.{DeclarationManifest, DeclarationSurfaces, NIFDecl, TypeDecl, TypeSpecRef}
 
   defmodule GeneratedDecls do
     @behaviour Kinda.CodeGen
@@ -279,7 +279,8 @@ defmodule Kinda.CodeGenTest do
   test "formalizes resolved declaration surfaces through Kinda.CodeGen" do
     expected_nif_name = Module.concat(Kinda.CodeGenTest.ManifestBackedModule, :invoke_from_manifest)
 
-    assert %{
+    assert %DeclarationSurfaces{
+             source_declaration_manifest: %DeclarationManifest{},
              nif_decls: [
                %NIFDecl{
                  wrapper_name: :invoke_from_manifest,
@@ -307,6 +308,18 @@ defmodule Kinda.CodeGenTest do
                Kinda.CodeGenTest.ManifestBackedDecls,
                Kinda.CodeGenTest.ManifestBackedModule
              )
+
+    surfaces =
+      CodeGen.declaration_surfaces(
+        Kinda.CodeGenTest.ManifestBackedDecls,
+        Kinda.CodeGenTest.ManifestBackedModule
+      )
+
+    assert DeclarationSurfaces.nif_decls(surfaces) == ManifestBackedModule.__kinda_nif_decls__()
+    assert DeclarationSurfaces.type_decls(surfaces) == ManifestBackedModule.__kinda_type_decls__()
+    assert DeclarationSurfaces.signature_manifest(surfaces) == ManifestBackedModule.__kinda_signature_manifest__()
+    assert DeclarationSurfaces.declaration_manifest(surfaces) == ManifestBackedModule.__kinda_declaration_manifest__()
+    assert match?(%DeclarationManifest{}, DeclarationSurfaces.source_declaration_manifest(surfaces))
   end
 
   test "emits raw companion entries for kind-scoped generated functions" do

@@ -3,14 +3,16 @@ defmodule Kinda.CodeGen do
   Behavior for customizing your source code generation.
   """
 
-  alias Kinda.CodeGen.{DeclarationManifest, KindDecl, NIFDecl, TypeDecl, TypeSpecRef}
+  alias Kinda.CodeGen.{
+    DeclarationManifest,
+    DeclarationSurfaces,
+    KindDecl,
+    NIFDecl,
+    TypeDecl,
+    TypeSpecRef
+  }
 
-  @type declaration_surfaces :: %{
-          nif_decls: [NIFDecl.t()],
-          type_decls: [TypeDecl.t()],
-          declaration_manifest: DeclarationManifest.t(),
-          signature_manifest: signature_manifest()
-        }
+  @type declaration_surfaces :: DeclarationSurfaces.t()
 
   defmacro __using__(opts) do
     quote do
@@ -19,10 +21,10 @@ defmodule Kinda.CodeGen do
       forward = Keyword.fetch!(unquote(opts), :forward)
       Code.ensure_compiled!(mod)
       surfaces = Kinda.CodeGen.declaration_surfaces(mod, root)
-      decls = surfaces.nif_decls
-      type_decls = surfaces.type_decls
-      declaration_manifest = surfaces.declaration_manifest
-      signature_manifest = surfaces.signature_manifest
+      decls = Kinda.CodeGen.DeclarationSurfaces.nif_decls(surfaces)
+      type_decls = Kinda.CodeGen.DeclarationSurfaces.type_decls(surfaces)
+      declaration_manifest = Kinda.CodeGen.DeclarationSurfaces.declaration_manifest(surfaces)
+      signature_manifest = Kinda.CodeGen.DeclarationSurfaces.signature_manifest(surfaces)
 
       {ast, mf} = Kinda.CodeGen.nif_ast_from_decls(decls, root, forward)
 
@@ -100,12 +102,13 @@ defmodule Kinda.CodeGen do
         signature_manifest
       )
 
-    %{
-      nif_decls: decls,
-      type_decls: type_decls,
-      declaration_manifest: declaration_manifest,
-      signature_manifest: signature_manifest
-    }
+    DeclarationSurfaces.from_parts(
+      source_declaration_manifest,
+      declaration_manifest,
+      decls,
+      type_decls,
+      signature_manifest
+    )
   end
 
   def raw_module(root_module) when is_atom(root_module) do

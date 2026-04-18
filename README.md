@@ -180,6 +180,8 @@ the generated module surface:
   final generated surfaces for a specific root module, including normalized
   `nif_name`s, kind-derived helper entries, guaranteed/materialized generated
   `TypeDecl`s, and the derived signature view
+- that resolved surface now lands as a formal framework-owned IR:
+  `Kinda.CodeGen.DeclarationSurfaces`
 
 Downstreams should treat `declaration_surfaces/2` as the formalized public
 interface when they want to compare against `__kinda_nif_decls__/0`,
@@ -341,7 +343,8 @@ declaration contract rather than from a parallel signature-only path.
 When that declaration contract is consumed by `use Kinda.CodeGen`, the formal
 resolution path now lives in `Kinda.CodeGen.declaration_surfaces/2`, so
 downstreams do not have to reimplement normalization or merge logic just to
-observe the final generated declaration surface.
+observe the final generated declaration surface. That resolved surface is now
+materialized as `Kinda.CodeGen.DeclarationSurfaces`, rather than an ad hoc map.
 
 The typed signature manifest remains available as a derived compatibility view:
 

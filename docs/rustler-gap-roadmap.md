@@ -217,6 +217,8 @@ The first typespec-driven conversion slice has also now landed:
   the checked-in declaration source and the final generated declaration
   surfaces, so downstreams do not have to guess when `nif_name`
   canonicalization, kind-helper merging, and `TypeDecl` materialization happen
+- and that resolved layer is now itself a framework-owned IR through
+  `Kinda.CodeGen.DeclarationSurfaces`, rather than a bare internal map shape
 - when a declaration manifest is present, the typed signature surface is now a
   derived view over its embedded `signature_manifest`, rather than a required
   parallel build/source artifact

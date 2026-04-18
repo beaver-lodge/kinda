@@ -291,6 +291,9 @@ framework-complete:
   explicit, so the final generated declaration surface is formalized inside
   `kinda` rather than re-normalized ad hoc by each consumer, including the
   final materialization of generated `TypeDecl`s
+- and that resolved surface is now carried by
+  `Kinda.CodeGen.DeclarationSurfaces`, so the declaration-side IR no longer
+  stops at the checked-in/source contract
 - and when that unified declaration manifest is present, the generated
   signature surface is now a derived view over its embedded
   `signature_manifest`, rather than a separate required sidecar
