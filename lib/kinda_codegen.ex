@@ -11,12 +11,19 @@ defmodule Kinda.CodeGen do
       root = Keyword.fetch!(unquote(opts), :root)
       forward = Keyword.fetch!(unquote(opts), :forward)
       Code.ensure_compiled!(mod)
-      signature_manifest =
-        if function_exported?(mod, :signature_manifest, 0), do: mod.signature_manifest(), else: nil
       source_declaration_manifest =
         if function_exported?(mod, :declaration_manifest, 0),
           do: Kinda.CodeGen.load_declaration_manifest(mod.declaration_manifest()),
           else: nil
+
+      signature_manifest =
+        cond do
+          function_exported?(mod, :signature_manifest, 0) -> mod.signature_manifest()
+          match?(%Kinda.CodeGen.DeclarationManifest{}, source_declaration_manifest) ->
+            source_declaration_manifest.signature_manifest
+          true ->
+            nil
+        end
 
       {decls, type_decls, declaration_manifest} =
         Kinda.CodeGen.resolve_declaration_surfaces(
@@ -217,7 +224,7 @@ defmodule Kinda.CodeGen do
         %DeclarationManifest{} = declaration_manifest,
         mod,
         root_module,
-        _signature_manifest
+        signature_manifest
       ) do
     kind_decls = nif_decls(mod.kinds(), [], root_module)
 
@@ -227,7 +234,16 @@ defmodule Kinda.CodeGen do
       |> then(&merge_decls(&1, kind_decls))
 
     type_decls = declaration_manifest.type_decls
-    declaration_manifest = %{declaration_manifest | nif_decls: decls}
+    declaration_manifest = %{
+      declaration_manifest
+      | nif_decls: decls,
+        signature_manifest: signature_manifest,
+        signature_manifest_version:
+          case signature_manifest do
+            %{"version" => version} when is_integer(version) -> version
+            _ -> declaration_manifest.signature_manifest_version
+          end
+    }
     {decls, type_decls, declaration_manifest}
   end
 

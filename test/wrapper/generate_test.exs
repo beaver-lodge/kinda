@@ -303,6 +303,54 @@ defmodule Kinda.Wrapper.GenerateTest do
     assert Generate.declaration_manifest(manifest, FakePolicy) == %{
              "version" => 1,
              "signature_manifest_version" => 1,
+             "signature_manifest" => %{
+               "version" => 1,
+               "records" => [
+                 %{
+                   "name" => "MlirContext",
+                   "kind" => "struct",
+                   "public_typespec" => %{
+                     "kind" => "map",
+                     "fields" => [
+                       %{
+                         "name" => "ptr",
+                         "type" => %{"kind" => "builtin", "name" => "term"}
+                       }
+                     ]
+                   },
+                   "fields" => [
+                     %{
+                       "name" => "ptr",
+                       "ctype" => %{"spelling" => "void*", "kind" => "pointer"},
+                       "typespec" => %{"kind" => "builtin", "name" => "term"}
+                     }
+                   ]
+                 }
+               ],
+               "entries" => [
+                 %{
+                   "function" => %{
+                     "name" => "foo",
+                     "arity" => 1,
+                     "params" => ["ctx"],
+                     "doc" => "Creates foo.",
+                     "param_ctypes" => [%{"spelling" => "MlirContext", "kind" => "unknown"}],
+                     "return_ctype" => %{"spelling" => "bool", "kind" => "bool"}
+                   },
+                   "generation_blocker_reason" => nil,
+                   "variants" => [
+                     %{
+                       "wrapper_name" => "foo",
+                       "params" => ["ctx"],
+                       "doc" => "Creates foo.",
+                       "dirty" => false,
+                       "param_typespecs" => [%{"kind" => "builtin", "name" => "term"}],
+                       "return_typespec" => %{"kind" => "builtin", "name" => "boolean"}
+                     }
+                   ]
+                 }
+               ]
+             },
              "nif_decls" => [
                %{
                  "wrapper_name" => "foo",

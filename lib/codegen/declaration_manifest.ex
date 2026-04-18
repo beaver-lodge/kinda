@@ -7,11 +7,16 @@ defmodule Kinda.CodeGen.DeclarationManifest do
   @type t() :: %__MODULE__{
           version: pos_integer(),
           signature_manifest_version: pos_integer() | nil,
+          signature_manifest: map() | nil,
           nif_decls: [NIFDecl.t()],
           type_decls: [TypeDecl.t()]
         }
 
-  defstruct version: 1, signature_manifest_version: nil, nif_decls: [], type_decls: []
+  defstruct version: 1,
+            signature_manifest_version: nil,
+            signature_manifest: nil,
+            nif_decls: [],
+            type_decls: []
 
   @spec from_parts([NIFDecl.t()], [TypeDecl.t()], map() | nil) :: t()
   def from_parts(nif_decls, type_decls, signature_manifest \\ nil) do
@@ -22,6 +27,7 @@ defmodule Kinda.CodeGen.DeclarationManifest do
           %{"version" => version} when is_integer(version) -> version
           _ -> nil
         end,
+      signature_manifest: signature_manifest,
       nif_decls: nif_decls,
       type_decls: type_decls
     }
@@ -32,6 +38,7 @@ defmodule Kinda.CodeGen.DeclarationManifest do
     %__MODULE__{
       version: Map.get(manifest, "version", 1),
       signature_manifest_version: Map.get(manifest, "signature_manifest_version"),
+      signature_manifest: Map.get(manifest, "signature_manifest"),
       nif_decls: manifest |> Map.get("nif_decls", []) |> Enum.map(&NIFDecl.from_manifest/1),
       type_decls: manifest |> Map.get("type_decls", []) |> Enum.map(&TypeDecl.from_manifest/1)
     }
@@ -42,6 +49,7 @@ defmodule Kinda.CodeGen.DeclarationManifest do
     %{
       "version" => declaration_manifest.version,
       "signature_manifest_version" => declaration_manifest.signature_manifest_version,
+      "signature_manifest" => declaration_manifest.signature_manifest,
       "nif_decls" => Enum.map(declaration_manifest.nif_decls, &NIFDecl.to_manifest/1),
       "type_decls" => Enum.map(declaration_manifest.type_decls, &TypeDecl.to_manifest/1)
     }

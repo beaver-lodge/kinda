@@ -270,6 +270,9 @@ framework-complete:
   through `declaration_manifest/0`, so the machine-readable contract can serve
   as the direct source for generated function/type surfaces, while kind-derived
   helper NIFs still come from the explicit kind surface
+- and when that unified declaration manifest is present, the generated
+  signature surface is now a derived view over its embedded
+  `signature_manifest`, rather than a separate required sidecar
 - `beaver` is the first downstream to project those C types, including
   `struct Mlir...` record fields, into remote MLIR resource wrapper types
 

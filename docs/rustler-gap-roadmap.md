@@ -197,6 +197,9 @@ The first typespec-driven conversion slice has also now landed:
   generation source, so checked-in declaration sidecars can drive module
   generation instead of only mirroring it after the fact, while kind-derived
   helper NIFs still come from the explicit kind surface
+- when a declaration manifest is present, the typed signature surface is now a
+  derived view over its embedded `signature_manifest`, rather than a required
+  parallel build/source artifact
 - `beaver` now acts as the first consumer probe by mapping MLIR handle-like
   C types, including `struct Mlir...` field spellings inside records, to public
   remote wrapper types

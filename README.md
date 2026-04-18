@@ -157,14 +157,15 @@ Generated `use Kinda.CodeGen` modules now expose three related surfaces from
 the same typed source:
 
 - NIF declarations through `__kinda_nif_decls__/0`
-- the typed signature manifest through `__kinda_signature_manifest__/0` when
-  the generator module implements `signature_manifest/0`
+- the typed signature manifest through `__kinda_signature_manifest__/0`
 - and a unified declaration manifest through `__kinda_declaration_manifest__/0`
 
 When a generator module implements `declaration_manifest/0`, `Kinda.CodeGen`
 can now source generated function/type declarations directly from that unified
-manifest instead of reconstructing them from parallel callbacks. Kind-derived
-helper NIFs still come from `kinds()/0`.
+manifest instead of reconstructing them from parallel callbacks, and
+`__kinda_signature_manifest__/0` becomes a derived view over the embedded
+signature contract in that declaration manifest. Kind-derived helper NIFs
+still come from `kinds()/0`.
 
 When that manifest includes projected records, `Kinda.CodeGen` also emits
 deterministic public type aliases such as `foo_handle_record()/0` from the same

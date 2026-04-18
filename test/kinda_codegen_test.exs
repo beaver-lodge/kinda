@@ -69,7 +69,18 @@ defmodule Kinda.CodeGenTest do
             typespec: TypeSpecRef.map([])
           }
         ],
-        %{"version" => 7}
+        %{
+          "version" => 7,
+          "records" => [
+            %{
+              "name" => "BarHandle",
+              "kind" => "struct",
+              "public_typespec" => %{"kind" => "map", "fields" => []},
+              "fields" => []
+            }
+          ],
+          "entries" => []
+        }
       )
     end
   end
@@ -222,7 +233,18 @@ defmodule Kinda.CodeGenTest do
   test "can source generated surfaces directly from declaration manifests" do
     expected_nif_name = Module.concat(Kinda.CodeGenTest.ManifestBackedModule, :invoke_from_manifest)
 
-    assert ManifestBackedModule.__kinda_signature_manifest__() == nil
+    assert ManifestBackedModule.__kinda_signature_manifest__() == %{
+             "version" => 7,
+             "records" => [
+               %{
+                 "name" => "BarHandle",
+                 "kind" => "struct",
+                 "public_typespec" => %{"kind" => "map", "fields" => []},
+                 "fields" => []
+               }
+             ],
+             "entries" => []
+           }
 
     assert [
              %NIFDecl{
@@ -243,6 +265,7 @@ defmodule Kinda.CodeGenTest do
     assert %DeclarationManifest{
              version: 1,
              signature_manifest_version: 7,
+             signature_manifest: %{"version" => 7},
              nif_decls: [
                %NIFDecl{
                  wrapper_name: :invoke_from_manifest,
