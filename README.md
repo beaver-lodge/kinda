@@ -154,7 +154,9 @@ end
 This is the older `ResourceKind + CodeGen` side of `kinda`.
 
 Generated `use Kinda.CodeGen` modules now also expose their declaration
-manifest via `__kinda_nif_decls__/0`.
+manifest via `__kinda_nif_decls__/0`, and can expose a typed signature
+manifest via `__kinda_signature_manifest__/0` when the generator module
+implements `signature_manifest/0`.
 
 For larger generated bindings, the newer wrapper pipeline is usually more
 important.

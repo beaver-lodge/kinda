@@ -11,21 +11,31 @@ defmodule Kinda.CodeGen do
       root = Keyword.fetch!(unquote(opts), :root)
       forward = Keyword.fetch!(unquote(opts), :forward)
       decls = Kinda.CodeGen.nif_decls(mod.kinds(), mod.nifs(), root)
+      signature_manifest =
+        if function_exported?(mod, :signature_manifest, 0), do: mod.signature_manifest(), else: nil
+
       {ast, mf} = Kinda.CodeGen.nif_ast_from_decls(decls, root, forward)
       ast |> Code.eval_quoted([], __ENV__)
       Module.put_attribute(__MODULE__, :kinda_nif_decls, decls)
+      Module.put_attribute(__MODULE__, :kinda_signature_manifest, signature_manifest)
 
       @doc false
       def __kinda_nif_decls__, do: @kinda_nif_decls
+
+      @doc false
+      def __kinda_signature_manifest__, do: @kinda_signature_manifest
 
       mf
     end
   end
 
   @type nif_decl_input :: NIFDecl.t() | {atom(), integer()} | {atom(), [atom()]}
+  @type signature_manifest :: map() | nil
 
   @callback kinds() :: [KindDecl.t()]
   @callback nifs() :: [nif_decl_input()]
+  @callback signature_manifest() :: signature_manifest()
+  @optional_callbacks signature_manifest: 0
   def kinds(), do: []
 
   def raw_module(root_module) when is_atom(root_module) do

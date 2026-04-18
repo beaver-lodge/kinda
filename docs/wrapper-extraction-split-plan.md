@@ -43,6 +43,9 @@ What is already true:
 - and classic `use Kinda.CodeGen` modules now expose those generated
   declarations through `__kinda_nif_decls__/0`, so the manifest is no longer
   only an intermediate file concern
+- and `use Kinda.CodeGen` modules can now also surface a typed signature
+  manifest through `__kinda_signature_manifest__/0` when the generator module
+  provides one, so the typed contract is no longer only a sidecar JSON file
 - and the framework-owned wrapper manifest now preserves raw C parameter and
   return type facts via:
   - `Kinda.Wrapper.CType`

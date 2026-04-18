@@ -114,6 +114,9 @@ By contrast, `kinda` currently exposes mostly primitives:
   entry strings
 - and classic `use Kinda.CodeGen` modules now expose their generated
   declaration manifest through `__kinda_nif_decls__/0`
+- and `use Kinda.CodeGen` modules can now also expose a machine-readable typed
+  signature manifest through `__kinda_signature_manifest__/0` when the
+  generator module provides one
 - and the wrapper/extraction pipeline now preserves raw C parameter/return
   types in framework-owned IR:
   - `Kinda.Wrapper.Function`
@@ -128,6 +131,8 @@ By contrast, `kinda` currently exposes mostly primitives:
 - and `Kinda.Wrapper.Generate.signature_manifest/2` now exposes that typed
   wrapper surface as a versioned, machine-readable contract instead of keeping
   it only in generated AST and runtime structs
+- and that contract can now also be surfaced on generated modules instead of
+  only living as a detached build artifact
 
 This is real progress, but the runtime surface is still too thin for the full
 set of `beaver`-style adapter needs.

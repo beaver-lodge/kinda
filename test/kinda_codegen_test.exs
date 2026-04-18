@@ -21,6 +21,22 @@ defmodule Kinda.CodeGenTest do
         }
       ]
     end
+
+    @impl true
+    def signature_manifest do
+      %{
+        "version" => 1,
+        "records" => [
+          %{
+            "name" => "FooHandle",
+            "kind" => "struct",
+            "public_typespec" => %{"kind" => "map", "fields" => []},
+            "fields" => []
+          }
+        ],
+        "entries" => []
+      }
+    end
   end
 
   defmodule Forward do
@@ -70,6 +86,21 @@ defmodule Kinda.CodeGenTest do
                dirty: :dirty_cpu
              }
            ] = GeneratedModule.__kinda_nif_decls__()
+  end
+
+  test "exposes optional typed signature manifest metadata" do
+    assert GeneratedModule.__kinda_signature_manifest__() == %{
+             "version" => 1,
+             "records" => [
+               %{
+                 "name" => "FooHandle",
+                 "kind" => "struct",
+                 "public_typespec" => %{"kind" => "map", "fields" => []},
+                 "fields" => []
+               }
+             ],
+             "entries" => []
+           }
   end
 
   test "emits raw companion entries for kind-scoped generated functions" do
