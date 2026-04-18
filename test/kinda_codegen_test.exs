@@ -43,50 +43,25 @@ defmodule Kinda.CodeGenTest do
     @behaviour Kinda.CodeGen
 
     @impl true
-    def kinds, do: []
-
-    @impl true
-    def nifs, do: []
-
-    @impl true
-    def declaration_manifest do
-      DeclarationManifest.from_parts(
-        [
-          %NIFDecl{
-            wrapper_name: :invoke_from_manifest,
-            params: [:engine],
-            doc: "Invokes from the unified declaration manifest.",
-            param_typespecs: [TypeSpecRef.term()],
-            return_typespec: TypeSpecRef.ok(),
-            dirty: :dirty_io
-          }
-        ],
-        [
-          %TypeDecl{
-            name: :bar_handle_record,
-            source_record_name: "BarHandle",
-            doc: "Typed projection for extracted C record BarHandle.",
-            typespec: TypeSpecRef.map([])
-          }
-        ],
-        %{
-          "version" => 7,
-          "records" => [
-            %{
-              "name" => "BarHandle",
-              "kind" => "struct",
-              "public_typespec" => %{"kind" => "map", "fields" => []},
-              "fields" => []
-            }
-          ],
-          "entries" => []
-        }
-      )
-    end
+    def declaration_manifest, do: Path.expand("../fixtures/declaration_manifest.ex", __DIR__)
   end
 
   defmodule Forward do
     def check!(value), do: value
+  end
+
+  defmodule CanonicalManifestDecls do
+    @behaviour Kinda.CodeGen
+
+    @impl true
+    def signature_manifest do
+      %{"version" => 99, "records" => [], "entries" => []}
+    end
+
+    @impl true
+    def declaration_manifest do
+      DeclarationManifest.from_parts([], [], %{"version" => 8, "records" => [], "entries" => []})
+    end
   end
 
   defmodule GeneratedModule do
@@ -100,6 +75,13 @@ defmodule Kinda.CodeGenTest do
     use Kinda.CodeGen,
       with: Kinda.CodeGenTest.ManifestBackedDecls,
       root: Kinda.CodeGenTest.ManifestBackedModule,
+      forward: Kinda.CodeGenTest.Forward
+  end
+
+  defmodule CanonicalManifestModule do
+    use Kinda.CodeGen,
+      with: Kinda.CodeGenTest.CanonicalManifestDecls,
+      root: Kinda.CodeGenTest.CanonicalManifestModule,
       forward: Kinda.CodeGenTest.Forward
   end
 
@@ -276,6 +258,18 @@ defmodule Kinda.CodeGenTest do
                %TypeDecl{name: :bar_handle_record}
              ]
            } = ManifestBackedModule.__kinda_declaration_manifest__()
+  end
+
+  test "prefers declaration manifests over parallel signature callbacks" do
+    assert CanonicalManifestModule.__kinda_signature_manifest__() == %{
+             "version" => 8,
+             "records" => [],
+             "entries" => []
+           }
+  end
+
+  test "declaration-manifest-backed generators do not need a parallel nifs callback" do
+    assert [%NIFDecl{wrapper_name: :invoke_from_manifest}] = ManifestBackedModule.__kinda_nif_decls__()
   end
 
   test "emits raw companion entries for kind-scoped generated functions" do

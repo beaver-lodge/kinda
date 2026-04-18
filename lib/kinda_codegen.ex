@@ -18,9 +18,9 @@ defmodule Kinda.CodeGen do
 
       signature_manifest =
         cond do
-          function_exported?(mod, :signature_manifest, 0) -> mod.signature_manifest()
           match?(%Kinda.CodeGen.DeclarationManifest{}, source_declaration_manifest) ->
-            source_declaration_manifest.signature_manifest
+            Kinda.CodeGen.DeclarationManifest.signature_manifest(source_declaration_manifest)
+          function_exported?(mod, :signature_manifest, 0) -> mod.signature_manifest()
           true ->
             nil
         end
@@ -63,13 +63,15 @@ defmodule Kinda.CodeGen do
   @type signature_manifest :: map() | nil
   @type type_decl :: TypeDecl.t()
   @type declaration_manifest :: DeclarationManifest.t()
+  @type declaration_manifest_source :: DeclarationManifest.source()
 
   @callback kinds() :: [KindDecl.t()]
   @callback nifs() :: [nif_decl_input()]
   @callback signature_manifest() :: signature_manifest()
-  @callback declaration_manifest() :: declaration_manifest() | map()
-  @optional_callbacks signature_manifest: 0, declaration_manifest: 0
+  @callback declaration_manifest() :: declaration_manifest_source()
+  @optional_callbacks kinds: 0, nifs: 0, signature_manifest: 0, declaration_manifest: 0
   def kinds(), do: []
+  def nifs(), do: []
 
   def raw_module(root_module) when is_atom(root_module) do
     Module.concat(root_module, Raw)
@@ -207,14 +209,10 @@ defmodule Kinda.CodeGen do
     DeclarationManifest.from_parts(nif_decls, type_decls, signature_manifest)
   end
 
-  def load_declaration_manifest(%DeclarationManifest{} = declaration_manifest),
-    do: declaration_manifest
-
-  def load_declaration_manifest(%{} = declaration_manifest),
-    do: DeclarationManifest.from_manifest(declaration_manifest)
+  def load_declaration_manifest(declaration_manifest), do: DeclarationManifest.load!(declaration_manifest)
 
   def resolve_declaration_surfaces(nil, mod, root_module, signature_manifest) do
-    decls = nif_decls(mod.kinds(), mod.nifs(), root_module)
+    decls = nif_decls(kinds_for(mod), nifs_for(mod), root_module)
     type_decls = type_decls(signature_manifest)
     declaration_manifest = declaration_manifest(decls, type_decls, signature_manifest)
     {decls, type_decls, declaration_manifest}
@@ -226,7 +224,7 @@ defmodule Kinda.CodeGen do
         root_module,
         signature_manifest
       ) do
-    kind_decls = nif_decls(mod.kinds(), [], root_module)
+    kind_decls = nif_decls(kinds_for(mod), [], root_module)
 
     decls =
       declaration_manifest.nif_decls
@@ -265,6 +263,14 @@ defmodule Kinda.CodeGen do
     |> Enum.uniq_by(fn %NIFDecl{wrapper_name: wrapper_name, nif_name: nif_name, params: params} ->
       {wrapper_name, nif_name, params}
     end)
+  end
+
+  defp kinds_for(mod) do
+    if function_exported?(mod, :kinds, 0), do: mod.kinds(), else: []
+  end
+
+  defp nifs_for(mod) do
+    if function_exported?(mod, :nifs, 0), do: mod.nifs(), else: []
   end
 
   defp doc_attribute_ast(nil), do: nil

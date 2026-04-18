@@ -114,9 +114,10 @@ By contrast, `kinda` currently exposes mostly primitives:
   entry strings
 - and classic `use Kinda.CodeGen` modules now expose their generated
   declaration manifest through `__kinda_nif_decls__/0`
-- and `use Kinda.CodeGen` modules can now also expose a machine-readable typed
-  signature manifest through `__kinda_signature_manifest__/0` when the
-  generator module provides one
+- and `use Kinda.CodeGen` modules now also expose a machine-readable typed
+  signature surface through `__kinda_signature_manifest__/0`, whether it comes
+  directly from `signature_manifest/0` or is derived from the canonical
+  declaration contract
 - and the wrapper/extraction pipeline now preserves raw C parameter/return
   types in framework-owned IR:
   - `Kinda.Wrapper.Function`
@@ -197,9 +198,18 @@ The first typespec-driven conversion slice has also now landed:
   generation source, so checked-in declaration sidecars can drive module
   generation instead of only mirroring it after the fact, while kind-derived
   helper NIFs still come from the explicit kind surface
+- and the final file-backed declaration loading interface now lives in
+  `Kinda.CodeGen.DeclarationManifest.load!/1`, so downstreams do not have to
+  hand-roll `File.read!/Code.eval_string/JSON.decode!` adapters
 - when a declaration manifest is present, the typed signature surface is now a
   derived view over its embedded `signature_manifest`, rather than a required
   parallel build/source artifact
+- and when a module exposes both `signature_manifest/0` and
+  `declaration_manifest/0`, the declaration manifest is now the canonical
+  source of the generated signature surface
+- and declaration-manifest-backed generators no longer need a parallel
+  `nifs()/0` callback just to satisfy the framework; only the explicit kind
+  surface still remains outside the declaration contract
 - `beaver` now acts as the first consumer probe by mapping MLIR handle-like
   C types, including `struct Mlir...` field spellings inside records, to public
   remote wrapper types

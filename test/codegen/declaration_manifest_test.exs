@@ -39,4 +39,26 @@ defmodule Kinda.CodeGen.DeclarationManifestTest do
 
     assert DeclarationManifest.from_manifest(manifest) == declaration_manifest
   end
+
+  test "loads declaration manifests from elixir sidecars" do
+    manifest = %{
+      "version" => 1,
+      "signature_manifest_version" => 3,
+      "signature_manifest" => %{"version" => 3, "records" => [], "entries" => []},
+      "nif_decls" => [],
+      "type_decls" => []
+    }
+
+    path =
+      System.tmp_dir!()
+      |> Path.join("kinda-declaration-manifest-#{System.unique_integer([:positive])}.ex")
+
+    File.write!(path, inspect(manifest, pretty: true, limit: :infinity, printable_limit: :infinity))
+
+    try do
+      assert DeclarationManifest.load!(path) == DeclarationManifest.from_manifest(manifest)
+    after
+      File.rm(path)
+    end
+  end
 end

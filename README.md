@@ -162,10 +162,14 @@ the same typed source:
 
 When a generator module implements `declaration_manifest/0`, `Kinda.CodeGen`
 can now source generated function/type declarations directly from that unified
-manifest instead of reconstructing them from parallel callbacks, and
+manifest instead of reconstructing them from parallel callbacks. That callback
+is now the canonical declaration interface in `kinda`: it may return a loaded
+manifest value or a checked-in `.ex` / `.json` sidecar path, and
 `__kinda_signature_manifest__/0` becomes a derived view over the embedded
-signature contract in that declaration manifest. Kind-derived helper NIFs
-still come from `kinds()/0`.
+signature contract in that declaration manifest. If a module exposes both
+`signature_manifest/0` and `declaration_manifest/0`, the declaration manifest
+wins. Declaration-manifest-backed generators no longer need a parallel
+`nifs()/0`; kind-derived helper NIFs still come from `kinds()/0`.
 
 When that manifest includes projected records, `Kinda.CodeGen` also emits
 deterministic public type aliases such as `foo_handle_record()/0` from the same

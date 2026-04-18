@@ -44,8 +44,9 @@ What is already true:
   declarations through `__kinda_nif_decls__/0`, so the manifest is no longer
   only an intermediate file concern
 - and `use Kinda.CodeGen` modules can now also surface a typed signature
-  manifest through `__kinda_signature_manifest__/0` when the generator module
-  provides one, so the typed contract is no longer only a sidecar JSON file
+  manifest through `__kinda_signature_manifest__/0`, whether it is provided
+  directly or derived from the canonical declaration contract, so the typed
+  contract is no longer only a sidecar file concern
 - and the framework-owned wrapper manifest now preserves raw C parameter and
   return type facts via:
   - `Kinda.Wrapper.CType`
@@ -96,7 +97,7 @@ The build currently does this:
 4. emit:
    - `generated/wrapper.zig`
    - `generated/capi_functions.ex`
-   - `generated/capi_signature_manifest.json`
+   - `generated/capi_declaration_manifest.json`
 
 This works, but it bundles together two different responsibilities:
 
@@ -270,9 +271,19 @@ framework-complete:
   through `declaration_manifest/0`, so the machine-readable contract can serve
   as the direct source for generated function/type surfaces, while kind-derived
   helper NIFs still come from the explicit kind surface
+- and the final sidecar-loading interface for that contract now lives in
+  `Kinda.CodeGen.DeclarationManifest.load!/1`, so downstreams can hand back a
+  `.ex` / `.json` declaration-manifest path instead of reimplementing loading
+  logic locally
 - and when that unified declaration manifest is present, the generated
   signature surface is now a derived view over its embedded
   `signature_manifest`, rather than a separate required sidecar
+- and when a module exposes both `signature_manifest/0` and
+  `declaration_manifest/0`, `kinda` now treats the declaration manifest as the
+  canonical source of truth for generated declaration/signature surfaces
+- and declaration-manifest-backed generators no longer need a parallel
+  `nifs()/0` callback; only the explicit kind surface remains outside the
+  unified declaration contract
 - `beaver` is the first downstream to project those C types, including
   `struct Mlir...` record fields, into remote MLIR resource wrapper types
 
