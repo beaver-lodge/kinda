@@ -3,7 +3,7 @@ defmodule Kinda.CodeGen do
   Behavior for customizing your source code generation.
   """
 
-  alias Kinda.CodeGen.{KindDecl, NIFDecl, TypeSpecRef}
+  alias Kinda.CodeGen.{KindDecl, NIFDecl, TypeDecl, TypeSpecRef}
 
   defmacro __using__(opts) do
     quote do
@@ -13,14 +13,16 @@ defmodule Kinda.CodeGen do
       decls = Kinda.CodeGen.nif_decls(mod.kinds(), mod.nifs(), root)
       signature_manifest =
         if function_exported?(mod, :signature_manifest, 0), do: mod.signature_manifest(), else: nil
+      type_decls = Kinda.CodeGen.type_decls(signature_manifest)
 
       {ast, mf} = Kinda.CodeGen.nif_ast_from_decls(decls, root, forward)
 
-      (Kinda.CodeGen.record_types_ast(signature_manifest) ++ ast)
+      (Kinda.CodeGen.type_decls_ast(type_decls) ++ ast)
       |> Code.eval_quoted([], __ENV__)
 
       Module.put_attribute(__MODULE__, :kinda_nif_decls, decls)
       Module.put_attribute(__MODULE__, :kinda_signature_manifest, signature_manifest)
+      Module.put_attribute(__MODULE__, :kinda_type_decls, type_decls)
 
       @doc false
       def __kinda_nif_decls__, do: @kinda_nif_decls
@@ -28,12 +30,16 @@ defmodule Kinda.CodeGen do
       @doc false
       def __kinda_signature_manifest__, do: @kinda_signature_manifest
 
+      @doc false
+      def __kinda_type_decls__, do: @kinda_type_decls
+
       mf
     end
   end
 
   @type nif_decl_input :: NIFDecl.t() | {atom(), integer()} | {atom(), [atom()]}
   @type signature_manifest :: map() | nil
+  @type type_decl :: TypeDecl.t()
 
   @callback kinds() :: [KindDecl.t()]
   @callback nifs() :: [nif_decl_input()]
@@ -169,10 +175,16 @@ defmodule Kinda.CodeGen do
     {asts ++ List.wrap(raw_module_ast), exports}
   end
 
-  def record_types_ast(nil), do: []
+  def type_decls(nil), do: []
 
-  def record_types_ast(%{"records" => records}) when is_list(records) do
-    Enum.flat_map(records, &record_type_ast/1)
+  def type_decls(%{"records" => records}) when is_list(records) do
+    Enum.flat_map(records, &record_type_decl/1)
+  end
+
+  def record_types_ast(signature_manifest), do: signature_manifest |> type_decls() |> type_decls_ast()
+
+  def type_decls_ast(type_decls) when is_list(type_decls) do
+    Enum.flat_map(type_decls, &type_decl_ast/1)
   end
 
   defp normalize_nif_decl(%NIFDecl{nif_name: nil, wrapper_name: wrapper_name} = nif, root_module)
@@ -206,22 +218,30 @@ defmodule Kinda.CodeGen do
     end
   end
 
-  defp record_type_ast(%{"name" => name, "public_typespec" => public_typespec})
+  defp record_type_decl(%{"name" => name, "public_typespec" => public_typespec})
        when is_binary(name) and is_map(public_typespec) do
-    type_name = record_type_name(name)
-    typespec = TypeSpecRef.from_manifest(public_typespec)
-
     [
-      quote do
-        @typedoc unquote("Typed projection for extracted C record #{name}.")
-      end,
-      quote do
-        @type unquote(type_name)() :: unquote(TypeSpecRef.to_quoted(typespec))
-      end
+      %TypeDecl{
+        name: record_type_name(name),
+        source_record_name: name,
+        doc: "Typed projection for extracted C record #{name}.",
+        typespec: TypeSpecRef.from_manifest(public_typespec)
+      }
     ]
   end
 
-  defp record_type_ast(_record), do: []
+  defp record_type_decl(_record), do: []
+
+  defp type_decl_ast(%TypeDecl{name: name, doc: doc, typespec: typespec}) do
+    [
+      quote do
+        @typedoc unquote(doc)
+      end,
+      quote do
+        @type unquote(name)() :: unquote(TypeSpecRef.to_quoted(typespec))
+      end
+    ]
+  end
 
   defp record_type_name(record_name) do
     record_name

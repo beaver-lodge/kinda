@@ -185,6 +185,9 @@ The first typespec-driven conversion slice has also now landed:
 - those generated aliases use atom field keys derived from extracted C field
   names, while the underlying manifest remains string-keyed and
   machine-readable
+- `Kinda.CodeGen` now also exposes a formal `TypeDecl` metadata surface through
+  `__kinda_type_decls__/0`, so generated public types are not only observable
+  via emitted AST or BEAM abstract code
 - `beaver` now acts as the first consumer probe by mapping MLIR handle-like
   C types, including `struct Mlir...` field spellings inside records, to public
   remote wrapper types
@@ -207,8 +210,8 @@ The first typespec-driven conversion slice has also now landed:
   consumer-specific MLIR mapping into a stable framework contract for C
   pointers, pointer-arrays, enums, and common result shapes
 - Generate `@opaque` / `@type` / `@spec` more systematically from that typed
-  contract, especially beyond the first generated record aliases that now land
-  on `use Kinda.CodeGen` modules
+  contract, especially beyond the first generated record aliases and `TypeDecl`
+  metadata that now land on `use Kinda.CodeGen` modules
 
 ### 3. Scheduler strategy
 

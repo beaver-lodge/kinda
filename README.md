@@ -160,7 +160,9 @@ implements `signature_manifest/0`. When that manifest includes projected
 records, `Kinda.CodeGen` also emits deterministic public type aliases such as
 `foo_handle_record()/0` from the same single source. These generated aliases
 use atom field keys derived from extracted C field names, while the
-machine-readable manifest keeps the original string names.
+machine-readable manifest keeps the original string names. The generated
+module also exposes the formalized type-declaration IR through
+`__kinda_type_decls__/0`.
 
 For larger generated bindings, the newer wrapper pipeline is usually more
 important.

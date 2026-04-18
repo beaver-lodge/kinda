@@ -258,6 +258,9 @@ framework-complete:
   deterministic public record aliases on generated modules
 - those generated aliases atomize field names only at typespec-emission time,
   while the checked-in/machine-readable manifest stays string-keyed
+- and `Kinda.CodeGen` now materializes a framework-owned `TypeDecl` metadata
+  layer from the same manifest, exposed on generated modules through
+  `__kinda_type_decls__/0`
 - `beaver` is the first downstream to project those C types, including
   `struct Mlir...` record fields, into remote MLIR resource wrapper types
 
@@ -287,6 +290,7 @@ Recommended direction:
   - projected record field typespecs
   - projected record-level public types
   - generated record type aliases on wrapper modules
+  - generated type-declaration metadata on wrapper modules
   - generated `@spec` declarations
   - machine-readable typed signature manifests
   - future `@opaque` / result-shape contracts

@@ -2,7 +2,7 @@ defmodule Kinda.CodeGenTest do
   use ExUnit.Case, async: true
 
   alias Kinda.CodeGen
-  alias Kinda.CodeGen.{NIFDecl, TypeSpecRef}
+  alias Kinda.CodeGen.{NIFDecl, TypeDecl, TypeSpecRef}
 
   defmodule GeneratedDecls do
     @behaviour Kinda.CodeGen
@@ -104,8 +104,8 @@ defmodule Kinda.CodeGenTest do
   end
 
   test "emits generated record type aliases from signature manifest" do
-    ast =
-      CodeGen.record_types_ast(%{
+    type_decls =
+      CodeGen.type_decls(%{
         "records" => [
           %{
             "name" => "FooHandle",
@@ -127,10 +127,35 @@ defmodule Kinda.CodeGenTest do
         ]
       })
 
+    assert type_decls == [
+             %TypeDecl{
+               name: :foo_handle_record,
+               source_record_name: "FooHandle",
+               doc: "Typed projection for extracted C record FooHandle.",
+               typespec:
+                 TypeSpecRef.map([
+                   {"ptr", TypeSpecRef.term()},
+                   {"location", TypeSpecRef.remote(Foo.Location)}
+                 ])
+             }
+           ]
+
+    ast = CodeGen.type_decls_ast(type_decls)
     ast_string = ast |> then(&{:__block__, [], &1}) |> Macro.to_string()
 
     assert ast_string =~ "@typedoc \"Typed projection for extracted C record FooHandle.\""
     assert ast_string =~ "@type foo_handle_record() :: %{required(:ptr) => term(), required(:location) => Foo.Location.t()}"
+  end
+
+  test "exposes generated type declarations as module metadata" do
+    assert GeneratedModule.__kinda_type_decls__() == [
+             %TypeDecl{
+               name: :foo_handle_record,
+               source_record_name: "FooHandle",
+               doc: "Typed projection for extracted C record FooHandle.",
+               typespec: TypeSpecRef.map([])
+             }
+           ]
   end
 
   test "emits raw companion entries for kind-scoped generated functions" do
