@@ -3,16 +3,17 @@ defmodule Kinda.CodeGen do
   Behavior for customizing your source code generation.
   """
 
+  alias Kinda.Declaration
+
   alias Kinda.CodeGen.{
     DeclarationManifest,
-    DeclarationSurfaces,
     KindDecl,
     NIFDecl,
     TypeDecl,
     TypeSpecRef
   }
 
-  @type declaration_surfaces :: DeclarationSurfaces.t()
+  @type declaration_surfaces :: Kinda.CodeGen.DeclarationSurfaces.t()
 
   defmacro __using__(opts) do
     quote do
@@ -20,9 +21,9 @@ defmodule Kinda.CodeGen do
       root = Keyword.fetch!(unquote(opts), :root)
       forward = Keyword.fetch!(unquote(opts), :forward)
       Code.ensure_compiled!(mod)
-      surfaces = Kinda.CodeGen.DeclarationSurfaces.from_generator(mod, root)
-      decls = Kinda.CodeGen.DeclarationSurfaces.nif_decls(surfaces)
-      type_decls = Kinda.CodeGen.DeclarationSurfaces.type_decls(surfaces)
+      surfaces = Declaration.from_generator(mod, root)
+      decls = Declaration.nif_decls(surfaces)
+      type_decls = Declaration.type_decls(surfaces)
 
       {ast, mf} = Kinda.CodeGen.nif_ast_from_decls(decls, root, forward)
 
@@ -188,7 +189,8 @@ defmodule Kinda.CodeGen do
     DeclarationManifest.from_parts(nif_decls, type_decls, signature_manifest)
   end
 
-  def record_types_ast(signature_manifest), do: signature_manifest |> type_decls() |> type_decls_ast()
+  def record_types_ast(signature_manifest),
+    do: signature_manifest |> type_decls() |> type_decls_ast()
 
   def type_decls_ast(type_decls) when is_list(type_decls) do
     Enum.flat_map(type_decls, &type_decl_ast/1)

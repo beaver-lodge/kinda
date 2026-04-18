@@ -204,11 +204,12 @@ The first typespec-driven conversion slice has also now landed:
 - and the final file-backed declaration loading interface now lives in
   `Kinda.CodeGen.DeclarationManifest.load!/1`, so downstreams do not have to
   hand-roll `File.read!/Code.eval_string/JSON.decode!` adapters
-- and `Kinda.CodeGen.DeclarationSurfaces.load_source/1` /
-  `Kinda.CodeGen.DeclarationSurfaces.from_generator/2` now formalize the
-  distinction between the checked-in declaration source and the final generated
-  declaration surfaces, so downstreams do not have to guess when `nif_name`
-  canonicalization, kind-helper merging, and `TypeDecl` materialization happen
+- and downstreams now consume that same source/load+resolve layer through the
+  top-level `Kinda.Declaration` facade:
+  - `Kinda.Declaration.load_source/1`
+  - `Kinda.Declaration.from_generator/2`
+  while the underlying formal IR remains
+  `Kinda.CodeGen.DeclarationSurfaces`
 - and that source/load+resolve layer now itself lands in the
   `Kinda.CodeGen.DeclarationSurfaces` module, rather than hanging off generic
   helpers on `Kinda.CodeGen`

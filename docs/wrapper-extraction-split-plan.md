@@ -300,11 +300,11 @@ framework-complete:
   `Kinda.CodeGen.DeclarationManifest.load!/1`, so downstreams can hand back a
   `.ex` / `.json` declaration-manifest path instead of reimplementing loading
   logic locally
-- and `Kinda.CodeGen.DeclarationSurfaces.load_source/1` plus
-  `Kinda.CodeGen.DeclarationSurfaces.from_generator/2` now make the
-  source-vs-resolved split explicit, so the final generated declaration
-  surface is formalized inside `kinda` rather than re-normalized ad hoc by
-  each consumer, including the final materialization of generated `TypeDecl`s
+- and downstreams now consume that source-vs-resolved split through
+  `Kinda.Declaration.load_source/1` plus
+  `Kinda.Declaration.from_generator/2`, while the final generated declaration
+  surface remains formalized inside `kinda` as
+  `Kinda.CodeGen.DeclarationSurfaces`
 - and that resolved surface is now carried by
   `Kinda.CodeGen.DeclarationSurfaces`, so the declaration-side IR no longer
   stops at the checked-in/source contract and the construction API no longer

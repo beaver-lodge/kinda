@@ -165,13 +165,14 @@ is now the canonical declaration interface in `kinda`: it may return a loaded
 manifest value or a checked-in `.ex` / `.json` sidecar path. Kind-derived
 helper NIFs still come from `kinds()/0`.
 
-`kinda` now also formalizes the distinction between the declaration source and
-the generated module surface inside
-`Kinda.CodeGen.DeclarationSurfaces` itself:
+`kinda` now also exposes a top-level downstream declaration facade through
+`Kinda.Declaration`. That facade sits over the same underlying
+`Kinda.CodeGen.DeclarationSurfaces` IR and formalizes the distinction between
+the declaration source and the generated module surface:
 
-- `Kinda.CodeGen.DeclarationSurfaces.load_source/1` reads the canonical source
+- `Kinda.Declaration.load_source/1` reads the canonical source
   contract from a generator module
-- `Kinda.CodeGen.DeclarationSurfaces.from_generator/2` resolves that source
+- `Kinda.Declaration.from_generator/2` resolves that source
   contract into the final generated surfaces for a specific root module,
   including normalized `nif_name`s, kind-derived helper entries,
   guaranteed/materialized generated `TypeDecl`s, and the derived signature
@@ -179,9 +180,9 @@ the generated module surface inside
 - that resolved surface lands as the formal framework-owned IR:
   `Kinda.CodeGen.DeclarationSurfaces`
 
-Downstreams should treat `Kinda.CodeGen.DeclarationSurfaces.from_generator/2`
-as the formalized public resolution interface. Generated modules expose that
-same resolved IR directly through `__kinda_declaration_surfaces__/0`.
+Downstreams should treat `Kinda.Declaration.from_generator/2` as the formalized
+public resolution interface. Generated modules expose that same resolved IR
+directly through `__kinda_declaration_surfaces__/0`.
 Inside that IR, the canonical resolved payload is the declaration manifest
 itself; `nif_decls`, `type_decls`, and `signature_manifest` are no longer
 stored a second time on the resolved surface.
