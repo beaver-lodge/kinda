@@ -59,9 +59,7 @@ defmodule Kinda.ExampleVerifierTest do
 
   test "injects a preferred zig path into command env when configured" do
     env =
-      Kinda.ExampleVerifier.command_env(
-        zig_bin: "/tmp/zig-0.15/bin/zig"
-      )
+      Kinda.ExampleVerifier.command_env(zig_bin: "/tmp/zig-0.15/bin/zig")
 
     assert [{"PATH", path}] = env
     assert String.starts_with?(path, "/tmp/zig-0.15/bin:")

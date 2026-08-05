@@ -4,7 +4,7 @@ defmodule Kinda.MixProject do
   def project do
     [
       app: :kinda,
-      version: "0.10.9-dev",
+      version: "0.11.0-dev",
       elixir: "~> 1.9",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
@@ -38,7 +38,8 @@ defmodule Kinda.MixProject do
       links: %{"GitHub" => "https://github.com/beaver-project/kinda"},
       files: ~w{
         lib .formatter.exs mix.exs README*
-        src/*.zig build.zig
+        src/*.zig build.zig build.zig.zon
+        scripts/gdb.sh
       }
     ]
   end

@@ -5,10 +5,10 @@ defmodule Kinda.CodeGen.TypeSpecRefTest do
 
   test "renders and serializes map typespec refs" do
     typespec =
-      TypeSpecRef.map([
+      TypeSpecRef.map(
         ptr: TypeSpecRef.term(),
         location: TypeSpecRef.remote(Foo.Location)
-      ])
+      )
 
     assert Macro.to_string(TypeSpecRef.to_quoted(typespec)) ==
              "%{required(:ptr) => term(), required(:location) => Foo.Location.t()}"

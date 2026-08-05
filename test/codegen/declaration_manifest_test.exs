@@ -53,7 +53,10 @@ defmodule Kinda.CodeGen.DeclarationManifestTest do
       System.tmp_dir!()
       |> Path.join("kinda-declaration-manifest-#{System.unique_integer([:positive])}.ex")
 
-    File.write!(path, inspect(manifest, pretty: true, limit: :infinity, printable_limit: :infinity))
+    File.write!(
+      path,
+      inspect(manifest, pretty: true, limit: :infinity, printable_limit: :infinity)
+    )
 
     try do
       assert DeclarationManifest.load!(path) == DeclarationManifest.from_manifest(manifest)
@@ -152,7 +155,11 @@ defmodule Kinda.CodeGen.DeclarationManifestTest do
 
     updated =
       declaration_manifest
-      |> DeclarationManifest.put_signature_manifest(%{"version" => 2, "records" => [], "entries" => []})
+      |> DeclarationManifest.put_signature_manifest(%{
+        "version" => 2,
+        "records" => [],
+        "entries" => []
+      })
       |> DeclarationManifest.put_type_decls([
         %TypeDecl{
           name: :foo_record,

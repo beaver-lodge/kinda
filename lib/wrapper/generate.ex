@@ -178,7 +178,10 @@ defmodule Kinda.Wrapper.Generate do
   end
 
   @spec declaration_surfaces_struct(Manifest.t(), module()) :: declaration_surfaces_struct()
-  def declaration_surfaces_struct(%Manifest{functions: functions, records: records} = manifest, policy) do
+  def declaration_surfaces_struct(
+        %Manifest{functions: functions, records: records} = manifest,
+        policy
+      ) do
     assert_policy!(policy)
 
     signature_manifest = %{

@@ -12,25 +12,28 @@ defmodule Kinda.CodeGenTest do
 
     @impl true
     def declaration_manifest do
-      DeclarationManifest.build([
-        %NIFDecl{
-          wrapper_name: :invoke_dirty_cpu,
-          params: [:engine],
-          doc: "Invokes the engine.",
-          dirty: :dirty_cpu
-        }
-      ], %{
-        "version" => 1,
-        "records" => [
-          %{
-            "name" => "FooHandle",
-            "kind" => "struct",
-            "public_typespec" => %{"kind" => "map", "fields" => []},
-            "fields" => []
+      DeclarationManifest.build(
+        [
+          %NIFDecl{
+            wrapper_name: :invoke_dirty_cpu,
+            params: [:engine],
+            doc: "Invokes the engine.",
+            dirty: :dirty_cpu
           }
         ],
-        "entries" => []
-      })
+        %{
+          "version" => 1,
+          "records" => [
+            %{
+              "name" => "FooHandle",
+              "kind" => "struct",
+              "public_typespec" => %{"kind" => "map", "fields" => []},
+              "fields" => []
+            }
+          ],
+          "entries" => []
+        }
+      )
     end
   end
 
@@ -147,7 +150,9 @@ defmodule Kinda.CodeGenTest do
     ast_string = ast |> then(&{:__block__, [], &1}) |> Macro.to_string()
 
     assert ast_string =~ "@typedoc \"Typed projection for extracted C record FooHandle.\""
-    assert ast_string =~ "@type foo_handle_record() :: %{required(:ptr) => term(), required(:location) => Foo.Location.t()}"
+
+    assert ast_string =~
+             "@type foo_handle_record() :: %{required(:ptr) => term(), required(:location) => Foo.Location.t()}"
   end
 
   test "exposes resolved declaration surfaces as module metadata" do
@@ -165,13 +170,13 @@ defmodule Kinda.CodeGenTest do
                  }
                ],
                type_decls: [
-               %TypeDecl{
-                 name: :foo_handle_record,
-                 source_record_name: "FooHandle",
-                 doc: "Typed projection for extracted C record FooHandle.",
-                 typespec: typespec
-               }
-              ],
+                 %TypeDecl{
+                   name: :foo_handle_record,
+                   source_record_name: "FooHandle",
+                   doc: "Typed projection for extracted C record FooHandle.",
+                   typespec: typespec
+                 }
+               ],
                signature_manifest: %{
                  "version" => 1,
                  "records" => [
@@ -197,6 +202,7 @@ defmodule Kinda.CodeGenTest do
                typespec: TypeSpecRef.map([])
              }
            ]
+
     assert DeclarationSurfaces.signature_manifest(surfaces) == %{
              "version" => 1,
              "records" => [
@@ -212,7 +218,8 @@ defmodule Kinda.CodeGenTest do
   end
 
   test "can source generated surfaces directly from declaration manifests" do
-    expected_nif_name = Module.concat(Kinda.CodeGenTest.ManifestBackedModule, :invoke_from_manifest)
+    expected_nif_name =
+      Module.concat(Kinda.CodeGenTest.ManifestBackedModule, :invoke_from_manifest)
 
     surfaces = ManifestBackedModule.__kinda_declaration_surfaces__()
 
@@ -277,7 +284,8 @@ defmodule Kinda.CodeGenTest do
   end
 
   test "formalizes resolved declaration surfaces through Kinda.CodeGen.DeclarationSurfaces" do
-    expected_nif_name = Module.concat(Kinda.CodeGenTest.ManifestBackedModule, :invoke_from_manifest)
+    expected_nif_name =
+      Module.concat(Kinda.CodeGenTest.ManifestBackedModule, :invoke_from_manifest)
 
     assert %DeclarationSurfaces{
              source_declaration_manifest: %DeclarationManifest{},
@@ -304,9 +312,14 @@ defmodule Kinda.CodeGenTest do
         Kinda.CodeGenTest.ManifestBackedModule
       )
 
-    assert match?(%DeclarationManifest{}, DeclarationSurfaces.source_declaration_manifest(surfaces))
+    assert match?(
+             %DeclarationManifest{},
+             DeclarationSurfaces.source_declaration_manifest(surfaces)
+           )
+
     assert DeclarationSurfaces.load_source(Kinda.CodeGenTest.ManifestBackedDecls) ==
              DeclarationSurfaces.source_declaration_manifest(surfaces)
+
     assert surfaces == ManifestBackedModule.__kinda_declaration_surfaces__()
   end
 

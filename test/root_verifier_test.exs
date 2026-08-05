@@ -42,7 +42,11 @@ defmodule Kinda.RootVerifierTest do
              %{command: "mix", args: ["kinda.wrapper.example", "--json"]}
            ] = Process.get(:root_verifier_calls)
 
-    assert [project_root: ^root, command_runner: RunnerStub, example_verifier: ExampleVerifierStub] =
+    assert [
+             project_root: ^root,
+             command_runner: RunnerStub,
+             example_verifier: ExampleVerifierStub
+           ] =
              Process.get(:example_verifier_opts)
   end
 

@@ -116,7 +116,9 @@ defmodule Kinda.CodeGen.NIFDecl do
   defp denormalize_params(nil), do: nil
 
   defp denormalize_typespecs(nil), do: nil
-  defp denormalize_typespecs(typespecs) when is_list(typespecs), do: Enum.map(typespecs, &TypeSpecRef.from_manifest/1)
+
+  defp denormalize_typespecs(typespecs) when is_list(typespecs),
+    do: Enum.map(typespecs, &TypeSpecRef.from_manifest/1)
 
   defp denormalize_typespec(nil), do: nil
   defp denormalize_typespec(typespec), do: TypeSpecRef.from_manifest(typespec)
