@@ -1,6 +1,6 @@
 defmodule KindaExample.CodeGen do
   @moduledoc false
-  alias Kinda.CodeGen.{KindDecl}
+  alias Kinda.CodeGen.{DeclarationManifest, KindDecl, NIFDecl}
   @behaviour Kinda.CodeGen
   @impl true
   def kinds() do
@@ -15,9 +15,12 @@ defmodule KindaExample.CodeGen do
   end
 
   @impl true
-  def nifs() do
-    [
-      kinda_example_add: 2
-    ]
+  def declaration_manifest do
+    DeclarationManifest.build([
+      %NIFDecl{
+        wrapper_name: :kinda_example_add,
+        params: 2
+      }
+    ])
   end
 end

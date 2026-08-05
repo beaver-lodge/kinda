@@ -14,7 +14,7 @@ pub fn nif_with_flags(comptime name: [*c]const u8, comptime arity: usize, compti
         fn exported(env: beam.env, n: c_int, args: [*c]const beam.term) callconv(.c) beam.term {
             return f(env, n, args) catch |err| {
                 if (is_stack_trace_enabled()) {
-                    std.debug.dumpStackTrace(@errorReturnTrace().?.*);
+                    std.debug.dumpErrorReturnTrace(@errorReturnTrace().?);
                 }
                 return beam.raise_exception(env, ns ++ "Kinda.CallError", err);
             };

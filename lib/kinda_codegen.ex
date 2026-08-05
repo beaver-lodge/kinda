@@ -3,24 +3,58 @@ defmodule Kinda.CodeGen do
   Behavior for customizing your source code generation.
   """
 
-  alias Kinda.CodeGen.{KindDecl, NIFDecl}
+  alias Kinda.Declaration
+
+  alias Kinda.CodeGen.{
+    DeclarationManifest,
+    KindDecl,
+    NIFDecl,
+    TypeDecl,
+    TypeSpecRef
+  }
+
+  @type declaration_surfaces :: Kinda.CodeGen.DeclarationSurfaces.t()
 
   defmacro __using__(opts) do
     quote do
       mod = Keyword.fetch!(unquote(opts), :with)
       root = Keyword.fetch!(unquote(opts), :root)
       forward = Keyword.fetch!(unquote(opts), :forward)
-      {ast, mf} = Kinda.CodeGen.nif_ast(mod.kinds(), mod.nifs(), root, forward)
-      ast |> Code.eval_quoted([], __ENV__)
+      Code.ensure_compiled!(mod)
+      surfaces = Declaration.from_generator(mod, root)
+      decls = Declaration.nif_decls(surfaces)
+      type_decls = Declaration.type_decls(surfaces)
+
+      {ast, mf} = Kinda.CodeGen.nif_ast_from_decls(decls, root, forward)
+
+      (Kinda.CodeGen.type_decls_ast(type_decls) ++ ast)
+      |> Code.eval_quoted([], __ENV__)
+
+      Module.put_attribute(__MODULE__, :kinda_declaration_surfaces, surfaces)
+
+      @doc false
+      def __kinda_declaration_surfaces__, do: @kinda_declaration_surfaces
+
       mf
     end
   end
 
+  @type nif_decl_input :: NIFDecl.t() | {atom(), integer()} | {atom(), [atom()]}
+  @type signature_manifest :: map() | nil
+  @type type_decl :: TypeDecl.t()
+  @type declaration_manifest :: DeclarationManifest.t()
+  @type declaration_manifest_source :: DeclarationManifest.source()
+
   @callback kinds() :: [KindDecl.t()]
-  @callback nifs() :: [{atom(), integer()}]
+  @callback declaration_manifest() :: declaration_manifest_source()
+  @optional_callbacks kinds: 0
   def kinds(), do: []
 
-  def nif_ast(kinds, nifs, root_module, forward_module) do
+  def raw_module(root_module) when is_atom(root_module) do
+    Module.concat(root_module, Raw)
+  end
+
+  def nif_decls(kinds, nifs, root_module) do
     # generate stubs for generated NIFs
     extra_kind_nifs =
       kinds
@@ -30,62 +64,177 @@ defmodule Kinda.CodeGen do
     nifs = nifs ++ extra_kind_nifs
 
     for nif <- nifs do
-      nif =
-        case nif do
-          {wrapper_name, arity} when is_atom(wrapper_name) and is_integer(arity) ->
-            %NIFDecl{
-              wrapper_name: wrapper_name,
-              nif_name: Module.concat(root_module, wrapper_name),
-              params: arity
-            }
+      case nif do
+        {wrapper_name, arity} when is_atom(wrapper_name) and is_integer(arity) ->
+          %NIFDecl{
+            wrapper_name: wrapper_name,
+            nif_name: Module.concat(root_module, wrapper_name),
+            params: arity
+          }
 
-          {wrapper_name, params} when is_atom(wrapper_name) and is_list(params) ->
-            %NIFDecl{
-              wrapper_name: wrapper_name,
-              nif_name: Module.concat(root_module, wrapper_name),
-              params: params
-            }
+        {wrapper_name, params} when is_atom(wrapper_name) and is_list(params) ->
+          %NIFDecl{
+            wrapper_name: wrapper_name,
+            nif_name: Module.concat(root_module, wrapper_name),
+            params: params
+          }
 
-          %NIFDecl{} ->
-            nif
-        end
+        %NIFDecl{} ->
+          normalize_nif_decl(nif, root_module)
+      end
+    end
+  end
 
-      {args_ast, arity} =
-        if is_list(nif.params) do
-          {Enum.map(nif.params, &Macro.var(&1, __MODULE__)), length(nif.params)}
-        else
-          {Macro.generate_unique_arguments(nif.params, __MODULE__), nif.params}
-        end
+  def nif_ast(kinds, nifs, root_module, forward_module) do
+    kinds
+    |> nif_decls(nifs, root_module)
+    |> nif_ast_from_decls(root_module, forward_module)
+  end
 
-      %NIFDecl{wrapper_name: wrapper_name, nif_name: nif_name} = nif
+  def nif_ast_from_decls(decls, root_module, forward_module) do
+    {entries, raw_entries} =
+      for nif <- decls do
+        {args_ast, arity} =
+          if is_list(nif.params) do
+            {Enum.map(nif.params, &Macro.var(&1, __MODULE__)), length(nif.params)}
+          else
+            {Macro.generate_unique_arguments(nif.params, __MODULE__), nif.params}
+          end
 
-      wrapper_name =
-        if is_bitstring(wrapper_name) do
-          String.to_atom(wrapper_name)
-        else
-          wrapper_name
-        end
+        %NIFDecl{wrapper_name: wrapper_name, nif_name: nif_name} = nif
 
-      wrapper_ast =
-        if nif_name != wrapper_name do
-          quote do
-            def unquote(wrapper_name)(unquote_splicing(args_ast)) do
-              refs = Kinda.unwrap_ref([unquote_splicing(args_ast)])
-              ret = apply(__MODULE__, unquote(nif_name), refs)
-              unquote(forward_module).check!(ret)
+        wrapper_name =
+          if is_bitstring(wrapper_name) do
+            String.to_atom(wrapper_name)
+          else
+            wrapper_name
+          end
+
+        wrapper_ast =
+          if nif_name != wrapper_name do
+            quote do
+              unquote(
+                typespec_attribute_ast(wrapper_name, nif.param_typespecs, nif.return_typespec)
+              )
+
+              unquote(doc_attribute_ast(nif.doc))
+
+              def unquote(wrapper_name)(unquote_splicing(args_ast)) do
+                Kinda.Forwarder.invoke_public_nif(
+                  unquote(forward_module),
+                  unquote(raw_module(root_module)),
+                  unquote(wrapper_name),
+                  [unquote_splicing(args_ast)]
+                )
+              end
             end
           end
-        end
 
-      quote do
-        @doc false
-        def unquote(nif_name)(unquote_splicing(args_ast)),
-          do: :erlang.nif_error(:not_loaded)
+        raw_entry_ast =
+          quote do
+            @doc false
+            def unquote(wrapper_name)(unquote_splicing(args_ast)) do
+              apply(unquote(root_module), unquote(nif_name), [unquote_splicing(args_ast)])
+            end
+          end
 
-        unquote(wrapper_ast)
+        ast =
+          quote do
+            unquote(
+              if(nif_name == wrapper_name,
+                do:
+                  typespec_attribute_ast(wrapper_name, nif.param_typespecs, nif.return_typespec),
+                else: nil
+              )
+            )
+
+            unquote(doc_attribute_ast(if(nif_name == wrapper_name, do: nif.doc, else: false)))
+
+            def unquote(nif_name)(unquote_splicing(args_ast)),
+              do: :erlang.nif_error(:not_loaded)
+
+            unquote(wrapper_ast)
+          end
+
+        {{ast, {nif_name, arity}}, raw_entry_ast}
       end
-      |> then(&{&1, {nif_name, arity}})
+      |> Enum.unzip()
+
+    {asts, exports} = Enum.unzip(entries)
+
+    raw_module_ast =
+      case Enum.reject(raw_entries, &is_nil/1) do
+        [] ->
+          nil
+
+        raw_entries ->
+          quote do
+            defmodule Raw do
+              (unquote_splicing(raw_entries))
+            end
+          end
+      end
+
+    {asts ++ List.wrap(raw_module_ast), exports}
+  end
+
+  def type_decls(%DeclarationManifest{} = declaration_manifest),
+    do: DeclarationManifest.type_decls(declaration_manifest)
+
+  def type_decls(nil), do: []
+
+  def type_decls(signature_manifest), do: TypeDecl.from_signature_manifest(signature_manifest)
+
+  def declaration_manifest(nif_decls, type_decls, signature_manifest \\ nil) do
+    DeclarationManifest.from_parts(nif_decls, type_decls, signature_manifest)
+  end
+
+  def record_types_ast(signature_manifest),
+    do: signature_manifest |> type_decls() |> type_decls_ast()
+
+  def type_decls_ast(type_decls) when is_list(type_decls) do
+    Enum.flat_map(type_decls, &type_decl_ast/1)
+  end
+
+  defp normalize_nif_decl(%NIFDecl{nif_name: nil, wrapper_name: wrapper_name} = nif, root_module)
+       when not is_nil(wrapper_name) do
+    %{nif | nif_name: Module.concat(root_module, wrapper_name)}
+  end
+
+  defp normalize_nif_decl(%NIFDecl{} = nif, _root_module), do: nif
+
+  defp doc_attribute_ast(nil), do: nil
+
+  defp doc_attribute_ast(false) do
+    quote do
+      @doc false
     end
-    |> Enum.unzip()
+  end
+
+  defp doc_attribute_ast(doc) do
+    quote do
+      @doc unquote(doc)
+    end
+  end
+
+  defp typespec_attribute_ast(_name, nil, _return_type), do: nil
+  defp typespec_attribute_ast(_name, _params, nil), do: nil
+
+  defp typespec_attribute_ast(name, params, return_type) do
+    quote do
+      @spec unquote(name)(unquote_splicing(Enum.map(params, &TypeSpecRef.to_quoted/1))) ::
+              unquote(TypeSpecRef.to_quoted(return_type))
+    end
+  end
+
+  defp type_decl_ast(%TypeDecl{name: name, doc: doc, typespec: typespec}) do
+    [
+      quote do
+        @typedoc unquote(doc)
+      end,
+      quote do
+        @type unquote(name)() :: unquote(TypeSpecRef.to_quoted(typespec))
+      end
+    ]
   end
 end

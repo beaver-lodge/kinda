@@ -125,14 +125,13 @@ pub fn ResourceKind(comptime ElementType: type, comptime module_name_: anytype) 
         }
         fn dump(env: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
             const v: T = resource.fetch(env, args[0]) catch return beam.Error.@"Fail to fetch primitive";
-            var buffer = try std.array_list.Managed(u8).initCapacity(std.heap.page_allocator, 100);
-            defer buffer.deinit();
             const format_string = switch (@typeInfo(T)) {
                 .pointer => "{*}\n",
                 else => "{any}\n",
             };
-            try std.fmt.format(buffer.writer(), format_string, .{v});
-            return beam.make_slice(env, buffer.items);
+            const rendered = try std.fmt.allocPrint(std.heap.page_allocator, format_string, .{v});
+            defer std.heap.page_allocator.free(rendered);
+            return beam.make_slice(env, rendered);
         }
         fn append_to_struct(env: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
             const v = resource.fetch(env, args[0]) catch return beam.Error.@"Fail to fetch primitive";
@@ -254,54 +253,14 @@ pub fn BangFunc(comptime Kinds: anytype, c: anytype, comptime name: anytype) typ
             @compileError("resouce kind not found " ++ @typeName(t));
         }
         inline fn VariadicArgs() type {
-            const P = FTI.params;
-            return switch (P.len) {
-                0 => struct {},
-                1 => struct { P[0].type.? },
-                2 => struct { P[0].type.?, P[1].type.? },
-                3 => struct { P[0].type.?, P[1].type.?, P[2].type.? },
-                4 => struct { P[0].type.?, P[1].type.?, P[2].type.?, P[3].type.? },
-                5 => struct { P[0].type.?, P[1].type.?, P[2].type.?, P[3].type.?, P[4].type.? },
-                6 => struct { P[0].type.?, P[1].type.?, P[2].type.?, P[3].type.?, P[4].type.?, P[5].type.? },
-                7 => struct { P[0].type.?, P[1].type.?, P[2].type.?, P[3].type.?, P[4].type.?, P[5].type.?, P[6].type.? },
-                8 => struct { P[0].type.?, P[1].type.?, P[2].type.?, P[3].type.?, P[4].type.?, P[5].type.?, P[6].type.?, P[7].type.? },
-                9 => struct { P[0].type.?, P[1].type.?, P[2].type.?, P[3].type.?, P[4].type.?, P[5].type.?, P[6].type.?, P[7].type.?, P[8].type.? },
-                10 => struct { P[0].type.?, P[1].type.?, P[2].type.?, P[3].type.?, P[4].type.?, P[5].type.?, P[6].type.?, P[7].type.?, P[8].type.?, P[9].type.? },
-                11 => struct { P[0].type.?, P[1].type.?, P[2].type.?, P[3].type.?, P[4].type.?, P[5].type.?, P[6].type.?, P[7].type.?, P[8].type.?, P[9].type.?, P[10].type.? },
-                12 => struct { P[0].type.?, P[1].type.?, P[2].type.?, P[3].type.?, P[4].type.?, P[5].type.?, P[6].type.?, P[7].type.?, P[8].type.?, P[9].type.?, P[10].type.?, P[11].type.? },
-                13 => struct { P[0].type.?, P[1].type.?, P[2].type.?, P[3].type.?, P[4].type.?, P[5].type.?, P[6].type.?, P[7].type.?, P[8].type.?, P[9].type.?, P[10].type.?, P[11].type.?, P[12].type.? },
-                14 => struct { P[0].type.?, P[1].type.?, P[2].type.?, P[3].type.?, P[4].type.?, P[5].type.?, P[6].type.?, P[7].type.?, P[8].type.?, P[9].type.?, P[10].type.?, P[11].type.?, P[12].type.?, P[13].type.? },
-                15 => struct { P[0].type.?, P[1].type.?, P[2].type.?, P[3].type.?, P[4].type.?, P[5].type.?, P[6].type.?, P[7].type.?, P[8].type.?, P[9].type.?, P[10].type.?, P[11].type.?, P[12].type.?, P[13].type.?, P[14].type.? },
-                16 => struct { P[0].type.?, P[1].type.?, P[2].type.?, P[3].type.?, P[4].type.?, P[5].type.?, P[6].type.?, P[7].type.?, P[8].type.?, P[9].type.?, P[10].type.?, P[11].type.?, P[12].type.?, P[13].type.?, P[14].type.?, P[15].type.? },
-                17 => struct { P[0].type.?, P[1].type.?, P[2].type.?, P[3].type.?, P[4].type.?, P[5].type.?, P[6].type.?, P[7].type.?, P[8].type.?, P[9].type.?, P[10].type.?, P[11].type.?, P[12].type.?, P[13].type.?, P[14].type.?, P[15].type.?, P[16].type.? },
-                18 => struct { P[0].type.?, P[1].type.?, P[2].type.?, P[3].type.?, P[4].type.?, P[5].type.?, P[6].type.?, P[7].type.?, P[8].type.?, P[9].type.?, P[10].type.?, P[11].type.?, P[12].type.?, P[13].type.?, P[14].type.?, P[15].type.?, P[16].type.?, P[17].type.? },
-                else => @compileError("too many args"),
-            };
+            var types: [FTI.params.len]type = undefined;
+            inline for (FTI.params, 0..) |param, i| {
+                types[i] = param.type orelse @compileError("anytype C arguments are unsupported");
+            }
+            return @Tuple(&types);
         }
-        inline fn variadic_call(args: anytype) FTI.return_type.? {
-            const f = cfunction;
-            return switch (FTI.params.len) {
-                0 => f(),
-                1 => f(args[0]),
-                2 => f(args[0], args[1]),
-                3 => f(args[0], args[1], args[2]),
-                4 => f(args[0], args[1], args[2], args[3]),
-                5 => f(args[0], args[1], args[2], args[3], args[4]),
-                6 => f(args[0], args[1], args[2], args[3], args[4], args[5]),
-                7 => f(args[0], args[1], args[2], args[3], args[4], args[5], args[6]),
-                8 => f(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7]),
-                9 => f(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8]),
-                10 => f(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9]),
-                11 => f(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10]),
-                12 => f(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11]),
-                13 => f(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12]),
-                14 => f(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12], args[13]),
-                15 => f(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12], args[13], args[14]),
-                16 => f(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12], args[13], args[14], args[15]),
-                17 => f(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12], args[13], args[14], args[15], args[16]),
-                18 => f(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12], args[13], args[14], args[15], args[16], args[17]),
-                else => @compileError("too many args"),
-            };
+        inline fn variadic_call(args: VariadicArgs()) FTI.return_type.? {
+            return @call(.auto, cfunction, args);
         }
         pub fn wrap_ret_call(env: beam.env, args: anytype) !beam.term {
             const rt = FTI.return_type.?;
@@ -318,7 +277,10 @@ pub fn BangFunc(comptime Kinds: anytype, c: anytype, comptime name: anytype) typ
             var c_args: VariadicArgs() = undefined;
             inline for (FTI.params, args, 0..) |p, arg, i| {
                 const ArgKind = getKind(p.type.?);
-                c_args[i] = ArgKind.resource.fetch(env, arg) catch return @field(beam.ArgumentError, "Fail to fetch argument #" ++ std.fmt.comptimePrint("{d}", .{i + 1}));
+                c_args[i] = ArgKind.resource.fetch(env, arg) catch return if (i < 18)
+                    @field(beam.ArgumentError, "Fail to fetch argument #" ++ std.fmt.comptimePrint("{d}", .{i + 1}))
+                else
+                    beam.ArgumentError.@"Fail to fetch argument";
             }
             const rt = FTI.return_type.?;
             if (rt == void) {
