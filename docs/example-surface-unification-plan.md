@@ -106,7 +106,7 @@ What this surface is good at:
 
 - proving a real native app still loads
 - proving generated and handwritten runtime pieces cooperate
-- proving the first public `Kinda.Forwarder` runtime slice in a real bundled app
+- proving direct raw calls and boundary normalization in a real bundled app
 - exercising repo-local verification under:
   - [Kinda.ExampleVerifier](/Users/tsai/oss/kinda/lib/kinda/example_verifier.ex:1)
   - [Mix.Tasks.Kinda.Example.Verify](/Users/tsai/oss/kinda/lib/mix/tasks/kinda.example.verify.ex:1)
@@ -182,14 +182,14 @@ Expected shape:
 - canonical example for:
   - resource kinds
   - generated NIF declarations
-  - runtime forwarding/normalization
+  - direct raw calls and boundary normalization
   - native load/load-error behaviour
 
 Good fits:
 
 - end-to-end NIF build/load
 - resource conversion contracts
-- forwarder/runtime examples
+- raw-surface and codec examples
 - integration with root verification
 
 ### Unification Rule
@@ -247,8 +247,8 @@ Status:
 - and it now includes the first dedicated repo-root entry point for the
   bundled app example:
   - `mix kinda.example.verify`
-- and the bundled app now consumes the first public `Kinda.Forwarder`
-  runtime slice instead of carrying its own ad hoc implementation
+- and the bundled app now consumes the explicit `RootModule.Raw` and
+  `Kinda.Codec` surfaces instead of carrying an ad hoc dispatcher
 - with real green verification on the active Zig `0.16` line via:
   - `mix kinda.example.verify`
 - and the micro-example lane now demonstrates dirty scheduler metadata in the
@@ -312,7 +312,7 @@ Goal: make the bundled app the real proof point for Rustler-like completeness.
 Target scope:
 
 - resource kinds
-- forwarder/runtime semantics
+- raw-call and codec semantics
 - generated NIF declarations
 - load/reload behaviour as the framework grows
 

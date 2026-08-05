@@ -2,9 +2,9 @@ defmodule KindaExample.NIF do
   @nifs use Kinda.CodeGen,
           with: KindaExample.CodeGen,
           root: __MODULE__,
-          forward: KindaExample.Native
+          codec: KindaExample.Native
   defmodule CInt do
-    use Kinda.ResourceKind, forward_module: KindaExample.Native
+    use Kinda.ResourceKind, raw_module: KindaExample.NIF.Raw, codec: KindaExample.Native
   end
 
   for path <-
@@ -16,7 +16,7 @@ defmodule KindaExample.NIF do
   end
 
   defmodule StrInt do
-    use Kinda.ResourceKind, forward_module: KindaExample.Native
+    use Kinda.ResourceKind, raw_module: KindaExample.NIF.Raw, codec: KindaExample.Native
   end
 
   @on_load :load_nif

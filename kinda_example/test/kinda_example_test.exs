@@ -15,8 +15,8 @@ defmodule KindaExampleTest do
 
   test "custom make" do
     assert 100 ==
-             Native.forward(NIF.CInt, :make, [100])
-             |> NIF."Elixir.KindaExample.NIF.CInt.primitive"()
+             NIF.CInt.make(100)
+             |> Native.to_term()
 
     e = catch_error(NIF."Elixir.KindaExample.NIF.StrInt.make"(1))
     assert Exception.message(e) =~ "Function clause error\n"

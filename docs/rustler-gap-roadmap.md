@@ -95,20 +95,11 @@ By contrast, `kinda` currently exposes mostly primitives:
 
 - `use Kinda.ResourceKind`
 - `use Kinda.CodeGen`
-- a first public `Kinda.Forwarder` runtime slice:
-  - `check!/1`
-  - `raw_call/3`
-  - `call/3`
-  - `forward/3`
-  - `invoke_kind_nif/5`
-  - `to_term/1`
-- and generated public wrappers now route through an explicit runtime helper
-  instead of each wrapper hand-rolling unwrap + raw invoke + `check!/1`
-- and generated public wrappers now also have a first companion raw module
-  surface (`RootModule.Raw`)
-- and kind-scoped runtime raw calls now prefer that companion raw surface too
-- and the first downstream handwritten kind-call path now routes through that
-  same framework helper instead of direct `apply(CAPI, ...)`
+- an explicit `Kinda.Codec` boundary normalization contract
+- generated public wrappers that directly call a companion raw module surface
+  (`RootModule.Raw`) before applying the selected codec
+- resource kinds that bind to that raw module and codec without a
+  consumer-owned function dispatcher
 - and the wrapper-policy pipeline now preserves per-variant dirty scheduler
   metadata in framework-owned `NIFDecl` IR instead of only encoding it in Zig
   entry strings
@@ -402,8 +393,8 @@ Goal: make `kinda` feel like a framework, not just a substrate.
 
 - Add real `Kinda.Library`
 - Add real `Kinda.Prebuilt`
-- Continue growing `Kinda.Forwarder` from the first public runtime slice into
-  a fuller behaviour/API
+- Continue growing `Kinda.Codec` as a narrow representation boundary without
+  adding native function dispatch back into the consumer contract
 - Continue extending `NIFDecl` from the newly-landed typed C signature slice
   into a stable declaration contract with names, docs, scheduler flags, typed
   params, and typed returns
