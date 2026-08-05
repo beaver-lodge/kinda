@@ -199,8 +199,6 @@ defmodule Kinda.Wrapper.Extract do
     end
   end
 
-  defp extract_doc(_node), do: nil
-
   defp render_comment_node(%{"kind" => "FullComment", "inner" => inner}) do
     inner
     |> Enum.map(&render_comment_node/1)
