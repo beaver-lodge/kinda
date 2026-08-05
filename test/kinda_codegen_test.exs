@@ -78,6 +78,23 @@ defmodule Kinda.CodeGenTest do
       codec: Kinda.CodeGenTest.Codec
   end
 
+  defmodule SplitRawModule do
+    use Kinda.CodeGen,
+      with: Kinda.CodeGenTest.GeneratedDecls,
+      root: Kinda.CodeGenTest.SplitPublicModule,
+      codec: Kinda.CodeGenTest.Codec,
+      surface: :raw
+  end
+
+  defmodule SplitPublicModule do
+    use Kinda.CodeGen,
+      with: Kinda.CodeGenTest.GeneratedDecls,
+      root: __MODULE__,
+      raw_module: Kinda.CodeGenTest.SplitRawModule,
+      codec: Kinda.CodeGenTest.Codec,
+      surface: :public
+  end
+
   test "emits docs on generated public wrappers" do
     {ast, _exports} =
       CodeGen.nif_ast(
@@ -105,6 +122,45 @@ defmodule Kinda.CodeGenTest do
     assert ast_string =~ "GeneratedDocs.Raw.mlirFoo(Kinda.unwrap_ref(ctx))"
     assert ast_string =~ "Kinda.CodeGenTest.Codec.normalize()"
     refute ast_string =~ "apply("
+  end
+
+  test "can compile public wrappers and raw NIF stubs as separate surfaces" do
+    assert function_exported?(SplitPublicModule, :invoke_dirty_cpu, 1)
+    assert function_exported?(SplitRawModule, :invoke_dirty_cpu, 1)
+
+    assert function_exported?(SplitPublicModule, :__kinda_declaration_surfaces__, 0)
+    refute function_exported?(SplitRawModule, :__kinda_declaration_surfaces__, 0)
+    refute Code.ensure_loaded?(SplitPublicModule.Raw)
+
+    assert catch_error(SplitPublicModule.invoke_dirty_cpu(:engine)) == :not_loaded
+  end
+
+  test "split surfaces call the raw module directly and keep kind NIF names fully qualified" do
+    root = Module.concat(__MODULE__, SplitRoot)
+    raw_module = Module.concat(__MODULE__, SplitRaw)
+
+    decls =
+      CodeGen.nif_decls(
+        [%Kinda.CodeGen.KindDecl{module_name: Module.concat(__MODULE__, Kind)}],
+        [%NIFDecl{wrapper_name: :invoke, params: [:value]}],
+        root
+      )
+
+    {public_ast, _public_exports} =
+      CodeGen.public_nif_ast_from_decls(decls, raw_module, Codec)
+
+    {raw_ast, _raw_exports} = CodeGen.raw_nif_ast_from_decls(decls)
+
+    public_string = public_ast |> then(&{:__block__, [], &1}) |> Macro.to_string()
+    raw_string = raw_ast |> then(&{:__block__, [], &1}) |> Macro.to_string()
+
+    assert public_string =~ "SplitRaw.invoke(Kinda.unwrap_ref(value))"
+    refute public_string =~ "defmodule Raw"
+    refute public_string =~ "Kind.make"
+
+    assert raw_string =~ "def invoke(value)"
+    assert raw_string =~ ~s(def Elixir.Kinda.CodeGenTest.Kind.make)
+    refute raw_string =~ "SplitRoot"
   end
 
   test "emits generated record type aliases from declaration manifests" do

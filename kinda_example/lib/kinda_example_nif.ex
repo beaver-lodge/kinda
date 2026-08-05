@@ -1,11 +1,9 @@
-defmodule KindaExample.NIF do
-  @nifs use Kinda.CodeGen,
-          with: KindaExample.CodeGen,
-          root: __MODULE__,
-          codec: KindaExample.Native
-  defmodule CInt do
-    use Kinda.ResourceKind, raw_module: KindaExample.NIF.Raw, codec: KindaExample.Native
-  end
+defmodule KindaExample.NIF.Raw do
+  use Kinda.CodeGen,
+    with: KindaExample.CodeGen,
+    root: KindaExample.NIF,
+    codec: KindaExample.Native,
+    surface: :raw
 
   for path <-
         Path.wildcard("native/c-src/**/*.h") ++
@@ -13,10 +11,6 @@ defmodule KindaExample.NIF do
           Path.wildcard("../src/**/*.zig") ++
           ["../build.zig", "../build.example.zig"] do
     @external_resource path
-  end
-
-  defmodule StrInt do
-    use Kinda.ResourceKind, raw_module: KindaExample.NIF.Raw, codec: KindaExample.Native
   end
 
   @on_load :load_nif
@@ -33,5 +27,22 @@ defmodule KindaExample.NIF do
       {:error, {:reload, _}} -> :ok
       {:error, reason} -> IO.puts("Failed to load nif: #{inspect(reason)}")
     end
+  end
+end
+
+defmodule KindaExample.NIF do
+  use Kinda.CodeGen,
+    with: KindaExample.CodeGen,
+    root: __MODULE__,
+    raw_module: __MODULE__.Raw,
+    codec: KindaExample.Native,
+    surface: :public
+
+  defmodule CInt do
+    use Kinda.ResourceKind, raw_module: KindaExample.NIF.Raw, codec: KindaExample.Native
+  end
+
+  defmodule StrInt do
+    use Kinda.ResourceKind, raw_module: KindaExample.NIF.Raw, codec: KindaExample.Native
   end
 end

@@ -18,10 +18,10 @@ defmodule KindaExampleTest do
              NIF.CInt.make(100)
              |> Native.to_term()
 
-    e = catch_error(NIF."Elixir.KindaExample.NIF.StrInt.make"(1))
+    e = catch_error(NIF.Raw."Elixir.KindaExample.NIF.StrInt.make"(1))
     assert Exception.message(e) =~ "Function clause error\n"
 
-    err = catch_error(NIF."Elixir.KindaExample.NIF.StrInt.make"(1))
+    err = catch_error(NIF.Raw."Elixir.KindaExample.NIF.StrInt.make"(1))
     # only test this on macOS, it will crash on Linux
     txt = Exception.message(err)
 
@@ -30,10 +30,10 @@ defmodule KindaExampleTest do
     assert match?(%Kinda.CallError{message: "Function clause error"}, err)
 
     assert 1 ==
-             NIF."Elixir.KindaExample.NIF.StrInt.make"("1")
-             |> NIF."Elixir.KindaExample.NIF.CInt.primitive"()
+             NIF.Raw."Elixir.KindaExample.NIF.StrInt.make"("1")
+             |> NIF.Raw."Elixir.KindaExample.NIF.CInt.primitive"()
 
     %NIF.StrInt{ref: ref} = NIF.StrInt.make("1")
-    assert 1 == ref |> NIF."Elixir.KindaExample.NIF.CInt.primitive"()
+    assert 1 == ref |> NIF.Raw."Elixir.KindaExample.NIF.CInt.primitive"()
   end
 end
