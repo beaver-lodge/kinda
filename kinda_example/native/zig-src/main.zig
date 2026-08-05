@@ -3,9 +3,10 @@ const kinda = @import("kinda");
 const beam = kinda.beam;
 const e = kinda.erl_nif;
 const capi = @import("prelude.zig").c;
-const root_module = "Elixir.KindaExample.NIF";
+const public_module = "Elixir.KindaExample.NIF";
+const root_module = public_module ++ ".Raw";
 const Kinds = struct {
-    const CInt = kinda.ResourceKind(c_int, root_module ++ ".CInt");
+    const CInt = kinda.ResourceKind(c_int, public_module ++ ".CInt");
     const StrInt = kinda.ResourceKind(extern struct {
         i: c_int = 0,
         fn make(env: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
@@ -14,7 +15,7 @@ const Kinds = struct {
             return CInt.resource.make(env, integer) catch return beam.Error.@"Fail to make resource";
         }
         pub const maker = .{ make, 1 };
-    }, root_module ++ ".StrInt");
+    }, public_module ++ ".StrInt");
     const All = .{ CInt, StrInt };
     fn open(env: beam.env) void {
         inline for (All) |k| {
@@ -24,7 +25,7 @@ const Kinds = struct {
 };
 
 const all_nifs = .{
-    kinda.NIFFunc(Kinds.All, capi, "kinda_example_add", .{ .nif_name = "Elixir.KindaExample.NIF.kinda_example_add" }),
+    kinda.NIFFunc(Kinds.All, capi, "kinda_example_add", .{}),
 } ++ Kinds.CInt.nifs ++ Kinds.StrInt.nifs;
 pub export var nifs: [all_nifs.len]e.ErlNifFunc = all_nifs;
 

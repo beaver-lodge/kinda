@@ -14,6 +14,8 @@ defmodule Kinda.CodeGen.DeclarationSurfaces do
 
   @spec load_source(module()) :: source_declaration_manifest()
   def load_source(mod) when is_atom(mod) do
+    Code.ensure_loaded!(mod)
+
     if function_exported?(mod, :declaration_manifest, 0) do
       mod.declaration_manifest() |> DeclarationManifest.load!()
     else

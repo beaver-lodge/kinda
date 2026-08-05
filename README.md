@@ -137,11 +137,27 @@ defmodule Foo.Native do
   use Kinda.Codec
 end
 
+defmodule Foo.CAPI.Raw do
+  use Kinda.CodeGen,
+    with: Foo.Generated,
+    root: Foo.CAPI,
+    codec: Foo.Native,
+    surface: :raw
+
+  @on_load :load_nif
+
+  def load_nif do
+    :erlang.load_nif(~c"path/to/foo_nif", 0)
+  end
+end
+
 defmodule Foo.CAPI do
   use Kinda.CodeGen,
     with: Foo.Generated,
     root: __MODULE__,
-    codec: Foo.Native
+    raw_module: __MODULE__.Raw,
+    codec: Foo.Native,
+    surface: :public
 end
 
 defmodule Foo.Handle do
@@ -153,7 +169,10 @@ end
 
 Generated public wrappers call concrete functions in `Foo.CAPI.Raw`, unwrap
 resource arguments, and pass only the returned value through `Foo.Native`.
-The codec never selects a native function.
+The codec never selects a native function. Keeping `:public` wrappers and
+`:raw` NIF stubs in separate modules lets large bindings compile both surfaces
+independently and avoids a generated proxy layer. The raw module owns NIF
+loading, so the native entry module must be `Elixir.Foo.CAPI.Raw`.
 
 Generated `use Kinda.CodeGen` modules now expose one formalized declaration
 surface from the same typed source:
