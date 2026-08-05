@@ -88,7 +88,7 @@ Core runtime/building blocks:
 - `Kinda.ResourceKind`
 - `Kinda.CodeGen`
 - `Kinda.Precompiler`
-- `Kinda.Forwarder`
+- `Kinda.Codec`
 
 Wrapper extraction/generation blocks:
 
@@ -127,30 +127,31 @@ For a large binding, this is the important compression:
 
 ## Quick Example
 
-Define a root runtime adapter and a resource kind:
+Define a boundary codec, generate the raw NIF surface, and bind a resource kind
+directly to it:
 
 ```elixir
 defmodule Foo.Native do
-  use Kinda.Forwarder, nif_module: Foo.NIF
+  use Kinda.Codec
 end
 
-defmodule Foo.Handle do
-  use Kinda.ResourceKind, forward_module: Foo.Native
-end
-```
-
-Generate NIF-facing stubs from kinds and declarations:
-
-```elixir
 defmodule Foo.CAPI do
   use Kinda.CodeGen,
     with: Foo.Generated,
     root: __MODULE__,
-    forward: Foo.Native
+    codec: Foo.Native
+end
+
+defmodule Foo.Handle do
+  use Kinda.ResourceKind,
+    raw_module: Foo.CAPI.Raw,
+    codec: Foo.Native
 end
 ```
 
-This is the older `ResourceKind + CodeGen` side of `kinda`.
+Generated public wrappers call concrete functions in `Foo.CAPI.Raw`, unwrap
+resource arguments, and pass only the returned value through `Foo.Native`.
+The codec never selects a native function.
 
 Generated `use Kinda.CodeGen` modules now expose one formalized declaration
 surface from the same typed source:
@@ -446,8 +447,6 @@ Kinda is not yet a Rustler-complete framework.
 
 What is still missing:
 
-- a richer productized forwarder/runtime layer beyond the first
-  `Kinda.Forwarder` slice
 - callback bridge runtime implementation
 - richer scheduler-aware NIF declaration surface
 - a complete prebuilt/download/checksum story

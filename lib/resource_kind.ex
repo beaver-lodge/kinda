@@ -1,8 +1,17 @@
 defmodule Kinda.ResourceKind do
+  @moduledoc """
+  Defines a typed wrapper for a resource-backed native kind.
+
+  `raw_module:` identifies the generated raw NIF surface. `codec:` selects the
+  returned-value normalizer and defaults to `Kinda.Codec`.
+  """
+
   defmacro __using__(opts) do
-    forward_module = Keyword.fetch!(opts, :forward_module)
+    raw_module = Keyword.fetch!(opts, :raw_module)
+    codec = Keyword.get(opts, :codec, Kinda.Codec)
     fields = Keyword.get(opts, :fields) || []
     gen_spec = Keyword.get(opts, :gen_spec, true)
+    make_function = Module.concat(__CALLER__.module, :make)
 
     spec =
       if gen_spec do
@@ -18,7 +27,9 @@ defmodule Kinda.ResourceKind do
 
       def make(value) do
         %__MODULE__{
-          ref: Kinda.Forwarder.call_kind(unquote(forward_module), __MODULE__, :make, [value])
+          ref:
+            unquote(raw_module).unquote(make_function)(Kinda.unwrap_ref(value))
+            |> unquote(codec).normalize()
         }
       end
 

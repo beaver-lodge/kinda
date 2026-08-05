@@ -44,8 +44,8 @@ defmodule Kinda.CodeGenTest do
     def declaration_manifest, do: Path.expand("../fixtures/declaration_manifest.ex", __DIR__)
   end
 
-  defmodule Forward do
-    def check!(value), do: value
+  defmodule Codec do
+    def normalize(value), do: value
   end
 
   defmodule CanonicalManifestDecls do
@@ -61,21 +61,21 @@ defmodule Kinda.CodeGenTest do
     use Kinda.CodeGen,
       with: Kinda.CodeGenTest.GeneratedDecls,
       root: Kinda.CodeGenTest.GeneratedModule,
-      forward: Kinda.CodeGenTest.Forward
+      codec: Kinda.CodeGenTest.Codec
   end
 
   defmodule ManifestBackedModule do
     use Kinda.CodeGen,
       with: Kinda.CodeGenTest.ManifestBackedDecls,
       root: Kinda.CodeGenTest.ManifestBackedModule,
-      forward: Kinda.CodeGenTest.Forward
+      codec: Kinda.CodeGenTest.Codec
   end
 
   defmodule CanonicalManifestModule do
     use Kinda.CodeGen,
       with: Kinda.CodeGenTest.CanonicalManifestDecls,
       root: Kinda.CodeGenTest.CanonicalManifestModule,
-      forward: Kinda.CodeGenTest.Forward
+      codec: Kinda.CodeGenTest.Codec
   end
 
   test "emits docs on generated public wrappers" do
@@ -92,7 +92,7 @@ defmodule Kinda.CodeGenTest do
           }
         ],
         Module.concat(__MODULE__, GeneratedDocs),
-        Forward
+        Codec
       )
 
     ast_string = ast |> then(&{:__block__, [], &1}) |> Macro.to_string()
@@ -102,7 +102,9 @@ defmodule Kinda.CodeGenTest do
     assert ast_string =~ "defmodule Raw"
     assert ast_string =~ "def mlirFoo(ctx)"
     assert ast_string =~ "GeneratedDocs.Raw"
-    assert ast_string =~ "Kinda.Forwarder.invoke_public_nif"
+    assert ast_string =~ "GeneratedDocs.Raw.mlirFoo(Kinda.unwrap_ref(ctx))"
+    assert ast_string =~ "Kinda.CodeGenTest.Codec.normalize()"
+    refute ast_string =~ "apply("
   end
 
   test "emits generated record type aliases from declaration manifests" do
@@ -329,13 +331,17 @@ defmodule Kinda.CodeGenTest do
         [%Kinda.CodeGen.KindDecl{module_name: Module.concat(__MODULE__, Kind)}],
         [],
         Module.concat(__MODULE__, GeneratedKinds),
-        Forward
+        Codec
       )
 
     ast_string = ast |> then(&{:__block__, [], &1}) |> Macro.to_string()
 
     assert ast_string =~ "defmodule Raw"
     assert ast_string =~ ~s(def Elixir.Kinda.CodeGenTest.Kind.make)
-    assert ast_string =~ ~s(apply(Kinda.CodeGenTest.GeneratedKinds)
+
+    assert ast_string =~
+             ~s(Kinda.CodeGenTest.GeneratedKinds."Elixir.Kinda.CodeGenTest.Kind.make")
+
+    refute ast_string =~ "apply("
   end
 end
