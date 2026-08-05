@@ -5,7 +5,7 @@ defmodule KindaExample.MixProject do
     [
       app: :kinda_example,
       version: "0.1.0-dev",
-      elixir: "~> 1.9",
+      elixir: "~> 1.14",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       compilers: [:elixir_make] ++ Mix.compilers()
@@ -32,6 +32,4 @@ defmodule KindaExample.MixProject do
       # {:dep_from_git, git: "https://github.com/elixir-lang/my_dep.git", tag: "0.1.0"}
     ]
   end
-
-  require Logger
 end

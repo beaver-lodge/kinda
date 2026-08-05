@@ -128,10 +128,6 @@ defmodule Kinda.CodeGen.KindDecl do
     {:ok, "c." <> Atom.to_string(t)}
   end
 
-  defp dump_zig_type(t) when is_atom(t) do
-    {:ok, "c." <> Atom.to_string(t)}
-  end
-
   defp dump_zig_type(_t) do
     :error
   end
