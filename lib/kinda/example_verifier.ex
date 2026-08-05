@@ -19,25 +19,13 @@ defmodule Kinda.ExampleVerifier do
     runner = Keyword.get(opts, :command_runner, Kinda.SystemCommandRunner)
     env = command_env(opts)
 
-    maybe_sync_deps(root, runner, env)
+    sync_deps(root, runner, env)
     run_step(runner, "mix", ["test", "--force"], cd: root, env: env)
   end
 
-  @spec maybe_sync_deps(Path.t(), command_runner(), keyword()) :: :ok | no_return()
-  def maybe_sync_deps(root, runner, env) do
-    if needs_deps_sync?(root) do
-      run_step(runner, "mix", ["deps.get"], cd: root, env: env)
-    else
-      :ok
-    end
-  end
-
-  @spec needs_deps_sync?(Path.t()) :: boolean()
-  def needs_deps_sync?(root) do
-    lock_path = Path.join(root, "mix.lock")
-    deps_dir = Path.join(root, "deps")
-
-    not (File.exists?(lock_path) and File.dir?(deps_dir))
+  @spec sync_deps(Path.t(), command_runner(), keyword()) :: :ok | no_return()
+  def sync_deps(root, runner, env) do
+    run_step(runner, "mix", ["deps.get"], cd: root, env: env)
   end
 
   @spec command_env(keyword()) :: [{String.t(), String.t()}]

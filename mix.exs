@@ -5,7 +5,7 @@ defmodule Kinda.MixProject do
     [
       app: :kinda,
       version: "0.11.0-dev",
-      elixir: "~> 1.9",
+      elixir: "~> 1.14",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       description: description(),
@@ -24,7 +24,8 @@ defmodule Kinda.MixProject do
   defp deps do
     [
       {:ex_doc, ">= 0.0.0", only: :dev, runtime: false},
-      {:elixir_make, "~> 0.4", runtime: false}
+      {:elixir_make, "~> 0.4", runtime: false},
+      {:jason, "~> 1.4"}
     ]
   end
 

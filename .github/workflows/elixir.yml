@@ -21,14 +21,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runs-on: ["ubuntu-22.04"]
-        otp: ["24.2", "25.0"]
-        elixir: ["1.13.0", "1.16.2", "1.18.0"]
-        exclude:
-          - otp: "24.2"
+        include:
+          - runs-on: "ubuntu-22.04"
+            otp: "24.2"
+            elixir: "1.14.0"
+          - runs-on: "ubuntu-22.04"
+            otp: "27.0.1"
             elixir: "1.18.0"
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - uses: erlef/setup-beam@v1
         with:
           otp-version: ${{matrix.otp}}
@@ -39,13 +40,13 @@ jobs:
           version: 0.16.0
       - uses: seanmiddleditch/gha-setup-ninja@master
       - name: Restore dependencies cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: deps
           key: ${{ runner.os }}-mix-kinda-${{ hashFiles('**/mix.lock') }}
           restore-keys: ${{ runner.os }}-mix-kinda-
       - name: Restore dependencies cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ./kinda_example/deps
           key: ${{ runner.os }}-mix-example-${{ hashFiles('**/mix.exs') }}
@@ -53,6 +54,7 @@ jobs:
       - name: Install dependencies
         run: mix deps.get
       - name: Check formatting of Elixir
+        if: matrix.elixir == '1.18.0'
         run: mix format --check-formatted
       - name: Run root verifier
         run: |
@@ -61,9 +63,11 @@ jobs:
         working-directory: ./kinda_example
         run: mix deps.get
       - name: Check formatting of Elixir
+        if: matrix.elixir == '1.18.0'
         working-directory: ./kinda_example
         run: mix format --check-formatted
       - name: Check formatting of Zig
+        if: matrix.elixir == '1.18.0'
         run: |
           zig fmt --check src
           zig fmt --check kinda_example/native/zig-src

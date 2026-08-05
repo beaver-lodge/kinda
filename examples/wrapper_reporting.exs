@@ -7,6 +7,6 @@ deps =
     deps
   end
 
-Mix.install(deps)
+Mix.install(deps, force: true)
 
 Kinda.Wrapper.Example.run()

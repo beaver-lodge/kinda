@@ -24,7 +24,7 @@ defmodule Kinda.ExampleVerifierTest do
            |> Path.basename() == "kinda_example"
   end
 
-  test "skips deps sync when lockfile and deps directory are present" do
+  test "syncs deps when lockfile and deps directory are present" do
     root = make_tmp_dir()
     File.write!(Path.join(root, "mix.lock"), "%{}")
     File.mkdir_p!(Path.join(root, "deps"))
@@ -37,6 +37,7 @@ defmodule Kinda.ExampleVerifierTest do
              )
 
     assert [
+             %{command: "mix", args: ["deps.get"]},
              %{command: "mix", args: ["test", "--force"]}
            ] = Process.get(:example_verifier_calls)
   end
