@@ -50,8 +50,7 @@ run:
 mix kinda.verify
 ```
 
-This is also the root verifier used by the checked-in `.restraint.exs`, and it
-is the command CI should prefer for repo-level verification.
+This is the command CI should prefer for repo-level verification.
 
 If you only want the bundled application example from the repo root, run:
 
