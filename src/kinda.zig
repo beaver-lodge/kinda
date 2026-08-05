@@ -5,6 +5,7 @@ pub const erl_nif = @cImport({
 const e = erl_nif;
 const std = @import("std");
 pub const result = @import("result.zig");
+pub const callback_runtime = @import("callback_runtime.zig");
 
 // a function to make a resource term from a u8 slice.
 const OpaqueMaker: type = fn (beam.env, []u8) beam.term;

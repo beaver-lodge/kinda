@@ -89,6 +89,8 @@ Core runtime/building blocks:
 - `Kinda.CodeGen`
 - `Kinda.Precompiler`
 - `Kinda.Codec`
+- `Kinda.CallbackRuntime` for the common BEAM callback/reply boundary
+- `kinda.callback_runtime` for Zig-side native-thread callbacks into BEAM
 
 Wrapper extraction/generation blocks:
 
@@ -103,7 +105,7 @@ That means `kinda` now has an explicit split between:
 
 1. generic wrapper extraction/generation
 2. consumer-owned policy
-3. future callback-bridge backlog
+3. callback-bridge backlog and runtime substrate
 
 ## Mental Model
 
@@ -297,8 +299,8 @@ Kinda.Wrapper.CallbackBridge.required(:some_function,
 )
 ```
 
-This is intentionally not the runtime bridge yet.
-It is the framework-owned metadata layer that lets a consumer say:
+This metadata does not emit a runtime bridge automatically. It is the
+framework-owned policy layer that lets a consumer say:
 
 - this API is not “missing”
 - this API belongs to the callback-bridge backlog
@@ -307,6 +309,51 @@ Pure kind-surface gaps belong to a different path. In a consumer such as
 `beaver`, handle-like CAPIs are often unblocked by extending the Zig-side kind
 surface and the matching Elixir `KindDecl` surface; callback-bridge metadata is
 specifically for the remainder that kind-surface sync cannot solve.
+
+## Callback Runtime
+
+Consumers can implement those callback bridges with the generic Zig runtime:
+
+```zig
+const kinda = @import("kinda");
+const Dispatcher = kinda.callback_runtime.Dispatcher(.{ "run", "destruct" });
+
+const dispatcher = try Dispatcher.init(handler_pid);
+dispatcher.setCallback("run", run_callback_term);
+const response = try dispatcher.invoke("run", message_env, .{argument_term});
+```
+
+On the BEAM side, the consumer supplies its own reply NIF while Kinda
+normalizes success, expected failure, and exceptions:
+
+```elixir
+Kinda.CallbackRuntime.invoke(
+  reply_token,
+  fn -> {:ok, run_callback.()} end,
+  &MyNative.my_raw_callback_reply/2
+)
+```
+
+The consuming NIF library exports and opens the shared reply resource:
+
+```zig
+const callback_nifs = .{
+    kinda.callback_runtime.ReplyToken.nif("my_raw_callback_reply"),
+};
+
+export fn nif_load(env: kinda.beam.env, _: [*c]?*anyopaque, _: kinda.beam.term) c_int {
+    kinda.callback_runtime.ReplyToken.open(env);
+    return 0;
+}
+```
+
+`Dispatcher` owns copied callback terms and its persistent environment. Each
+invocation sends
+`{callback_name, reply_token, callback_fun, dispatcher_id, ...args}`, then
+waits on a non-scheduler native thread. The process replying through the
+consumer-exported NIF becomes the next callback owner. Native callback
+signatures, argument conversion, domain state, and diagnostics remain the
+consumer's responsibility.
 
 ## Reporting Surface
 
@@ -447,7 +494,7 @@ Kinda is not yet a Rustler-complete framework.
 
 What is still missing:
 
-- callback bridge runtime implementation
+- policy-driven generation from callback metadata to runtime adapters
 - richer scheduler-aware NIF declaration surface
 - a complete prebuilt/download/checksum story
 - a more polished one-command reporting UX
