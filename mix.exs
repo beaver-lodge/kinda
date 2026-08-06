@@ -9,6 +9,7 @@ defmodule Kinda.MixProject do
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       description: description(),
+      docs: docs(),
       package: package()
     ]
   end
@@ -33,12 +34,64 @@ defmodule Kinda.MixProject do
     "Bind a C library to BEAM with Zig."
   end
 
+  defp docs do
+    [
+      main: "Kinda",
+      source_url: "https://github.com/beaver-lodge/kinda",
+      homepage_url: "https://github.com/beaver-lodge/kinda",
+      extras: ["README.md"] ++ Path.wildcard("docs/*.md"),
+      filter_modules: fn module, _metadata ->
+        not String.starts_with?(Atom.to_string(module), "Mix.Tasks.")
+      end,
+      groups_for_modules: [
+        Core: [
+          Kinda,
+          Kinda.CallError,
+          Kinda.CallbackRuntime,
+          Kinda.Codec,
+          Kinda.Declaration,
+          Kinda.ResourceKind
+        ],
+        Codegen: [
+          Kinda.CodeGen,
+          Kinda.CodeGen.DeclarationManifest,
+          Kinda.CodeGen.DeclarationSurfaces,
+          Kinda.CodeGen.KindDecl,
+          Kinda.CodeGen.NIFDecl,
+          Kinda.CodeGen.TypeDecl,
+          Kinda.CodeGen.TypeSpecRef
+        ],
+        "Wrapper extraction": [
+          Kinda.Wrapper.CField,
+          Kinda.Wrapper.CRecord,
+          Kinda.Wrapper.CType,
+          Kinda.Wrapper.CallbackBridge,
+          Kinda.Wrapper.Example,
+          Kinda.Wrapper.Extract,
+          Kinda.Wrapper.Function,
+          Kinda.Wrapper.Generate,
+          Kinda.Wrapper.Manifest,
+          Kinda.Wrapper.Policy
+        ],
+        Verification: [
+          Kinda.ExampleVerifier,
+          Kinda.RootVerifier
+        ],
+        Precompilation: [
+          Kinda.Prebuilt.Meta,
+          Kinda.Precompiler
+        ]
+      ]
+    ]
+  end
+
   defp package() do
     [
       licenses: ["Apache-2.0"],
-      links: %{"GitHub" => "https://github.com/beaver-project/kinda"},
+      links: %{"GitHub" => "https://github.com/beaver-lodge/kinda"},
       files: ~w{
         lib .formatter.exs mix.exs README*
+        docs/*.md
         src/*.zig build.zig build.zig.zon
         scripts/gdb.sh
       }

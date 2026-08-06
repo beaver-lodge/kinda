@@ -1,5 +1,14 @@
 defmodule Kinda.CodeGen.DeclarationManifest do
-  @moduledoc false
+  @moduledoc """
+  A versioned declaration manifest for generated NIFs and types.
+
+  A manifest bundles generated NIF declarations (`Kinda.CodeGen.NIFDecl`) and
+  type declarations (`Kinda.CodeGen.TypeDecl`), optionally keeping the source
+  signature manifest they were derived from. Manifests are the canonical
+  machine-readable contract between Kinda's codegen pipeline and downstream
+  consumers, and can be serialized to and from maps as well as loaded from
+  `.ex` or `.json` files via `load!/1`.
+  """
 
   alias Kinda.CodeGen.NIFDecl
   alias Kinda.CodeGen.TypeDecl

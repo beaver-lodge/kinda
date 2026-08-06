@@ -1,4 +1,13 @@
 defmodule Kinda.CodeGen.KindDecl do
+  @moduledoc """
+  A kind declaration describing the Zig type of a generated NIF value.
+
+  Kinds map a Zig type to the module name of its Elixir resource wrapper, plus
+  the set of NIF functions the resource kind exposes. `default/2` derives a
+  kind from a primitive, C or opaque type, and `gen_resource_kind/1` emits the
+  Zig resource kind declaration.
+  """
+
   require Logger
 
   @primitive_types ~w{

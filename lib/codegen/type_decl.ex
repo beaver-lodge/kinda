@@ -1,5 +1,11 @@
 defmodule Kinda.CodeGen.TypeDecl do
-  @moduledoc false
+  @moduledoc """
+  A generated type declaration.
+
+  Type declarations are projected from the `"records"` entries of a signature
+  manifest into typed record projections (`Kinda.CodeGen.TypeSpecRef`), and
+  can be round-tripped to and from manifest maps.
+  """
 
   alias Kinda.CodeGen.TypeSpecRef
 

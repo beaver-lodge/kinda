@@ -1,5 +1,12 @@
 defmodule Kinda.CodeGen.DeclarationSurfaces do
-  @moduledoc false
+  @moduledoc """
+  The resolved declaration surfaces of a generator module.
+
+  `from_generator/2` loads a generator module's declaration source (a module
+  implementing `declaration_manifest/0` and optionally `kinds/0`) and resolves
+  it into the source declaration manifest and the final declaration manifest,
+  normalizing NIF declarations and merging the NIFs implied by resource kinds.
+  """
 
   alias Kinda.CodeGen.{DeclarationManifest, NIFDecl, TypeDecl}
 

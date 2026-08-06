@@ -1,5 +1,12 @@
 defmodule Kinda.CodeGen.TypeSpecRef do
-  @moduledoc false
+  @moduledoc """
+  A small embedded DSL describing typespecs in declaration manifests.
+
+  Typespecs are plain terms: builtins (`:term`, `:integer`, ...), remote
+  module types, lists, maps, tuples and unions. `to_quoted/1` lowers them into
+  quoted Elixir typespecs, and `to_manifest/1` / `from_manifest/1` round-trip
+  them through the JSON-compatible manifest format.
+  """
 
   @type map_key() :: atom() | String.t()
   @type builtin() :: :term | :integer | :float | :boolean | :binary | :atom | :ok
