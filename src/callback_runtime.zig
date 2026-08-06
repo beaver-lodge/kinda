@@ -8,10 +8,39 @@
 //! resource used to complete an invocation.
 
 const std = @import("std");
+const builtin = @import("builtin");
 const kinda = @import("kinda.zig");
 const beam = kinda.beam;
 const e = kinda.erl_nif;
 const result = kinda.result;
+const windows = std.os.windows;
+
+const INFINITE: u32 = 0xffff_ffff;
+
+extern "kernel32" fn AcquireSRWLockExclusive(srwlock: *windows.SRWLOCK) void;
+extern "kernel32" fn ReleaseSRWLockExclusive(srwlock: *windows.SRWLOCK) void;
+extern "kernel32" fn SleepConditionVariableSRW(
+    cond: *windows.CONDITION_VARIABLE,
+    srwlock: *windows.SRWLOCK,
+    timeout_ms: u32,
+    flags: u32,
+) windows.BOOL;
+extern "kernel32" fn WakeConditionVariable(cond: *windows.CONDITION_VARIABLE) void;
+extern "kernel32" fn GetTickCount64() u64;
+
+const Mutex = if (builtin.os.tag == .windows)
+    struct {
+        srw: windows.SRWLOCK = .{},
+    }
+else
+    std.c.pthread_mutex_t;
+
+const Condition = if (builtin.os.tag == .windows)
+    struct {
+        cond: windows.CONDITION_VARIABLE = .{},
+    }
+else
+    std.c.pthread_cond_t;
 
 pub const Response = struct {
     success: bool,
@@ -93,8 +122,8 @@ pub const ReplyToken = struct {
     };
 
     const State = struct {
-        mutex: std.c.pthread_mutex_t = std.c.PTHREAD_MUTEX_INITIALIZER,
-        condition: std.c.pthread_cond_t = std.c.PTHREAD_COND_INITIALIZER,
+        mutex: Mutex = .{},
+        condition: Condition = .{},
         references: std.atomic.Value(usize) = .init(2),
         done: bool = false,
         success: bool = false,
@@ -126,20 +155,52 @@ pub const ReplyToken = struct {
             defer self.unlock();
 
             if (timeout_ms) |milliseconds| {
-                const deadline = deadlineFromNow(milliseconds);
-                while (!self.done) {
-                    switch (std.c.pthread_cond_timedwait(&self.condition, &self.mutex, &deadline)) {
-                        .SUCCESS => {},
-                        .TIMEDOUT => {
+                if (builtin.os.tag == .windows) {
+                    const deadline = std.math.add(u64, GetTickCount64(), milliseconds) catch
+                        std.math.maxInt(u64);
+                    while (!self.done) {
+                        const now = GetTickCount64();
+                        const remaining = if (deadline > now) deadline - now else 0;
+                        if (remaining == 0) {
                             if (!self.done) self.finishLocked(.timed_out, false, 0, 0, null);
-                        },
-                        else => @panic("callback reply condition wait failed"),
+                            break;
+                        }
+                        const slept = SleepConditionVariableSRW(
+                            &self.condition.cond,
+                            &self.mutex.srw,
+                            @intCast(@min(remaining, std.math.maxInt(u32))),
+                            0,
+                        );
+                        if (slept == .FALSE) {
+                            if (!self.done) self.finishLocked(.timed_out, false, 0, 0, null);
+                            break;
+                        }
+                    }
+                } else {
+                    const deadline = deadlineFromNow(milliseconds);
+                    while (!self.done) {
+                        switch (std.c.pthread_cond_timedwait(&self.condition, &self.mutex, &deadline)) {
+                            .SUCCESS => {},
+                            .TIMEDOUT => {
+                                if (!self.done) self.finishLocked(.timed_out, false, 0, 0, null);
+                            },
+                            else => @panic("callback reply condition wait failed"),
+                        }
                     }
                 }
             } else {
                 while (!self.done) {
-                    if (std.c.pthread_cond_wait(&self.condition, &self.mutex) != .SUCCESS)
-                        @panic("callback reply condition wait failed");
+                    if (builtin.os.tag == .windows) {
+                        _ = SleepConditionVariableSRW(
+                            &self.condition.cond,
+                            &self.mutex.srw,
+                            INFINITE,
+                            0,
+                        );
+                    } else {
+                        if (std.c.pthread_cond_wait(&self.condition, &self.mutex) != .SUCCESS)
+                            @panic("callback reply condition wait failed");
+                    }
                 }
             }
 
@@ -159,8 +220,12 @@ pub const ReplyToken = struct {
 
             if (self.done) return false;
             self.finishLocked(status, success, code, projection, caller);
-            if (std.c.pthread_cond_signal(&self.condition) != .SUCCESS)
-                @panic("callback reply condition signal failed");
+            if (builtin.os.tag == .windows) {
+                WakeConditionVariable(&self.condition.cond);
+            } else {
+                if (std.c.pthread_cond_signal(&self.condition) != .SUCCESS)
+                    @panic("callback reply condition signal failed");
+            }
             return true;
         }
 
@@ -182,22 +247,32 @@ pub const ReplyToken = struct {
 
         fn release(self: *State) void {
             if (self.references.fetchSub(1, .acq_rel) == 1) {
-                if (std.c.pthread_cond_destroy(&self.condition) != .SUCCESS)
-                    @panic("failed to destroy callback reply condition");
-                if (std.c.pthread_mutex_destroy(&self.mutex) != .SUCCESS)
-                    @panic("failed to destroy callback reply mutex");
+                if (builtin.os.tag != .windows) {
+                    if (std.c.pthread_cond_destroy(&self.condition) != .SUCCESS)
+                        @panic("failed to destroy callback reply condition");
+                    if (std.c.pthread_mutex_destroy(&self.mutex) != .SUCCESS)
+                        @panic("failed to destroy callback reply mutex");
+                }
                 std.heap.smp_allocator.destroy(self);
             }
         }
 
         fn lock(self: *State) void {
-            if (std.c.pthread_mutex_lock(&self.mutex) != .SUCCESS)
-                @panic("failed to lock callback reply mutex");
+            if (builtin.os.tag == .windows) {
+                AcquireSRWLockExclusive(&self.mutex.srw);
+            } else {
+                if (std.c.pthread_mutex_lock(&self.mutex) != .SUCCESS)
+                    @panic("failed to lock callback reply mutex");
+            }
         }
 
         fn unlock(self: *State) void {
-            if (std.c.pthread_mutex_unlock(&self.mutex) != .SUCCESS)
-                @panic("failed to unlock callback reply mutex");
+            if (builtin.os.tag == .windows) {
+                ReleaseSRWLockExclusive(&self.mutex.srw);
+            } else {
+                if (std.c.pthread_mutex_unlock(&self.mutex) != .SUCCESS)
+                    @panic("failed to unlock callback reply mutex");
+            }
         }
 
         fn deadlineFromNow(milliseconds: u64) std.c.timespec {
