@@ -9,6 +9,12 @@ defmodule Kinda.Precompiler do
 
   @behaviour ElixirMake.Precompiler
 
+  def current_target({:win32, _}) do
+    # OTP reports the architecture as "win32" on all 64-bit Windows builds.
+    # Zig-style triples are used for prebuilt asset naming.
+    {:ok, "x86_64-windows-msvc"}
+  end
+
   def current_target({:unix, _}) do
     # get current target triplet from `:erlang.system_info/1`
     system_architecture = to_string(:erlang.system_info(:system_architecture))
@@ -50,6 +56,7 @@ defmodule Kinda.Precompiler do
       x86_64-apple-darwin
       x86_64-linux-gnu
       aarch64-linux-gnu
+      x86_64-windows-msvc
     )
   end
 
