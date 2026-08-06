@@ -3,7 +3,10 @@ const std = @import("std");
 pub fn build(b: *std.Build) !void {
     const kinda = b.addModule(
         "kinda",
-        .{ .root_source_file = b.path("src/kinda.zig") },
+        .{
+            .root_source_file = b.path("src/kinda.zig"),
+            .link_libc = true,
+        },
     );
     // For ZLS integration, add the ERTS include path if not building with elixir_make
     if (b.graph.environ_map.get("ERTS_INCLUDE_DIR") == null) {
