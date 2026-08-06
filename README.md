@@ -79,7 +79,7 @@ The formal plan for how:
 
 fit together is:
 
-- [docs/example-surface-unification-plan.md](/Users/tsai/oss/kinda/docs/example-surface-unification-plan.md:1)
+- [docs/example-surface-unification-plan.md](docs/example-surface-unification-plan.md)
 
 ## What Kinda Ships Today
 
@@ -555,8 +555,6 @@ What is still missing:
 
 - wrapper split plan:
   - [docs/wrapper-extraction-split-plan.md](docs/wrapper-extraction-split-plan.md)
-- real consumer analysis from `beaver`:
-  - [../beaver/docs/kinda-integration-analysis.md](../beaver/docs/kinda-integration-analysis.md)
 
 ## Status
 

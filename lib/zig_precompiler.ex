@@ -1,4 +1,12 @@
 defmodule Kinda.Precompiler do
+  @moduledoc """
+  The `ElixirMake.Precompiler` implementation for Kinda-built NIFs.
+
+  Resolves the current target, supported targets and artifact metadata so
+  consumers can use Kinda-generated NIFs through `elixir_make`'s precompiled
+  artifact flow.
+  """
+
   @behaviour ElixirMake.Precompiler
 
   def current_target({:unix, _}) do

@@ -1,4 +1,13 @@
 defmodule Kinda.CodeGen.NIFDecl do
+  @moduledoc """
+  A generated NIF declaration.
+
+  Describes a NIF's wrapper and NIF names, parameters (as an arity or a list
+  of names), C types, typespecs and dirty scheduler flag, and round-trips to
+  and from the JSON-compatible manifest format. `from_resource_kind/1` expands
+  the standard NIF functions a resource kind is expected to provide.
+  """
+
   alias Kinda.CodeGen.KindDecl
   alias Kinda.CodeGen.TypeSpecRef
   alias Kinda.Wrapper.CType
