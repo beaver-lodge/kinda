@@ -28,8 +28,11 @@ defmodule Kinda.Wrapper.GenerateTest do
             facets: [:beam_callback, :scheduler_contract]
           ),
         qux:
-          Kinda.Wrapper.CallbackBridge.required(:qux,
-            facets: [:beam_callback]
+          Kinda.Wrapper.CallbackBridge.runtime_backed(:qux,
+            owner: :beam_process,
+            destructor: :native_owner,
+            lifetime: :native_owner,
+            facets: [:beam_callback, :lifetime_contract]
           )
       }
     end
@@ -42,6 +45,7 @@ defmodule Kinda.Wrapper.GenerateTest do
       do: [{:normal, :bar, :bar}, {:with_diagnostics, :barWithDiagnostics, :bar}]
 
     def variants(:baz), do: []
+    def variants(:qux), do: [{:normal, :qux, :qux}]
 
     def public_name({_kind, public_name, _base_name}), do: public_name
 
@@ -244,6 +248,19 @@ defmodule Kinda.Wrapper.GenerateTest do
                    "return_ctype" => nil
                  },
                  "generation_blocker_reason" => "callback_bridge_required",
+                 "callback_bridge" => %{
+                   "function" => "baz",
+                   "reason" => "callback_bridge_required",
+                   "unblock_path" => "callback_bridge_runtime",
+                   "scheduler" => "dirty_cpu",
+                   "facets" => ["beam_callback", "scheduler_contract"],
+                   "runtime" => "pending",
+                   "runtime_backed" => false,
+                   "owner" => "unspecified",
+                   "destructor" => "unspecified",
+                   "lifetime" => "unspecified",
+                   "timeout_ms" => nil
+                 },
                  "variants" => []
                },
                %{
@@ -554,7 +571,7 @@ defmodule Kinda.Wrapper.GenerateTest do
     }
 
     assert Generate.callback_bridge_manifest(manifest, FakePolicy) == %{
-             "version" => 1,
+             "version" => 2,
              "entries" => [
                %{
                  "function" => %{
@@ -568,7 +585,13 @@ defmodule Kinda.Wrapper.GenerateTest do
                    "reason" => "callback_bridge_required",
                    "unblock_path" => "callback_bridge_runtime",
                    "scheduler" => "dirty_cpu",
-                   "facets" => ["beam_callback", "scheduler_contract"]
+                   "facets" => ["beam_callback", "scheduler_contract"],
+                   "runtime" => "pending",
+                   "runtime_backed" => false,
+                   "owner" => "unspecified",
+                   "destructor" => "unspecified",
+                   "lifetime" => "unspecified",
+                   "timeout_ms" => nil
                  }
                }
              ]
@@ -592,5 +615,33 @@ defmodule Kinda.Wrapper.GenerateTest do
                }
              ]
            } = Generate.callback_bridge_manifest(manifest, FakePolicy)
+  end
+
+  test "runtime-backed callback bridges remain in the resolved declaration surface" do
+    manifest = %Manifest{
+      functions: [%Function{name: "qux", params: ["value"], arity: 1}]
+    }
+
+    assert Generate.callback_bridge_backlog(manifest, FakePolicy) == []
+
+    assert %{
+             "entries" => [
+               %{
+                 "generation_blocker_reason" => nil,
+                 "callback_bridge" => %{
+                   "runtime" => "dispatcher",
+                   "runtime_backed" => true,
+                   "owner" => "beam_process",
+                   "destructor" => "native_owner",
+                   "lifetime" => "native_owner",
+                   "timeout_ms" => 30_000
+                 },
+                 "variants" => [%{"wrapper_name" => "qux"}]
+               }
+             ]
+           } = Generate.signature_manifest(manifest, FakePolicy)
+
+    assert [%Kinda.CodeGen.NIFDecl{wrapper_name: :qux}] =
+             Generate.elixir_nif_decls(manifest, FakePolicy)
   end
 end

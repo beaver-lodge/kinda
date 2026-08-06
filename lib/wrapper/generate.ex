@@ -77,7 +77,7 @@ defmodule Kinda.Wrapper.Generate do
         }
 
   @type callback_bridge_manifest_function :: %{
-          String.t() => String.t() | non_neg_integer() | [String.t()] | nil
+          String.t() => String.t() | non_neg_integer() | boolean() | [String.t()] | nil
         }
 
   @type callback_bridge_manifest_metadata :: %{
@@ -130,6 +130,7 @@ defmodule Kinda.Wrapper.Generate do
     Enum.flat_map(functions, fn function ->
       case policy.callback_bridge(String.to_atom(function.name)) do
         nil -> []
+        %CallbackBridge{runtime_backed: true} -> []
         callback_bridge -> [%{function: function, callback_bridge: callback_bridge}]
       end
     end)
@@ -145,27 +146,26 @@ defmodule Kinda.Wrapper.Generate do
   @spec callback_bridge_manifest(Manifest.t(), module()) :: callback_bridge_manifest()
   def callback_bridge_manifest(manifest, policy) do
     %{
-      "version" => 1,
+      "version" => 2,
       "entries" =>
-        Enum.map(callback_bridge_backlog(manifest, policy), fn %{
-                                                                 function: function,
-                                                                 callback_bridge: bridge
-                                                               } ->
-          %{
-            "function" => %{
-              "name" => function.name,
-              "arity" => function.arity,
-              "params" => function.params,
-              "doc" => function.doc
-            },
-            "callback_bridge" => %{
-              "function" => Atom.to_string(bridge.function),
-              "reason" => Atom.to_string(bridge.reason),
-              "unblock_path" => Atom.to_string(bridge.unblock_path),
-              "scheduler" => Atom.to_string(bridge.scheduler),
-              "facets" => Enum.map(bridge.facets, &Atom.to_string/1)
-            }
-          }
+        Enum.flat_map(manifest.functions, fn function ->
+          case policy.callback_bridge(String.to_atom(function.name)) do
+            nil ->
+              []
+
+            bridge ->
+              [
+                %{
+                  "function" => %{
+                    "name" => function.name,
+                    "arity" => function.arity,
+                    "params" => function.params,
+                    "doc" => function.doc
+                  },
+                  "callback_bridge" => callback_bridge_to_manifest(bridge)
+                }
+              ]
+          end
         end)
     }
   end
@@ -377,7 +377,7 @@ defmodule Kinda.Wrapper.Generate do
     function_name = String.to_atom(function.name)
     blocker_reason = signature_manifest_blocker_reason(function_name, policy)
 
-    %{
+    entry = %{
       "function" => %{
         "name" => function.name,
         "arity" => function.arity,
@@ -389,6 +389,11 @@ defmodule Kinda.Wrapper.Generate do
       "generation_blocker_reason" => blocker_reason && Atom.to_string(blocker_reason),
       "variants" => signature_manifest_variants(function, function_name, policy)
     }
+
+    case policy.callback_bridge(function_name) do
+      nil -> entry
+      bridge -> Map.put(entry, "callback_bridge", callback_bridge_to_manifest(bridge))
+    end
   end
 
   defp signature_manifest_variants(%Function{} = function, function_name, policy) do
@@ -442,8 +447,25 @@ defmodule Kinda.Wrapper.Generate do
     policy.generation_blocker_reason(function_name) ||
       case policy.callback_bridge(function_name) do
         nil -> nil
+        %CallbackBridge{runtime_backed: true} -> nil
         bridge -> bridge.reason
       end
+  end
+
+  defp callback_bridge_to_manifest(%CallbackBridge{} = bridge) do
+    %{
+      "function" => Atom.to_string(bridge.function),
+      "reason" => bridge.reason && Atom.to_string(bridge.reason),
+      "unblock_path" => bridge.unblock_path && Atom.to_string(bridge.unblock_path),
+      "scheduler" => Atom.to_string(bridge.scheduler),
+      "facets" => Enum.map(bridge.facets, &Atom.to_string/1),
+      "runtime" => Atom.to_string(bridge.runtime),
+      "runtime_backed" => bridge.runtime_backed,
+      "owner" => Atom.to_string(bridge.owner),
+      "destructor" => Atom.to_string(bridge.destructor),
+      "lifetime" => Atom.to_string(bridge.lifetime),
+      "timeout_ms" => bridge.timeout_ms
+    }
   end
 
   defp typespec_field(%CRecord{} = record, %CField{} = field, policy) do

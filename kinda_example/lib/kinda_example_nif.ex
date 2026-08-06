@@ -15,6 +15,22 @@ defmodule KindaExample.NIF.Raw do
 
   @on_load :load_nif
 
+  for {name, arity} <- [
+        callback_fixture_register: 3,
+        callback_fixture_invoke_on_scheduler: 2,
+        callback_fixture_invoke_on_worker: 2,
+        callback_fixture_destroy_on_worker: 1,
+        callback_fixture_stats: 0,
+        callback_fixture_reply_code: 3,
+        callback_fixture_reply_projection: 4,
+        callback_fixture_cancel: 1
+      ] do
+    args = Macro.generate_arguments(arity, __MODULE__)
+
+    def unquote(name)(unquote_splicing(args)),
+      do: :erlang.nif_error({:nif_not_loaded, unquote(name)})
+  end
+
   def load_nif do
     nif_file = ~c"#{:code.priv_dir(:kinda_example)}/lib/libKindaExampleNIF"
 
@@ -44,5 +60,11 @@ defmodule KindaExample.NIF do
 
   defmodule StrInt do
     use Kinda.ResourceKind, raw_module: KindaExample.NIF.Raw, codec: KindaExample.Native
+  end
+
+  defmodule CallbackHandle do
+    defstruct [:ref]
+
+    @type t() :: %__MODULE__{ref: reference()}
   end
 end

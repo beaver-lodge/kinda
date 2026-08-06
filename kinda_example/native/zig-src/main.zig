@@ -3,6 +3,7 @@ const kinda = @import("kinda");
 const beam = kinda.beam;
 const e = kinda.erl_nif;
 const capi = @import("prelude.zig").c;
+const callback_fixture = @import("callback_fixture.zig");
 const public_module = "Elixir.KindaExample.NIF";
 const root_module = public_module ++ ".Raw";
 const Kinds = struct {
@@ -26,7 +27,7 @@ const Kinds = struct {
 
 const all_nifs = .{
     kinda.NIFFunc(Kinds.All, capi, "kinda_example_add", .{}),
-} ++ Kinds.CInt.nifs ++ Kinds.StrInt.nifs;
+} ++ Kinds.CInt.nifs ++ Kinds.StrInt.nifs ++ callback_fixture.nifs;
 pub export var nifs: [all_nifs.len]e.ErlNifFunc = all_nifs;
 
 const entry = e.ErlNifEntry{
@@ -36,9 +37,9 @@ const entry = e.ErlNifEntry{
     .num_of_funcs = nifs.len,
     .funcs = &(nifs[0]),
     .load = nif_load,
-    .reload = null, // currently unsupported
-    .upgrade = null, // currently unsupported
-    .unload = null, // currently unsupported
+    .reload = null,
+    .upgrade = nif_upgrade,
+    .unload = nif_unload,
     .vm_variant = "beam.vanilla",
     .options = 1,
     .sizeof_ErlNifResourceTypeInit = @sizeOf(e.ErlNifResourceTypeInit),
@@ -47,8 +48,21 @@ const entry = e.ErlNifEntry{
 
 export fn nif_load(env: beam.env, _: [*c]?*anyopaque, _: beam.term) c_int {
     Kinds.open(env);
+    kinda.callback_runtime.ReplyToken.open(env);
+    callback_fixture.open(env);
     return 0;
 }
+
+export fn nif_upgrade(
+    env: beam.env,
+    priv_data: [*c]?*anyopaque,
+    _: [*c]?*anyopaque,
+    load_info: beam.term,
+) c_int {
+    return nif_load(env, priv_data, load_info);
+}
+
+export fn nif_unload(_: beam.env, _: ?*anyopaque) void {}
 
 export fn nif_init() *const e.ErlNifEntry {
     return &entry;

@@ -56,4 +56,17 @@ defmodule Kinda.CallbackRuntimeTest do
 
     assert_receive {:reply, :token, false}
   end
+
+  test "lets a consumer encode a projected result from the normalized outcome" do
+    owner = self()
+
+    reply = fn token, outcome ->
+      send(owner, {:reply, token, outcome})
+    end
+
+    assert CallbackRuntime.invoke_reply(:token, fn -> {:ok, {:success, 42}} end, reply) ==
+             {:ok, {:success, 42}}
+
+    assert_receive {:reply, :token, {:ok, {:success, 42}}}
+  end
 end
