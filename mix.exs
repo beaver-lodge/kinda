@@ -39,7 +39,7 @@ defmodule Kinda.MixProject do
       main: "Kinda",
       source_url: "https://github.com/beaver-lodge/kinda",
       homepage_url: "https://github.com/beaver-lodge/kinda",
-      extras: ["README.md"] ++ Path.wildcard("docs/*.md"),
+      extras: ["README.md"],
       filter_modules: fn module, _metadata ->
         not String.starts_with?(Atom.to_string(module), "Mix.Tasks.")
       end,
@@ -91,7 +91,6 @@ defmodule Kinda.MixProject do
       links: %{"GitHub" => "https://github.com/beaver-lodge/kinda"},
       files: ~w{
         lib .formatter.exs mix.exs README*
-        docs/*.md
         src/*.zig build.zig build.zig.zon
         scripts/gdb.sh
       }
