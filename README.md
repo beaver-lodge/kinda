@@ -318,11 +318,12 @@ Kinda.Wrapper.CallbackBridge.required(:some_function,
 )
 ```
 
-This metadata does not emit a runtime bridge automatically. It is the
+This metadata does not invent a consumer ABI automatically. It is the
 framework-owned policy layer that lets a consumer say:
 
 - this API is not “missing”
-- this API belongs to the callback-bridge backlog
+- this API belongs to the callback-bridge backlog, or is resolved by the
+  dispatcher runtime
 
 Pure kind-surface gaps belong to a different path. In a consumer such as
 `beaver`, handle-like CAPIs are often unblocked by extending the Zig-side kind
@@ -337,7 +338,9 @@ Consumers can implement those callback bridges with the generic Zig runtime:
 const kinda = @import("kinda");
 const Dispatcher = kinda.callback_runtime.Dispatcher(.{ "run", "destruct" });
 
-const dispatcher = try Dispatcher.init(handler_pid);
+const dispatcher = try Dispatcher.initWithOptions(handler_pid, .{
+    .timeout_ms = 30_000,
+});
 dispatcher.setCallback("run", run_callback_term);
 const response = try dispatcher.invoke("run", message_env, .{argument_term});
 ```
@@ -353,11 +356,23 @@ Kinda.CallbackRuntime.invoke(
 )
 ```
 
+Callbacks with scalar, enum, or projected handle results use
+`invoke_reply/4`. The consumer validates its own resource before completing
+the shared token:
+
+```elixir
+Kinda.CallbackRuntime.invoke_reply(reply_token, callback, fn token, outcome ->
+  MyNative.reply_projected_result(token, outcome)
+end)
+```
+
 The consuming NIF library exports and opens the shared reply resource:
 
 ```zig
 const callback_nifs = .{
     kinda.callback_runtime.ReplyToken.nif("my_raw_callback_reply"),
+    kinda.callback_runtime.ReplyToken.codeNif("my_raw_callback_reply_code"),
+    kinda.callback_runtime.ReplyToken.cancelNif("my_raw_callback_cancel"),
 };
 
 export fn nif_load(env: kinda.beam.env, _: [*c]?*anyopaque, _: kinda.beam.term) c_int {
@@ -373,6 +388,24 @@ waits on a non-scheduler native thread. The process replying through the
 consumer-exported NIF becomes the next callback owner. Native callback
 signatures, argument conversion, domain state, and diagnostics remain the
 consumer's responsibility.
+
+Waits are bounded to 30 seconds by default. A response reports whether it was
+replied, canceled, dropped, or timed out; completion after any terminal state
+returns `stale`. Dropping the reply resource or terminating its owner therefore
+cannot leave a native worker waiting forever. `ReplyToken` and consumer-owned
+registration resources use NIF resource-type takeover so live resources keep
+the correct native library generation pinned across reload and unload.
+
+`kinda.callback_adapter` provides the reusable projection shapes used by
+consumer ABI trampolines: one handle, ranges of handles, scalar results, enum
+results, and validated consumer projections. It never interprets an MLIR- or
+library-specific handle.
+
+Callback-bridge manifest version 2 records `runtime_backed`, `runtime`,
+`owner`, `destructor`, `lifetime`, `scheduler`, and `timeout_ms`. Entries built
+with `Kinda.Wrapper.CallbackBridge.runtime_backed/2` no longer carry a
+`callback_bridge_required` blocker and their consumer-provided declaration
+variant remains in the normal resolved declaration surface.
 
 ## Reporting Surface
 

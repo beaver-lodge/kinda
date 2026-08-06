@@ -21,7 +21,7 @@ defmodule Mix.Tasks.Kinda.Wrapper.ExampleTest do
     assert output =~ "\"param_ctypes\""
     assert output =~ "\"return_typespec\""
     assert output =~ "\"public_typespec\""
-    assert output =~ "\"version\":1"
+    assert output =~ "\"version\":2"
   end
 
   test "supports json-only output" do
@@ -32,7 +32,7 @@ defmodule Mix.Tasks.Kinda.Wrapper.ExampleTest do
         Mix.Task.run("kinda.wrapper.example", ["--json"])
       end)
 
-    assert output =~ "\"version\":1"
+    assert output =~ "\"version\":2"
     assert output =~ "\"callback_bridge_required\""
     refute output =~ "== Elixir Manifest =="
     refute output =~ "== Callback Bridge Report =="
