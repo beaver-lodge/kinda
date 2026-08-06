@@ -72,15 +72,6 @@ It prints:
 - the machine-readable callback-bridge manifest
 - including dirty scheduler metadata when the example policy emits it
 
-The formal plan for how:
-
-- `examples/`
-- `kinda_example/`
-
-fit together is:
-
-- [docs/example-surface-unification-plan.md](docs/example-surface-unification-plan.md)
-
 ## What Kinda Ships Today
 
 Core runtime/building blocks:
@@ -550,11 +541,6 @@ What is still missing:
 - richer scheduler-aware NIF declaration surface
 - a complete prebuilt/download/checksum story
 - a more polished one-command reporting UX
-
-## Where To Look Next
-
-- wrapper split plan:
-  - [docs/wrapper-extraction-split-plan.md](docs/wrapper-extraction-split-plan.md)
 
 ## Status
 
