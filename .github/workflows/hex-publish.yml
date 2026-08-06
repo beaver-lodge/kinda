@@ -53,13 +53,19 @@ jobs:
       - name: Verify tag/version alignment
         run: |
           set -euo pipefail
-          test "${{ github.ref_name }}" = "v$(mix app.version)"
+          VERSION="$(
+            elixir -e 'source = File.read!("mix.exs"); [v] = Regex.run(~r/version: "([^"]+)"/, source, capture: :all_but_first); IO.puts(v)'
+          )"
+          test "${{ github.ref_name }}" = "v$VERSION"
       - name: Install dependencies
         run: mix deps.get
       - name: Check whether release already exists
         id: idempotency
         run: |
-          if curl -fsS "https://hex.pm/api/packages/kinda/releases/$(mix app.version)" >/dev/null 2>&1; then
+          VERSION="$(
+            elixir -e 'source = File.read!("mix.exs"); [v] = Regex.run(~r/version: "([^"]+)"/, source, capture: :all_but_first); IO.puts(v)'
+          )"
+          if curl -fsS "https://hex.pm/api/packages/kinda/releases/$VERSION" >/dev/null 2>&1; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
           fi
       - name: Publish to Hex.pm
