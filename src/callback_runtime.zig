@@ -93,8 +93,8 @@ pub const ReplyToken = struct {
     };
 
     const State = struct {
-        mutex: std.Io.Mutex = .init,
-        event: std.Io.Event = .unset,
+        mutex: std.c.pthread_mutex_t = std.c.PTHREAD_MUTEX_INITIALIZER,
+        condition: std.c.pthread_cond_t = std.c.PTHREAD_COND_INITIALIZER,
         references: std.atomic.Value(usize) = .init(2),
         done: bool = false,
         success: bool = false,
@@ -111,11 +111,7 @@ pub const ReplyToken = struct {
             caller: ?beam.pid,
         };
 
-        fn snapshot(self: *State) Snapshot {
-            const io = std.Options.debug_io;
-            self.mutex.lockUncancelable(io);
-            defer self.mutex.unlock(io);
-
+        fn snapshotLocked(self: *const State) Snapshot {
             return .{
                 .success = self.success,
                 .status = self.status,
@@ -126,21 +122,28 @@ pub const ReplyToken = struct {
         }
 
         fn wait(self: *State, timeout_ms: ?u64) Snapshot {
-            const io = std.Options.debug_io;
+            self.lock();
+            defer self.unlock();
 
             if (timeout_ms) |milliseconds| {
-                const timeout: std.Io.Timeout = .{ .duration = .{
-                    .raw = .fromMilliseconds(@intCast(milliseconds)),
-                    .clock = .awake,
-                } };
-                self.event.waitTimeout(io, timeout) catch {
-                    _ = self.complete(.timed_out, false, 0, 0, null);
-                };
+                const deadline = deadlineFromNow(milliseconds);
+                while (!self.done) {
+                    switch (std.c.pthread_cond_timedwait(&self.condition, &self.mutex, &deadline)) {
+                        .SUCCESS => {},
+                        .TIMEDOUT => {
+                            if (!self.done) self.finishLocked(.timed_out, false, 0, 0, null);
+                        },
+                        else => @panic("callback reply condition wait failed"),
+                    }
+                }
             } else {
-                self.event.waitUncancelable(io);
+                while (!self.done) {
+                    if (std.c.pthread_cond_wait(&self.condition, &self.mutex) != .SUCCESS)
+                        @panic("callback reply condition wait failed");
+                }
             }
 
-            return self.snapshot();
+            return self.snapshotLocked();
         }
 
         fn complete(
@@ -151,27 +154,70 @@ pub const ReplyToken = struct {
             projection: usize,
             caller: ?beam.pid,
         ) bool {
-            const io = std.Options.debug_io;
-            self.mutex.lockUncancelable(io);
-            if (self.done) {
-                self.mutex.unlock(io);
-                return false;
-            }
+            self.lock();
+            defer self.unlock();
+
+            if (self.done) return false;
+            self.finishLocked(status, success, code, projection, caller);
+            if (std.c.pthread_cond_signal(&self.condition) != .SUCCESS)
+                @panic("callback reply condition signal failed");
+            return true;
+        }
+
+        fn finishLocked(
+            self: *State,
+            status: Response.Status,
+            success: bool,
+            code: i64,
+            projection: usize,
+            caller: ?beam.pid,
+        ) void {
             self.done = true;
             self.success = success;
             self.status = status;
             self.code = code;
             self.projection = projection;
             self.caller = caller;
-            self.mutex.unlock(io);
-            self.event.set(io);
-            return true;
         }
 
         fn release(self: *State) void {
             if (self.references.fetchSub(1, .acq_rel) == 1) {
+                if (std.c.pthread_cond_destroy(&self.condition) != .SUCCESS)
+                    @panic("failed to destroy callback reply condition");
+                if (std.c.pthread_mutex_destroy(&self.mutex) != .SUCCESS)
+                    @panic("failed to destroy callback reply mutex");
                 std.heap.smp_allocator.destroy(self);
             }
+        }
+
+        fn lock(self: *State) void {
+            if (std.c.pthread_mutex_lock(&self.mutex) != .SUCCESS)
+                @panic("failed to lock callback reply mutex");
+        }
+
+        fn unlock(self: *State) void {
+            if (std.c.pthread_mutex_unlock(&self.mutex) != .SUCCESS)
+                @panic("failed to unlock callback reply mutex");
+        }
+
+        fn deadlineFromNow(milliseconds: u64) std.c.timespec {
+            var now: std.c.timeval = undefined;
+            if (std.c.gettimeofday(&now, null) != 0)
+                @panic("failed to read callback reply deadline clock");
+
+            const nanoseconds = @as(u64, @intCast(now.usec)) * std.time.ns_per_us +
+                (milliseconds % std.time.ms_per_s) * std.time.ns_per_ms;
+            const seconds_to_add = milliseconds / std.time.ms_per_s +
+                nanoseconds / std.time.ns_per_s;
+            const max_seconds: u64 = @intCast(std.math.maxInt(std.c.time_t));
+            const now_seconds: u64 = @intCast(now.sec);
+            const deadline_seconds = std.math.add(u64, now_seconds, seconds_to_add) catch
+                max_seconds;
+
+            return .{
+                .sec = @intCast(@min(deadline_seconds, max_seconds)),
+                .nsec = @intCast(nanoseconds % std.time.ns_per_s),
+            };
         }
     };
 
