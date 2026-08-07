@@ -405,7 +405,7 @@ pub fn get_c_ulong(environment: env, src_term: term) !c_ulong {
 ///
 pub fn get_isize(environment: env, src_term: term) !isize {
     var result: i64 = undefined;
-    if (0 != e.enif_get_long(environment, src_term, @ptrCast(&result))) {
+    if (0 != e.enif_get_int64(environment, src_term, &result)) {
         return @intCast(result);
     } else {
         return Error.@"Function clause error";
@@ -416,8 +416,8 @@ pub fn get_isize(environment: env, src_term: term) !isize {
 /// `usize` for its size values, so typically you should be using this function.
 ///
 pub fn get_usize(environment: env, src_term: term) !usize {
-    var result: i64 = undefined;
-    if (0 != e.enif_get_long(environment, src_term, @ptrCast(&result))) {
+    var result: u64 = undefined;
+    if (0 != e.enif_get_uint64(environment, src_term, &result)) {
         return @intCast(result);
     } else {
         return Error.@"Function clause error";
@@ -474,8 +474,8 @@ pub fn get_u32(environment: env, src_term: term) !u32 {
 /// Takes a BEAM int term and returns a `u64` value.
 ///
 pub fn get_u64(environment: env, src_term: term) !u64 {
-    var result: c_ulong = undefined;
-    if (0 != e.enif_get_ulong(environment, src_term, &result)) {
+    var result: u64 = undefined;
+    if (0 != e.enif_get_uint64(environment, src_term, &result)) {
         return @intCast(result);
     } else {
         return Error.@"Function clause error";
@@ -537,7 +537,7 @@ pub fn get_i32(environment: env, src_term: term) !i32 {
 ///
 pub fn get_i64(environment: env, src_term: term) !i64 {
     var result: i64 = undefined;
-    if (0 != e.enif_get_long(environment, src_term, @ptrCast(&result))) {
+    if (0 != e.enif_get_int64(environment, src_term, &result)) {
         return result;
     } else {
         return Error.@"Function clause error";
@@ -934,7 +934,7 @@ pub fn make_u32(environment: env, val: u32) term {
 
 /// converts a unsigned (`u64`) value into a BEAM `t:integer/0`.
 pub fn make_u64(environment: env, val: u64) term {
-    return e.enif_make_ulong(environment, @intCast(val));
+    return e.enif_make_uint64(environment, val);
 }
 
 /// converts a `c_int` value into a BEAM `t:integer/0`.
@@ -969,12 +969,12 @@ pub fn make_i16(environment: env, val: i16) term {
 
 /// converts an `isize` value into a BEAM `t:integer/0`.
 pub fn make_isize(environment: env, val: isize) term {
-    return e.enif_make_int(environment, @intCast(val));
+    return e.enif_make_int64(environment, val);
 }
 
 /// converts a `usize` value into a BEAM `t:integer/0`.
 pub fn make_usize(environment: env, val: usize) term {
-    return e.enif_make_int(environment, @intCast(val));
+    return e.enif_make_uint64(environment, val);
 }
 
 /// converts an `i32` value into a BEAM `t:integer/0`.
@@ -984,7 +984,7 @@ pub fn make_i32(environment: env, val: i32) term {
 
 /// converts an `i64` value into a BEAM `t:integer/0`.
 pub fn make_i64(environment: env, val: i64) term {
-    return e.enif_make_long(environment, @intCast(val));
+    return e.enif_make_int64(environment, val);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
