@@ -10,6 +10,8 @@ defmodule Kinda.Wrapper.Example do
   alias Kinda.Wrapper.Generate
 
   defmodule Policy do
+    @moduledoc false
+
     @behaviour Kinda.Wrapper.Policy
 
     @impl true
