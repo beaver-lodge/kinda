@@ -8,8 +8,6 @@ defmodule Kinda.CodeGen.KindDecl do
   Zig resource kind declaration.
   """
 
-  require Logger
-
   @primitive_types ~w{
     bool
     c_int
@@ -92,12 +90,20 @@ defmodule Kinda.CodeGen.KindDecl do
 
   # zig 0.9
   defp module_basename("?fn(" <> _ = fn_name) do
-    raise "need module name for function type: #{fn_name}"
+    raise Kinda.GenerationError,
+      message: "function types require an explicit resource module name",
+      stage: :kind_resolution,
+      reason: :missing_module_name,
+      actual: fn_name
   end
 
   # zig 0.10
   defp module_basename("?*const fn(" <> _ = fn_name) do
-    raise "need module name for function type: #{fn_name}"
+    raise Kinda.GenerationError,
+      message: "function types require an explicit resource module name",
+      stage: :kind_resolution,
+      reason: :missing_module_name,
+      actual: fn_name
   end
 
   defp module_basename(type) when is_atom(type) do
@@ -114,11 +120,12 @@ defmodule Kinda.CodeGen.KindDecl do
   end
 
   def default(root_module, type) do
-    Logger.error(
-      "Code generation for #{inspect(root_module)} not implemented for type:\n#{inspect(type, pretty: true)}"
-    )
-
-    raise "Code gen not implemented"
+    raise Kinda.GenerationError,
+      message: "code generation is not implemented for this type",
+      stage: :kind_resolution,
+      reason: :unsupported_type,
+      source: root_module,
+      actual: type
   end
 
   defp dump_zig_type(@opaque_ptr) do

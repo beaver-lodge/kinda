@@ -26,8 +26,12 @@ defmodule Kinda.CodeGen.DeclarationSurfaces do
     if function_exported?(mod, :declaration_manifest, 0) do
       mod.declaration_manifest() |> DeclarationManifest.load!()
     else
-      raise ArgumentError,
-            "#{inspect(mod)} must implement declaration_manifest/0 as the canonical source contract"
+      raise Kinda.GenerationError,
+        message: "generator module is missing its canonical declaration source",
+        stage: :declaration_loading,
+        reason: :missing_declaration_manifest,
+        source: mod,
+        expected: {:declaration_manifest, 0}
     end
   end
 

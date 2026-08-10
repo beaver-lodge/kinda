@@ -48,9 +48,12 @@ defmodule Kinda.MixProject do
         Core: [
           Kinda,
           Kinda.CallError,
+          Kinda.CommandError,
           Kinda.CallbackRuntime,
           Kinda.Codec,
           Kinda.Declaration,
+          Kinda.GenerationError,
+          Kinda.NIFLoadError,
           Kinda.ResourceKind
         ],
         Codegen: [
@@ -76,7 +79,8 @@ defmodule Kinda.MixProject do
         ],
         Verification: [
           Kinda.ExampleVerifier,
-          Kinda.RootVerifier
+          Kinda.RootVerifier,
+          Kinda.SystemCommandRunner
         ],
         Precompilation: [
           Kinda.Prebuilt.Meta,

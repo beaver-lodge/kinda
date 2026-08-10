@@ -245,7 +245,12 @@ defmodule Kinda.Wrapper.Generate do
   def write_zig_nif_entries(manifest, policy, path) do
     dst = Path.expand(path)
     write_file(dst, render_zig_nif_entries(manifest, policy))
-    {_output, 0} = System.cmd("zig", ["fmt", dst], stderr_to_stdout: true)
+
+    Kinda.SystemCommandRunner.run!(Kinda.SystemCommandRunner, "zig", ["fmt", dst], [],
+      stage: :zig_format,
+      message: "generated Zig formatting failed"
+    )
+
     :ok
   end
 
@@ -338,8 +343,12 @@ defmodule Kinda.Wrapper.Generate do
     behaviours = policy.module_info(:attributes)[:behaviour] || []
 
     if Policy not in behaviours do
-      raise ArgumentError,
-            "expected #{inspect(policy)} to implement #{inspect(Policy)}"
+      raise Kinda.GenerationError,
+        message: "wrapper policy does not implement the required behaviour",
+        stage: :wrapper_generation,
+        reason: :invalid_policy,
+        source: policy,
+        expected: Policy
     end
   end
 

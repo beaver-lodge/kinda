@@ -49,8 +49,12 @@ defmodule Kinda.CodeGen do
             Kinda.CodeGen.raw_nif_ast_from_decls(decls)
 
           other ->
-            raise ArgumentError,
-                  "expected :surface to be :combined, :public, or :raw, got: #{inspect(other)}"
+            raise Kinda.GenerationError,
+              message: "unsupported code generation surface",
+              stage: :module_generation,
+              reason: :invalid_surface,
+              expected: [:combined, :public, :raw],
+              actual: other
         end
 
       type_ast = if surface == :raw, do: [], else: Kinda.CodeGen.type_decls_ast(type_decls)
