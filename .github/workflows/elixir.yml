@@ -61,6 +61,9 @@ jobs:
         env:
           MIX_ENV: test
         run: mix compile --force --warnings-as-errors
+      - name: Run Credo
+        if: matrix.elixir == '1.20.3'
+        run: mix credo --strict --ignore-checks TagTODO,AliasUsage,PredicateFunctionNames,ModuleDoc,WithSingleClause,PreferImplicitTry,AliasOrder,ParenthesesOnZeroArityDefs,Nesting,CyclomaticComplexity,Apply
       - name: Run root verifier
         env:
           MIX_ENV: test
@@ -72,6 +75,8 @@ jobs:
       - name: Reject compiler warnings (example)
         if: matrix.elixir == '1.20.3'
         working-directory: ./kinda_example
+        env:
+          MIX_ENV: test
         run: mix compile --force --warnings-as-errors
       - name: Check formatting of Elixir
         if: matrix.elixir == '1.20.3'

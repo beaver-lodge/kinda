@@ -33,8 +33,10 @@ jobs:
         env:
           MIX_ENV: test
         run: mix compile --force --warnings-as-errors
+      - name: Run Credo
+        run: mix credo --strict --ignore-checks TagTODO,AliasUsage,PredicateFunctionNames,ModuleDoc,WithSingleClause,PreferImplicitTry,AliasOrder,ParenthesesOnZeroArityDefs,Nesting,CyclomaticComplexity,Apply
       - name: Run tests
-        run: mix test --force
+        run: mix test --force --warnings-as-errors
 
   publish:
     name: Publish
