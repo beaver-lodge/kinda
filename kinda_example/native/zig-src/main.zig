@@ -27,6 +27,7 @@ const Kinds = struct {
 
 const all_nifs = .{
     kinda.NIFFunc(Kinds.All, capi, "kinda_example_add", .{}),
+    kinda.NIFFunc(Kinds.All, capi, "kinda_example_sum_19", .{}),
 } ++ Kinds.CInt.nifs ++ Kinds.StrInt.nifs ++ callback_fixture.nifs;
 pub export var nifs: [all_nifs.len]e.ErlNifFunc = all_nifs;
 

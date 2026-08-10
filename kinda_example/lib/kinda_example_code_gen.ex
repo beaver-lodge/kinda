@@ -19,7 +19,11 @@ defmodule KindaExample.CodeGen do
     DeclarationManifest.build([
       %NIFDecl{
         wrapper_name: :kinda_example_add,
-        params: 2
+        params: [:lhs, :rhs]
+      },
+      %NIFDecl{
+        wrapper_name: :kinda_example_sum_19,
+        params: Enum.map(1..19, &String.to_atom("value_#{&1}"))
       }
     ])
   end
