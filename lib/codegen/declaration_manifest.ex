@@ -85,8 +85,13 @@ defmodule Kinda.CodeGen.DeclarationManifest do
         |> load!()
 
       ext ->
-        raise ArgumentError,
-              "expected declaration manifest source to be a map, struct, or .ex/.json path, got extension #{inspect(ext)}"
+        raise Kinda.GenerationError,
+          message: "unsupported declaration manifest source",
+          stage: :declaration_loading,
+          reason: :unsupported_manifest_extension,
+          source: expanded_path,
+          expected: [".ex", ".json"],
+          actual: ext
     end
   end
 
@@ -165,8 +170,11 @@ defmodule Kinda.CodeGen.DeclarationManifest do
     if decoder do
       apply(decoder, :decode!, [json])
     else
-      raise ArgumentError,
-            "loading JSON declaration manifests requires JSON.decode!/1 or Jason.decode!/1 to be available"
+      raise Kinda.GenerationError,
+        message: "no JSON decoder is available for the declaration manifest",
+        stage: :declaration_loading,
+        reason: :missing_json_decoder,
+        expected: [{JSON, :decode!, 1}, {Jason, :decode!, 1}]
     end
   end
 end

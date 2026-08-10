@@ -1,24 +1,6 @@
 defmodule Kinda.ExampleVerifierTest do
   use ExUnit.Case, async: true
 
-  defmodule RunnerStub do
-    def cmd(command, args, opts) do
-      calls = Process.get(:example_verifier_calls, [])
-      Process.put(:example_verifier_calls, calls ++ [%{command: command, args: args, opts: opts}])
-
-      case Process.get(:example_verifier_results, %{}) do
-        %{^command => %{args: ^args} = result} -> {result.output, result.status}
-        _ -> {"", 0}
-      end
-    end
-  end
-
-  setup do
-    Process.delete(:example_verifier_calls)
-    Process.delete(:example_verifier_results)
-    :ok
-  end
-
   test "default example_root resolves to the bundled kinda_example app" do
     assert Kinda.ExampleVerifier.example_root()
            |> Path.basename() == "kinda_example"
@@ -28,34 +10,44 @@ defmodule Kinda.ExampleVerifierTest do
     root = make_tmp_dir()
     File.write!(Path.join(root, "mix.lock"), "%{}")
     File.mkdir_p!(Path.join(root, "deps"))
+    test_process = self()
+
+    runner = fn command, args, opts ->
+      send(test_process, {:command, command, args, opts})
+      {"", 0}
+    end
 
     assert :ok =
              Kinda.ExampleVerifier.verify(
                project_root: root,
                relative_path: ".",
-               command_runner: RunnerStub
+               command_runner: runner
              )
 
-    assert [
-             %{command: "mix", args: ["deps.get"]},
-             %{command: "mix", args: ["test", "--force"]}
-           ] = Process.get(:example_verifier_calls)
+    assert_received {:command, "mix", ["deps.get"], deps_opts}
+    assert_received {:command, "mix", ["test", "--force"], test_opts}
+    assert deps_opts[:stderr_to_stdout]
+    assert test_opts[:stderr_to_stdout]
   end
 
   test "runs deps.get before tests when example deps are missing" do
     root = make_tmp_dir()
+    test_process = self()
+
+    runner = fn command, args, opts ->
+      send(test_process, {:command, command, args, opts})
+      {"", 0}
+    end
 
     assert :ok =
              Kinda.ExampleVerifier.verify(
                project_root: root,
                relative_path: ".",
-               command_runner: RunnerStub
+               command_runner: runner
              )
 
-    assert [
-             %{command: "mix", args: ["deps.get"]},
-             %{command: "mix", args: ["test", "--force"]}
-           ] = Process.get(:example_verifier_calls)
+    assert_received {:command, "mix", ["deps.get"], _opts}
+    assert_received {:command, "mix", ["test", "--force"], _opts}
   end
 
   test "injects a preferred zig path into command env when configured" do
@@ -71,17 +63,27 @@ defmodule Kinda.ExampleVerifierTest do
     File.write!(Path.join(root, "mix.lock"), "%{}")
     File.mkdir_p!(Path.join(root, "deps"))
 
-    Process.put(:example_verifier_results, %{
-      "mix" => %{args: ["test", "--force"], output: "boom", status: 1}
-    })
-
-    assert_raise RuntimeError, ~r/kinda_example verification failed/, fn ->
-      Kinda.ExampleVerifier.verify(
-        project_root: root,
-        relative_path: ".",
-        command_runner: RunnerStub
-      )
+    runner = fn
+      "mix", ["test", "--force"], _opts -> {"boom", 1}
+      _command, _args, _opts -> {"", 0}
     end
+
+    error =
+      assert_raise Kinda.CommandError, fn ->
+        Kinda.ExampleVerifier.verify(
+          project_root: root,
+          relative_path: ".",
+          command_runner: runner
+        )
+      end
+
+    assert error.stage == :example_verification
+    assert error.command == "mix"
+    assert error.args == ["test", "--force"]
+    assert error.cwd == root
+    assert error.status == 1
+    assert error.output == "boom"
+    assert Exception.message(error) =~ "kinda_example verification failed"
   end
 
   defp make_tmp_dir do

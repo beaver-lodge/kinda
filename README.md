@@ -231,6 +231,19 @@ end
 Internal native failures retain the native Zig error name and suggest
 `KINDA_DUMP_STACK_TRACE=1`. Caller-correctable argument errors omit that hint.
 
+Other framework boundaries use the same structured-error approach:
+
+- `Kinda.GenerationError` identifies declaration and code-generation failures
+  with stable `:stage` and `:reason` fields plus the source, expected and actual
+  values when relevant.
+- `Kinda.CommandError` retains the command, arguments, working directory, exit
+  status and captured output from failed `mix`, `zig` or other tool invocations.
+- `Kinda.NIFLoadError` retains the attempted library path and the original
+  `:erlang.load_nif/2` reason instead of printing the failure and continuing.
+
+This keeps terminal messages useful while allowing Mix tasks and downstream
+projects to handle failures without parsing those messages.
+
 For larger generated bindings, the newer wrapper pipeline is usually more
 important.
 
