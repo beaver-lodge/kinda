@@ -50,6 +50,54 @@ defmodule Kinda.CodecTest do
     assert Exception.message(error) =~ "boom"
   end
 
+  test "CallError formats structured argument diagnostics" do
+    error = %Kinda.CallError{
+      message: "Fail to fetch argument #2",
+      reason: :argument_decode_failed,
+      phase: :argument_decode,
+      function: "raw_add",
+      arity: 2,
+      argument_index: 2,
+      expected: "c_int",
+      native_error: "Function clause error"
+    }
+
+    enriched =
+      Kinda.CallError.enrich(
+        error,
+        %{
+          function: :add,
+          arity: 2,
+          argument_names: [:lhs, :rhs],
+          argument_types: ["int", "int"]
+        },
+        [1, "2"]
+      )
+
+    assert enriched.argument_name == :rhs
+    assert enriched.actual == "binary"
+    assert enriched.expected == "int"
+
+    assert Exception.message(enriched) ==
+             "add/2 rejected argument #2 (rhs): expected int, got binary"
+
+    refute Exception.message(enriched) =~ "KINDA_DUMP_STACK_TRACE"
+  end
+
+  test "CallError only suggests a native trace for internal failures" do
+    error = %Kinda.CallError{
+      message: "OutOfMemory",
+      reason: :native_error,
+      phase: :native,
+      function: "allocate",
+      arity: 1,
+      native_error: "OutOfMemory"
+    }
+
+    assert Exception.message(error) =~ "allocate/1 failed during native"
+    assert Exception.message(error) =~ "KINDA_DUMP_STACK_TRACE"
+  end
+
   test "normalize/1 re-raises exception payloads" do
     assert_raise RuntimeError, "oops", fn ->
       Kinda.Codec.normalize({:error, %RuntimeError{message: "oops"}})

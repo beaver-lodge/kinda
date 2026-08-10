@@ -8,10 +8,40 @@ defmodule KindaExampleTest do
     assert 3 ==
              NIF.kinda_example_add(1, 2) |> Native.to_term()
 
-    assert match?(
-             %Kinda.CallError{message: "Fail to fetch argument #2"},
-             catch_error(NIF.kinda_example_add(1, "2"))
-           )
+    error = catch_error(NIF.kinda_example_add(1, "2"))
+
+    assert %Kinda.CallError{
+             message: "Fail to fetch argument #2",
+             reason: :argument_decode_failed,
+             phase: :argument_decode,
+             function: :kinda_example_add,
+             arity: 2,
+             argument_index: 2,
+             argument_name: :rhs,
+             expected: "c_int",
+             actual: "binary",
+             native_error: "Function clause error"
+           } = error
+
+    assert Exception.message(error) ==
+             "kinda_example_add/2 rejected argument #2 (rhs): expected c_int, got binary"
+  end
+
+  test "argument diagnostics have no fixed arity limit" do
+    arguments = List.duplicate(1, 18) ++ ["19"]
+    error = catch_error(apply(NIF, :kinda_example_sum_19, arguments))
+
+    assert %Kinda.CallError{
+             phase: :argument_decode,
+             function: :kinda_example_sum_19,
+             arity: 19,
+             argument_index: 19,
+             argument_name: :value_19,
+             expected: "c_int",
+             actual: "binary"
+           } = error
+
+    assert Exception.message(error) =~ "argument #19 (value_19)"
   end
 
   test "custom make" do
@@ -26,7 +56,7 @@ defmodule KindaExampleTest do
     # only test this on macOS, it will crash on Linux
     txt = Exception.message(err)
 
-    assert txt =~ "to see the full stack trace, set KINDA_DUMP_STACK_TRACE=1"
+    assert txt =~ "to print the native error return trace, set KINDA_DUMP_STACK_TRACE=1"
 
     assert match?(%Kinda.CallError{message: "Function clause error"}, err)
 

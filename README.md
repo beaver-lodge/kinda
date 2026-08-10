@@ -207,6 +207,30 @@ single source. These generated aliases use atom field keys derived from
 extracted C field names, while the machine-readable manifest keeps the
 original string names.
 
+## Structured NIF Call Errors
+
+Generated NIF failures raise `Kinda.CallError`. The legacy `:message` remains
+available, while stable fields identify the failed function and boundary
+phase. Argument decoding failures also include the one-based argument index,
+manifest parameter name, expected C type and the category of the original
+Elixir value when those facts are available.
+
+```elixir
+try do
+  Foo.CAPI.add(1, "2")
+rescue
+  error in Kinda.CallError ->
+    error.phase
+    #=> :argument_decode
+
+    Exception.message(error)
+    #=> "add/2 rejected argument #2 (rhs): expected int, got binary"
+end
+```
+
+Internal native failures retain the native Zig error name and suggest
+`KINDA_DUMP_STACK_TRACE=1`. Caller-correctable argument errors omit that hint.
+
 For larger generated bindings, the newer wrapper pipeline is usually more
 important.
 

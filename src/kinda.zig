@@ -224,8 +224,22 @@ pub fn open_internal_resource_types(env: beam.env) void {
 
 const NIFFuncAttrs = struct { flags: u32 = 0, nif_name: ?[*c]const u8 = null };
 
-// wrap a c function to a bang nif
-pub fn BangFunc(comptime Kinds: anytype, c: anytype, comptime name: anytype) type {
+// Preserve the original source API for downstream handwritten wrappers.
+pub fn BangFunc(
+    comptime Kinds: anytype,
+    c: anytype,
+    comptime name: []const u8,
+) type {
+    return BangFuncWithNIFName(Kinds, c, name, @ptrCast(name.ptr));
+}
+
+// Wrap a C function while reporting the exported NIF name in diagnostics.
+pub fn BangFuncWithNIFName(
+    comptime Kinds: anytype,
+    c: anytype,
+    comptime name: anytype,
+    comptime nif_name: [*c]const u8,
+) type {
     @setEvalBranchQuota(5000);
     const cfunction = @field(c, name);
     const FTI = @typeInfo(@TypeOf(cfunction)).@"fn";
@@ -267,22 +281,44 @@ pub fn BangFunc(comptime Kinds: anytype, c: anytype, comptime name: anytype) typ
         pub fn wrap_ret_call(env: beam.env, args: anytype) !beam.term {
             const rt = FTI.return_type.?;
             const RetKind = getKind(rt);
-            var tuple_slice: []beam.term = beam.allocator.alloc(beam.term, 3) catch return beam.Error.@"Fail to allocate memory for tuple slice";
+            var tuple_slice: []beam.term = beam.allocator.alloc(beam.term, 3) catch |err| return beam.raise_call_error(env, .{
+                .message = "Fail to allocate memory for tuple slice",
+                .reason = "return_encode_failed",
+                .phase = "return_encode",
+                .function = std.mem.span(nif_name),
+                .arity = arity,
+                .native_error = err,
+            });
             defer beam.allocator.free(tuple_slice);
             tuple_slice[0] = beam.make_atom(env, "kind");
             tuple_slice[1] = beam.make_atom(env, RetKind.module_name);
-            const ret = RetKind.resource.make(env, @call(.auto, variadic_call, .{args})) catch return beam.Error.@"Fail to make resource for return type";
+            const ret = RetKind.resource.make(env, @call(.auto, variadic_call, .{args})) catch |err| return beam.raise_call_error(env, .{
+                .message = "Fail to make resource for return type",
+                .reason = "return_encode_failed",
+                .phase = "return_encode",
+                .function = std.mem.span(nif_name),
+                .arity = arity,
+                .expected = RetKind.resource.name,
+                .native_error = err,
+            });
             tuple_slice[2] = ret;
             return beam.make_tuple(env, tuple_slice);
         }
         pub fn nif(env: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
+            @setEvalBranchQuota(100_000);
             var c_args: VariadicArgs() = undefined;
             inline for (FTI.params, args, 0..) |p, arg, i| {
                 const ArgKind = getKind(p.type.?);
-                c_args[i] = ArgKind.resource.fetch(env, arg) catch return if (i < 18)
-                    @field(beam.ArgumentError, "Fail to fetch argument #" ++ std.fmt.comptimePrint("{d}", .{i + 1}))
-                else
-                    beam.ArgumentError.@"Fail to fetch argument";
+                c_args[i] = ArgKind.resource.fetch(env, arg) catch |err| return beam.raise_call_error(env, .{
+                    .message = "Fail to fetch argument #" ++ std.fmt.comptimePrint("{d}", .{i + 1}),
+                    .reason = "argument_decode_failed",
+                    .phase = "argument_decode",
+                    .function = std.mem.span(nif_name),
+                    .arity = arity,
+                    .argument_index = i + 1,
+                    .expected = ArgKind.resource.name,
+                    .native_error = err,
+                });
             }
             const rt = FTI.return_type.?;
             if (rt == void) {
@@ -296,6 +332,7 @@ pub fn BangFunc(comptime Kinds: anytype, c: anytype, comptime name: anytype) typ
 }
 
 pub fn NIFFunc(comptime Kinds: anytype, c: anytype, comptime name: anytype, comptime attrs: NIFFuncAttrs) e.ErlNifFunc {
-    const bang = BangFunc(Kinds, c, name);
-    return result.nif_with_flags(attrs.nif_name orelse name, bang.arity, bang.nif, attrs.flags).entry;
+    const nif_name = attrs.nif_name orelse name;
+    const bang = BangFuncWithNIFName(Kinds, c, name, nif_name);
+    return result.nif_with_flags(nif_name, bang.arity, bang.nif, attrs.flags).entry;
 }
