@@ -1,0 +1,7 @@
+/_build/
+/cover/
+/deps/
+/doc/
+/mix.lock
+/tmp/
+erl_crash.dump

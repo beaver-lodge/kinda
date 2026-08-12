@@ -69,6 +69,12 @@ jobs:
           path: ./packages/kinda_sqlite/deps
           key: ${{ runner.os }}-mix-kinda-sqlite-${{ hashFiles('**/mix.exs') }}
           restore-keys: ${{ runner.os }}-mix-kinda-sqlite-
+      - name: Restore Ecto Kinda SQLite dependencies cache
+        uses: actions/cache@v4
+        with:
+          path: ./packages/ecto_kinda_sqlite/deps
+          key: ${{ runner.os }}-mix-ecto-kinda-sqlite-${{ hashFiles('**/mix.exs') }}
+          restore-keys: ${{ runner.os }}-mix-ecto-kinda-sqlite-
       - name: Install dependencies
         run: mix deps.get
       - name: Check formatting of Elixir
@@ -127,6 +133,21 @@ jobs:
       - name: Run Credo (Kinda SQLite)
         if: matrix.elixir == '1.20.3'
         working-directory: ./packages/kinda_sqlite
+        run: mix credo --strict
+      - name: Install dependencies (Ecto Kinda SQLite)
+        working-directory: ./packages/ecto_kinda_sqlite
+        run: mix deps.get
+      - name: Reject compiler warnings (Ecto Kinda SQLite)
+        working-directory: ./packages/ecto_kinda_sqlite
+        env:
+          MIX_ENV: test
+        run: mix compile --force --warnings-as-errors
+      - name: Check formatting of Elixir (Ecto Kinda SQLite)
+        if: matrix.quality
+        working-directory: ./packages/ecto_kinda_sqlite
+        run: mix format --check-formatted
+      - name: Run Credo (Ecto Kinda SQLite)
+        working-directory: ./packages/ecto_kinda_sqlite
         run: mix credo --strict
       - name: Install gdb
         if: runner.os == 'Linux'
