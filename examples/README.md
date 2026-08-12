@@ -39,7 +39,3 @@ This directory is intentionally not the place for end-to-end native-app demos.
 Those belong in:
 
 - [`packages/kinda_example/`](../packages/kinda_example/README.md)
-
-The governing plan for that split is:
-
-- [`docs/example-surface-unification-plan.md`](../docs/example-surface-unification-plan.md)

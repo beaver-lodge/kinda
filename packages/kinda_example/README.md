@@ -30,12 +30,3 @@ You can still run it directly from `packages/kinda_example/`:
 cd packages/kinda_example
 mix test --force
 ```
-
-The companion plan that formalizes the split between:
-
-- `examples/`
-- `packages/kinda_example/`
-
-is:
-
-- [`docs/example-surface-unification-plan.md`](../../docs/example-surface-unification-plan.md)
