@@ -1,0 +1,11 @@
+.{
+    .name = .kinda_duckdb,
+    .version = "0.0.0",
+    .fingerprint = 0x639a8bcc6f2b93fe,
+    .dependencies = .{
+        .kinda = .{
+            .path = "../..",
+        },
+    },
+    .paths = .{""},
+}

@@ -25,13 +25,19 @@ defmodule Kinda.RootVerifierTest do
       :ok
     end
 
+    duckdb_verifier = fn opts ->
+      send(test_process, {:duckdb_verifier, opts})
+      :ok
+    end
+
     assert :ok =
              Kinda.RootVerifier.verify(
                project_root: root,
                command_runner: runner,
                example_verifier: example_verifier,
                sqlite_verifier: sqlite_verifier,
-               ecto_sqlite_verifier: ecto_sqlite_verifier
+               ecto_sqlite_verifier: ecto_sqlite_verifier,
+               duckdb_verifier: duckdb_verifier
              )
 
     assert_received {:command, "mix", ["test"], test_opts}
@@ -45,7 +51,8 @@ defmodule Kinda.RootVerifierTest do
                        command_runner: ^runner,
                        example_verifier: ^example_verifier,
                        sqlite_verifier: ^sqlite_verifier,
-                       ecto_sqlite_verifier: ^ecto_sqlite_verifier
+                       ecto_sqlite_verifier: ^ecto_sqlite_verifier,
+                       duckdb_verifier: ^duckdb_verifier
                      ]}
 
     assert_received {:sqlite_verifier, sqlite_opts}
@@ -57,6 +64,11 @@ defmodule Kinda.RootVerifierTest do
     assert ecto_sqlite_opts[:project_root] == root
     assert ecto_sqlite_opts[:command_runner] == runner
     assert ecto_sqlite_opts[:relative_path] == "packages/ecto_kinda_sqlite"
+
+    assert_received {:duckdb_verifier, duckdb_opts}
+    assert duckdb_opts[:project_root] == root
+    assert duckdb_opts[:command_runner] == runner
+    assert duckdb_opts[:relative_path] == "packages/kinda_duckdb"
   end
 
   test "raises with command context when root verification fails" do
@@ -70,6 +82,7 @@ defmodule Kinda.RootVerifierTest do
     example_verifier = fn _opts -> :ok end
     sqlite_verifier = fn _opts -> :ok end
     ecto_sqlite_verifier = fn _opts -> :ok end
+    duckdb_verifier = fn _opts -> :ok end
 
     error =
       assert_raise Kinda.CommandError, fn ->
@@ -78,7 +91,8 @@ defmodule Kinda.RootVerifierTest do
           command_runner: runner,
           example_verifier: example_verifier,
           sqlite_verifier: sqlite_verifier,
-          ecto_sqlite_verifier: ecto_sqlite_verifier
+          ecto_sqlite_verifier: ecto_sqlite_verifier,
+          duckdb_verifier: duckdb_verifier
         )
       end
 
