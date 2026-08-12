@@ -5,5 +5,7 @@
 
 int kinda_sqlite_bind_text_transient(sqlite3_stmt *statement, int index,
                                      const char *value, int length);
+int kinda_sqlite_bind_blob_transient(sqlite3_stmt *statement, int index,
+                                     const void *value, int length);
 
 #endif

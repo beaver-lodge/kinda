@@ -2,25 +2,42 @@ defmodule Kinda.SQLite.IntegrationTest do
   use ExUnit.Case, async: false
 
   alias Kinda.SQLite
+  alias Kinda.SQLite.Blob
   alias Kinda.SQLite.Native, as: SqliteRaw
   alias KindaExample.NIF.Raw, as: ExampleRaw
 
   test "executes a real prepared SQLite query with typed bindings" do
-    database = SQLite.open_memory()
+    assert {:ok, database} = SQLite.open_memory()
     assert SQLite.sqlite_version() == "3.53.4"
-    assert :ok = SQLite.execute(database, "create table people(id integer, name text)")
 
-    insert = SQLite.prepare(database, "insert into people values (?, ?)")
-    assert :ok = SQLite.bind_int64(insert, 1, 42)
-    assert :ok = SQLite.bind_text(insert, 2, "Ada")
-    assert :done = SQLite.step(insert)
-    assert 1 = SQLite.database_changes(database)
+    assert {:ok, %{num_rows: 0}} =
+             SQLite.query(database, "create table people(id integer, name text)")
 
-    query = SQLite.prepare(database, "select id, name from people")
-    assert :row = SQLite.step(query)
-    assert 42 = SQLite.column_int64(query, 0)
-    assert "Ada" = SQLite.column_text(query, 1)
-    assert :done = SQLite.step(query)
+    assert {:ok, %{num_rows: 1}} =
+             SQLite.query(database, "insert into people values (?, ?)", [42, "Ada"])
+
+    assert {:ok, %{columns: ["id", "name"], rows: [[42, "Ada"]], num_rows: 1}} =
+             SQLite.query(database, "select id, name from people")
+  end
+
+  test "round-trips all scalar classes and reports structured errors" do
+    assert {:ok, database} = SQLite.open_memory()
+
+    assert {:ok, %{rows: [[nil, 7, 1.5, "text", %Blob{data: <<0, 1, 2>>}]]}} =
+             SQLite.query(database, "select ?, ?, ?, ?, ?", [
+               nil,
+               7,
+               1.5,
+               "text",
+               %Blob{data: <<0, 1, 2>>}
+             ])
+
+    assert {:error, %Kinda.SQLite.Error{operation: :prepare, code: code, sql: "not sql"}} =
+             SQLite.query(database, "not sql")
+
+    assert is_integer(code)
+    assert :ok = SQLite.close(database)
+    assert :ok = SQLite.close(database)
   end
 
   test "a statement retains its database when the parent term is collected first" do
