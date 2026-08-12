@@ -3,7 +3,7 @@ defmodule KindaExample.CodeGen do
   alias Kinda.CodeGen.{DeclarationManifest, KindDecl, NIFDecl}
   @behaviour Kinda.CodeGen
   @impl true
-  def kinds() do
+  def kinds do
     [
       %KindDecl{
         module_name: KindaExample.NIF.CInt

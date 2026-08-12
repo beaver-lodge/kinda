@@ -1,7 +1,8 @@
 defmodule KindaExampleTest do
   use ExUnit.Case
 
-  alias KindaExample.{NIF, Native}
+  alias KindaExample.Native
+  alias KindaExample.NIF
   alias KindaExample.NIF.Raw
 
   test "add in c" do

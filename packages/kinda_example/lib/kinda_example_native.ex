@@ -1,4 +1,6 @@
 defmodule KindaExample.Native do
+  @moduledoc false
+
   use Kinda.Codec
 
   def to_term(%mod{ref: ref}) do

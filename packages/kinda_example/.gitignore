@@ -22,5 +22,10 @@ erl_crash.dump
 # Ignore package tarball (built via "mix hex.build").
 kinda_example-*.tar
 
+# Ignore NIF precompile artifacts.
+/checksum.exs
+/*.tar.gz
+/*.tar.gz.sha256
+
 # Temporary files, for example, from tests.
 /tmp/

@@ -8,7 +8,7 @@ defmodule Kinda.ExampleVerifier do
   @spec example_root(keyword()) :: Path.t()
   def example_root(opts \\ []) do
     project_root = Keyword.get(opts, :project_root, Path.expand("../..", __DIR__))
-    relative_path = Keyword.get(opts, :relative_path, "kinda_example")
+    relative_path = Keyword.get(opts, :relative_path, "packages/kinda_example")
 
     Path.expand(relative_path, project_root)
   end

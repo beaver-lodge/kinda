@@ -2,8 +2,8 @@ defmodule Kinda.SQLite.IntegrationTest do
   use ExUnit.Case, async: false
 
   alias Kinda.SQLite
-  alias KindaExample.NIF.Raw, as: ExampleRaw
   alias Kinda.SQLite.Native, as: SqliteRaw
+  alias KindaExample.NIF.Raw, as: ExampleRaw
 
   test "executes a real prepared SQLite query with typed bindings" do
     database = SQLite.open_memory()
