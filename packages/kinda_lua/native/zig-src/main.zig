@@ -19,12 +19,26 @@ const VM = struct {
     state: ?*lua.lua_State,
     allocator: *lua.kinda_lua_allocator,
     mutex: std.atomic.Mutex = .unlocked,
+    children: std.atomic.Value(usize) = .init(0),
+    close_requested: std.atomic.Value(bool) = .init(false),
 
     fn close(self: *VM) void {
+        self.close_requested.store(true, .release);
+        self.closeIfUnused();
+    }
+
+    fn closeIfUnused(self: *VM) void {
+        if (!self.close_requested.load(.acquire) or self.children.load(.acquire) != 0) return;
         lock(&self.mutex);
         defer self.mutex.unlock();
+        if (self.children.load(.acquire) != 0) return;
         if (self.state) |state| lua.kinda_lua_close(state);
         self.state = null;
+    }
+
+    fn releaseChild(self: *VM) void {
+        _ = self.children.fetchSub(1, .acq_rel);
+        self.closeIfUnused();
     }
 
     pub fn destroy(_: beam.env, object: ?*anyopaque) callconv(.c) void {
@@ -34,7 +48,34 @@ const VM = struct {
     }
 };
 
+const Coroutine = struct {
+    pub const PtrType = *Coroutine;
+    reference: c_int,
+    vm: beam.ResourceRef(VM),
+    mutex: std.atomic.Mutex = .unlocked,
+    closed: bool = false,
+
+    fn close(self: *Coroutine) void {
+        lock(&self.mutex);
+        defer self.mutex.unlock();
+        if (self.closed) return;
+        const vm = self.vm.get();
+        lock(&vm.mutex);
+        if (vm.state) |state| lua.kinda_lua_coroutine_release(state, self.reference);
+        vm.mutex.unlock();
+        self.closed = true;
+        vm.releaseChild();
+        self.vm.deinit();
+    }
+
+    pub fn destroy(_: beam.env, object: ?*anyopaque) callconv(.c) void {
+        const self: *Coroutine = @ptrCast(@alignCast(object orelse return));
+        self.close();
+    }
+};
+
 const VMKind = kinda.ResourceKind(VM, "Elixir.Kinda.Lua.VM");
+const CoroutineKind = kinda.ResourceKind(Coroutine, "Elixir.Kinda.Lua.Coroutine");
 
 fn makeLuaValue(environment: beam.env, value: lua.struct_kinda_lua_result) !beam.term {
     return switch (value.type) {
@@ -103,6 +144,57 @@ fn evalVM(environment: beam.env, _: c_int, args: [*c]const beam.term) !beam.term
     return beam.make_term_list(environment, terms);
 }
 
+fn createCoroutine(environment: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
+    const vm = try beam.fetch_resource_ptr(*VM, environment, VMKind.resource.t, args[0]);
+    if (vm.close_requested.load(.acquire)) return error.ClosedVM;
+    const code = try beam.get_char_slice(environment, args[1]);
+    lock(&vm.mutex);
+    defer vm.mutex.unlock();
+    const state = vm.state orelse return error.ClosedVM;
+    var reference: c_int = 0;
+    if (lua.kinda_lua_coroutine_create(state, code.ptr, code.len, &reference) != 0) return Error.FailedToEvaluate;
+    _ = vm.children.fetchAdd(1, .acq_rel);
+    var vm_ref = beam.ResourceRef(VM).init(vm);
+    errdefer {
+        lua.kinda_lua_coroutine_release(state, reference);
+        vm_ref.deinit();
+        vm.releaseChild();
+    }
+    return CoroutineKind.resource.make(environment, .{ .reference = reference, .vm = vm_ref }) catch return error.OutOfMemory;
+}
+
+fn resumeCoroutine(environment: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
+    const coroutine = try beam.fetch_resource_ptr(*Coroutine, environment, CoroutineKind.resource.t, args[0]);
+    lock(&coroutine.mutex);
+    defer coroutine.mutex.unlock();
+    if (coroutine.closed) return error.ClosedCoroutine;
+    const vm = coroutine.vm.get();
+    lock(&vm.mutex);
+    defer vm.mutex.unlock();
+    const state = vm.state orelse return error.ClosedVM;
+    var yielded: c_int = 0;
+    var count: c_int = 0;
+    if (lua.kinda_lua_coroutine_resume(state, coroutine.reference, &yielded, &count) != 0) return Error.FailedToEvaluate;
+    defer lua.kinda_lua_coroutine_clear(state, coroutine.reference);
+    const terms = try beam.allocator.alloc(beam.term, @intCast(count));
+    defer beam.allocator.free(terms);
+    for (terms, 1..) |*term, index| {
+        var value: lua.struct_kinda_lua_result = std.mem.zeroes(lua.struct_kinda_lua_result);
+        lua.kinda_lua_coroutine_result_at(state, coroutine.reference, @intCast(index), &value);
+        term.* = try makeLuaValue(environment, value);
+    }
+    var response = [_]beam.term{
+        beam.make_atom(environment, if (yielded != 0) "yielded" else "done"),
+        beam.make_term_list(environment, terms),
+    };
+    return beam.make_tuple(environment, &response);
+}
+
+fn closeCoroutine(environment: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
+    (try beam.fetch_resource_ptr(*Coroutine, environment, CoroutineKind.resource.t, args[0])).close();
+    return beam.make_ok(environment);
+}
+
 fn version(environment: beam.env, _: c_int, _: [*c]const beam.term) !beam.term {
     return beam.make_slice(environment, std.mem.span(lua.kinda_lua_version()));
 }
@@ -114,12 +206,16 @@ const all_nifs = .{
     result.nif_with_flags("eval_vm", 2, evalVM, cpu_bound).entry,
     result.nif_with_flags("close_vm", 1, closeVM, cpu_bound).entry,
     result.nif_with_flags("allocator_stats", 1, allocatorStats, cpu_bound).entry,
+    result.nif_with_flags("create_coroutine", 2, createCoroutine, cpu_bound).entry,
+    result.nif_with_flags("resume_coroutine", 1, resumeCoroutine, cpu_bound).entry,
+    result.nif_with_flags("close_coroutine", 1, closeCoroutine, cpu_bound).entry,
 };
 pub export var nifs: [all_nifs.len]e.ErlNifFunc = all_nifs;
 
 fn nifLoad(environment: beam.env, _: [*c]?*anyopaque, _: beam.term) callconv(.c) c_int {
     VMKind.open(environment);
-    return if (VMKind.resource.t == null) 1 else 0;
+    CoroutineKind.open(environment);
+    return if (VMKind.resource.t == null or CoroutineKind.resource.t == null) 1 else 0;
 }
 
 const entry = e.ErlNifEntry{ .major = 2, .minor = 16, .name = root_module, .num_of_funcs = nifs.len, .funcs = &(nifs[0]), .load = nifLoad, .reload = null, .upgrade = null, .unload = null, .vm_variant = "beam.vanilla", .options = 1, .sizeof_ErlNifResourceTypeInit = @sizeOf(e.ErlNifResourceTypeInit), .min_erts = "erts-15.0" };

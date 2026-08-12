@@ -39,5 +39,10 @@ void kinda_lua_close(lua_State *state);
 int kinda_lua_eval_state(lua_State *state, const char *source, size_t length, int *count);
 void kinda_lua_result_at(lua_State *state, int index, struct kinda_lua_result *result);
 void kinda_lua_clear_stack(lua_State *state);
+int kinda_lua_coroutine_create(lua_State *state, const char *source, size_t length, int *reference);
+int kinda_lua_coroutine_resume(lua_State *state, int reference, int *yielded, int *count);
+void kinda_lua_coroutine_result_at(lua_State *state, int reference, int index, struct kinda_lua_result *result);
+void kinda_lua_coroutine_clear(lua_State *state, int reference);
+void kinda_lua_coroutine_release(lua_State *state, int reference);
 
 #endif

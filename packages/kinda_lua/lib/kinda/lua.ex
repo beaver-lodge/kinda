@@ -1,12 +1,15 @@
 defmodule Kinda.Lua do
   @moduledoc "A lightweight embedded Lua 5.4 runtime."
-  alias Kinda.Lua.{Native, VM}
+  alias Kinda.Lua.{Coroutine, Native, VM}
 
   @spec open(keyword()) :: VM.t()
   def open(options \\ []), do: VM.open(options)
 
   @spec eval(VM.t(), iodata()) :: term()
   def eval(vm, code), do: VM.eval(vm, code)
+
+  @spec coroutine(VM.t(), iodata()) :: Coroutine.t()
+  def coroutine(vm, code), do: Coroutine.new(vm, code)
 
   @spec version() :: String.t()
   def version, do: Native.version()

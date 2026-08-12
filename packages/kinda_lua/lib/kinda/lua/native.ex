@@ -8,6 +8,9 @@ defmodule Kinda.Lua.Native do
   def eval_vm(_vm, _code), do: :erlang.nif_error({:nif_not_loaded, :eval_vm})
   def close_vm(_vm), do: :erlang.nif_error({:nif_not_loaded, :close_vm})
   def allocator_stats(_vm), do: :erlang.nif_error({:nif_not_loaded, :allocator_stats})
+  def create_coroutine(_vm, _code), do: :erlang.nif_error({:nif_not_loaded, :create_coroutine})
+  def resume_coroutine(_coroutine), do: :erlang.nif_error({:nif_not_loaded, :resume_coroutine})
+  def close_coroutine(_coroutine), do: :erlang.nif_error({:nif_not_loaded, :close_coroutine})
 
   def load_nif do
     nif_file = ~c"#{:code.priv_dir(:kinda_lua)}/lib/libKindaLuaNIF"
