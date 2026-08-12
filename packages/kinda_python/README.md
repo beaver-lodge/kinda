@@ -12,3 +12,7 @@ refer to the runtime.
 The package requires a shared CPython 3.14 installation and its development
 headers. Isolated interpreter and execution resources are layered in subsequent
 stacked changes.
+
+`Interpreter.eval_async/2` uses a linked BEAM task and dirty I/O NIF execution.
+Each interpreter serializes its own thread-state access, while independent
+OWN_GIL interpreters may run simultaneously on separate scheduler threads.

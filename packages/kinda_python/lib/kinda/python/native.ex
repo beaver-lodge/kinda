@@ -14,6 +14,7 @@ defmodule Kinda.Python.Native do
   def eval(_interpreter, _code), do: :erlang.nif_error({:nif_not_loaded, :eval})
   def close_value(_value), do: :erlang.nif_error({:nif_not_loaded, :close_value})
   def value_to_term(_value), do: :erlang.nif_error({:nif_not_loaded, :value_to_term})
+  def isolated_eval(_code), do: :erlang.nif_error({:nif_not_loaded, :isolated_eval})
 
   def load_nif do
     nif_file = ~c"#{:code.priv_dir(:kinda_python)}/lib/libKindaPythonNIF"
