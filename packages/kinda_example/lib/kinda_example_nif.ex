@@ -1,4 +1,6 @@
 defmodule KindaExample.NIF.Raw do
+  @moduledoc false
+
   use Kinda.CodeGen,
     with: KindaExample.CodeGen,
     root: KindaExample.NIF,
@@ -8,8 +10,8 @@ defmodule KindaExample.NIF.Raw do
   for path <-
         Path.wildcard("native/c-src/**/*.h") ++
           Path.wildcard("native/c-src/**/*.cpp") ++
-          Path.wildcard("../src/**/*.zig") ++
-          ["../build.zig", "../build.example.zig"] do
+          Path.wildcard("../../src/**/*.zig") ++
+          ["../../build.zig", "../../build.example.zig"] do
     @external_resource path
   end
 
@@ -39,7 +41,9 @@ defmodule KindaExample.NIF.Raw do
   def load_nif do
     nif_file = ~c"#{:code.priv_dir(:kinda_example)}/lib/libKindaExampleNIF"
 
-    if File.exists?(dylib = "#{nif_file}.dylib") do
+    dylib = "#{nif_file}.dylib"
+
+    if File.exists?(dylib) do
       File.ln_s(dylib, "#{nif_file}.so")
     end
 
@@ -59,6 +63,8 @@ defmodule KindaExample.NIF.Raw do
 end
 
 defmodule KindaExample.NIF do
+  @moduledoc false
+
   use Kinda.CodeGen,
     with: KindaExample.CodeGen,
     root: __MODULE__,
@@ -67,14 +73,17 @@ defmodule KindaExample.NIF do
     surface: :public
 
   defmodule CInt do
+    @moduledoc false
     use Kinda.ResourceKind, raw_module: KindaExample.NIF.Raw, codec: KindaExample.Native
   end
 
   defmodule StrInt do
+    @moduledoc false
     use Kinda.ResourceKind, raw_module: KindaExample.NIF.Raw, codec: KindaExample.Native
   end
 
   defmodule CallbackHandle do
+    @moduledoc false
     defstruct [:ref]
 
     @type t() :: %__MODULE__{ref: reference()}
