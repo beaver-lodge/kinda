@@ -4,4 +4,9 @@ project(kinda-example)
 
 add_library(KindaExample SHARED lib/KindaExample.cpp)
 target_include_directories(KindaExample PUBLIC include)
-install(TARGETS KindaExample DESTINATION lib)
+install(
+  TARGETS KindaExample
+  RUNTIME DESTINATION lib
+  LIBRARY DESTINATION lib
+  ARCHIVE DESTINATION lib
+)
