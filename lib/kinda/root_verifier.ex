@@ -16,8 +16,7 @@ defmodule Kinda.RootVerifier do
     runner = Keyword.get(opts, :command_runner, Kinda.SystemCommandRunner)
     example_verifier = Keyword.get(opts, :example_verifier, Kinda.ExampleVerifier)
 
-    sqlite_example_verifier =
-      Keyword.get(opts, :sqlite_example_verifier, Kinda.ExampleVerifier)
+    sqlite_verifier = Keyword.get(opts, :sqlite_verifier, Kinda.ExampleVerifier)
 
     env = Kinda.ExampleVerifier.command_env(opts)
 
@@ -26,8 +25,8 @@ defmodule Kinda.RootVerifier do
     verify_example(example_verifier, opts)
 
     verify_example(
-      sqlite_example_verifier,
-      Keyword.put(opts, :relative_path, "kinda_sqlite_example")
+      sqlite_verifier,
+      Keyword.put(opts, :relative_path, "packages/kinda_sqlite")
     )
   end
 

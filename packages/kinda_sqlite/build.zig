@@ -5,7 +5,7 @@ pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
 
     const sqlite = b.addLibrary(.{
-        .name = "KindaSqlite",
+        .name = "KindaSQLite",
         .linkage = .dynamic,
         .root_module = b.createModule(.{
             .target = target,
@@ -24,7 +24,7 @@ pub fn build(b: *std.Build) void {
     });
 
     const lib = b.addLibrary(.{
-        .name = "KindaSqliteExampleNIF",
+        .name = "KindaSQLiteNIF",
         .linkage = .dynamic,
         .root_module = b.createModule(.{
             .root_source_file = b.path("native/zig-src/main.zig"),

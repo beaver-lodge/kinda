@@ -1,25 +1,26 @@
-defmodule KindaSqliteExampleTest do
+defmodule Kinda.SQLite.IntegrationTest do
   use ExUnit.Case, async: false
 
+  alias Kinda.SQLite
   alias KindaExample.NIF.Raw, as: ExampleRaw
-  alias KindaSqliteExample.NIF.Raw, as: SqliteRaw
+  alias Kinda.SQLite.Native, as: SqliteRaw
 
   test "executes a real prepared SQLite query with typed bindings" do
-    database = SqliteRaw.open_memory()
-    assert SqliteRaw.sqlite_version() == "3.53.4"
-    assert :ok = SqliteRaw.execute(database, "create table people(id integer, name text)")
+    database = SQLite.open_memory()
+    assert SQLite.sqlite_version() == "3.53.4"
+    assert :ok = SQLite.execute(database, "create table people(id integer, name text)")
 
-    insert = SqliteRaw.prepare(database, "insert into people values (?, ?)")
-    assert :ok = SqliteRaw.bind_int64(insert, 1, 42)
-    assert :ok = SqliteRaw.bind_text(insert, 2, "Ada")
-    assert :done = SqliteRaw.step(insert)
-    assert 1 = SqliteRaw.database_changes(database)
+    insert = SQLite.prepare(database, "insert into people values (?, ?)")
+    assert :ok = SQLite.bind_int64(insert, 1, 42)
+    assert :ok = SQLite.bind_text(insert, 2, "Ada")
+    assert :done = SQLite.step(insert)
+    assert 1 = SQLite.database_changes(database)
 
-    query = SqliteRaw.prepare(database, "select id, name from people")
-    assert :row = SqliteRaw.step(query)
-    assert 42 = SqliteRaw.column_int64(query, 0)
-    assert "Ada" = SqliteRaw.column_text(query, 1)
-    assert :done = SqliteRaw.step(query)
+    query = SQLite.prepare(database, "select id, name from people")
+    assert :row = SQLite.step(query)
+    assert 42 = SQLite.column_int64(query, 0)
+    assert "Ada" = SQLite.column_text(query, 1)
+    assert :done = SQLite.step(query)
   end
 
   test "a statement retains its database when the parent term is collected first" do
@@ -121,7 +122,7 @@ defmodule KindaSqliteExampleTest do
     statement = SqliteRaw.prepare(database, "select value from values_table")
     example_scalar = ExampleRaw."Elixir.KindaExample.NIF.CInt.make"(33)
 
-    sqlite_upgrade = copy_nif!(:kinda_sqlite_example, "KindaSqliteExampleNIF", tmp_dir)
+    sqlite_upgrade = copy_nif!(:kinda_sqlite, "KindaSQLiteNIF", tmp_dir)
     example_upgrade = copy_nif!(:kinda_example, "KindaExampleNIF", tmp_dir)
 
     originals = [remember_module(SqliteRaw), remember_module(ExampleRaw)]

@@ -51,12 +51,12 @@ jobs:
           path: ./kinda_example/deps
           key: ${{ runner.os }}-mix-example-${{ hashFiles('**/mix.exs') }}
           restore-keys: ${{ runner.os }}-mix-example-
-      - name: Restore SQLite example dependencies cache
+      - name: Restore Kinda SQLite dependencies cache
         uses: actions/cache@v4
         with:
-          path: ./kinda_sqlite_example/deps
-          key: ${{ runner.os }}-mix-sqlite-example-${{ hashFiles('**/mix.exs') }}
-          restore-keys: ${{ runner.os }}-mix-sqlite-example-
+          path: ./packages/kinda_sqlite/deps
+          key: ${{ runner.os }}-mix-kinda-sqlite-${{ hashFiles('**/mix.exs') }}
+          restore-keys: ${{ runner.os }}-mix-kinda-sqlite-
       - name: Install dependencies
         run: mix deps.get
       - name: Check formatting of Elixir
@@ -93,20 +93,20 @@ jobs:
         run: |
           zig fmt --check src
           zig fmt --check kinda_example/native/zig-src
-          zig fmt --check kinda_sqlite_example/build.zig
-          zig fmt --check kinda_sqlite_example/native/zig-src
-      - name: Install dependencies (SQLite example)
-        working-directory: ./kinda_sqlite_example
+          zig fmt --check packages/kinda_sqlite/build.zig
+          zig fmt --check packages/kinda_sqlite/native/zig-src
+      - name: Install dependencies (Kinda SQLite)
+        working-directory: ./packages/kinda_sqlite
         run: mix deps.get
-      - name: Reject compiler warnings (SQLite example)
+      - name: Reject compiler warnings (Kinda SQLite)
         if: matrix.elixir == '1.20.3'
-        working-directory: ./kinda_sqlite_example
+        working-directory: ./packages/kinda_sqlite
         env:
           MIX_ENV: test
         run: mix compile --force --warnings-as-errors
-      - name: Check formatting of Elixir (SQLite example)
+      - name: Check formatting of Elixir (Kinda SQLite)
         if: matrix.elixir == '1.20.3'
-        working-directory: ./kinda_sqlite_example
+        working-directory: ./packages/kinda_sqlite
         run: mix format --check-formatted
       - name: Install gdb
         run: |
@@ -141,9 +141,9 @@ jobs:
         run: |
           rm -rf _build
           mix elixir_make.precompile
-      - name: Precompile SQLite example
+      - name: Precompile Kinda SQLite
         if: matrix.elixir == '1.20.3'
-        working-directory: ./kinda_sqlite_example
+        working-directory: ./packages/kinda_sqlite
         env:
           MIX_ENV: prod
           ELIXIR_MAKE_CACHE_DIR: .

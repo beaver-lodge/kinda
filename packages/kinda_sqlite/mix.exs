@@ -1,13 +1,15 @@
-defmodule KindaSqliteExample.MixProject do
+defmodule Kinda.SQLite.MixProject do
   use Mix.Project
 
   def project do
     [
-      app: :kinda_sqlite_example,
+      app: :kinda_sqlite,
       version: "0.1.0-dev",
       elixir: "~> 1.14",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
+      name: "Kinda SQLite",
+      description: "A SQLite driver built with Kinda",
       compilers: [:elixir_make] ++ Mix.compilers(),
       make_precompiler: {:nif, Kinda.Precompiler},
       make_precompiler_url: "http://127.0.0.1:8000/@{artefact_filename}"
@@ -20,8 +22,8 @@ defmodule KindaSqliteExample.MixProject do
 
   defp deps do
     [
-      {:kinda, path: ".."},
-      {:kinda_example, path: "../kinda_example", only: :test},
+      {:kinda, path: "../.."},
+      {:kinda_example, path: "../../kinda_example", only: :test},
       {:elixir_make, "~> 0.4", runtime: false}
     ]
   end

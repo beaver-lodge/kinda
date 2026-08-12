@@ -43,7 +43,7 @@ To verify the whole repo from the root, including:
 - root tests
 - wrapper-reporting JSON smoke
 - bundled `kinda_example`
-- the real SQLite integration and multi-NIF coexistence suite
+- the `kinda_sqlite` driver and multi-NIF coexistence suite
 
 run:
 
@@ -62,7 +62,7 @@ mix kinda.example.verify
 The SQLite integration can be verified independently with:
 
 ```sh
-mix kinda.sqlite.example.verify
+mix kinda.sqlite.verify
 ```
 
 If you want the same thing without compiling the project first, run:

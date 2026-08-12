@@ -1,4 +1,4 @@
-defmodule KindaSqliteExample.NIF.Raw do
+defmodule Kinda.SQLite.Native do
   @moduledoc false
 
   @on_load :load_nif
@@ -25,7 +25,7 @@ defmodule KindaSqliteExample.NIF.Raw do
   end
 
   def load_nif do
-    nif_file = ~c"#{:code.priv_dir(:kinda_sqlite_example)}/lib/libKindaSqliteExampleNIF"
+    nif_file = ~c"#{:code.priv_dir(:kinda_sqlite)}/lib/libKindaSQLiteNIF"
 
     if File.exists?(dylib = "#{nif_file}.dylib") do
       File.ln_s(dylib, "#{nif_file}.so")

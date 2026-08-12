@@ -7,7 +7,7 @@ const sqlite = @cImport({
     @cInclude("sqlite3.h");
 });
 
-const root_module = "Elixir.KindaSqliteExample.NIF.Raw";
+const root_module = "Elixir.Kinda.SQLite.Native";
 
 var databases_created: std.atomic.Value(usize) = .init(0);
 var databases_destroyed: std.atomic.Value(usize) = .init(0);
@@ -40,9 +40,9 @@ const Statement = struct {
     }
 };
 
-const DatabaseKind = kinda.ResourceKind(Database, "Elixir.KindaSqliteExample.Database");
-const StatementKind = kinda.ResourceKind(Statement, "Elixir.KindaSqliteExample.Statement");
-const ScalarKind = kinda.ResourceKind(c_int, "Elixir.KindaSqliteExample.Scalar");
+const DatabaseKind = kinda.ResourceKind(Database, "Elixir.Kinda.SQLite.Database");
+const StatementKind = kinda.ResourceKind(Statement, "Elixir.Kinda.SQLite.Statement");
+const ScalarKind = kinda.ResourceKind(c_int, "Elixir.Kinda.SQLite.TestScalar");
 
 const Error = error{
     FailedToOpenDatabase,

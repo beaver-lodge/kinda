@@ -15,8 +15,8 @@ defmodule Kinda.RootVerifierTest do
       :ok
     end
 
-    sqlite_example_verifier = fn opts ->
-      send(test_process, {:sqlite_example_verifier, opts})
+    sqlite_verifier = fn opts ->
+      send(test_process, {:sqlite_verifier, opts})
       :ok
     end
 
@@ -25,7 +25,7 @@ defmodule Kinda.RootVerifierTest do
                project_root: root,
                command_runner: runner,
                example_verifier: example_verifier,
-               sqlite_example_verifier: sqlite_example_verifier
+               sqlite_verifier: sqlite_verifier
              )
 
     assert_received {:command, "mix", ["test"], test_opts}
@@ -38,13 +38,13 @@ defmodule Kinda.RootVerifierTest do
                        project_root: ^root,
                        command_runner: ^runner,
                        example_verifier: ^example_verifier,
-                       sqlite_example_verifier: ^sqlite_example_verifier
+                       sqlite_verifier: ^sqlite_verifier
                      ]}
 
-    assert_received {:sqlite_example_verifier, sqlite_opts}
+    assert_received {:sqlite_verifier, sqlite_opts}
     assert sqlite_opts[:project_root] == root
     assert sqlite_opts[:command_runner] == runner
-    assert sqlite_opts[:relative_path] == "kinda_sqlite_example"
+    assert sqlite_opts[:relative_path] == "packages/kinda_sqlite"
   end
 
   test "raises with command context when root verification fails" do
@@ -56,7 +56,7 @@ defmodule Kinda.RootVerifierTest do
     end
 
     example_verifier = fn _opts -> :ok end
-    sqlite_example_verifier = fn _opts -> :ok end
+    sqlite_verifier = fn _opts -> :ok end
 
     error =
       assert_raise Kinda.CommandError, fn ->
@@ -64,7 +64,7 @@ defmodule Kinda.RootVerifierTest do
           project_root: root,
           command_runner: runner,
           example_verifier: example_verifier,
-          sqlite_example_verifier: sqlite_example_verifier
+          sqlite_verifier: sqlite_verifier
         )
       end
 
