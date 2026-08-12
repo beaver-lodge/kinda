@@ -1,6 +1,6 @@
 defmodule Kinda.QuickJS.Context do
   @moduledoc "A QuickJS realm owned by one runtime."
-  alias Kinda.QuickJS.Native
+  alias Kinda.QuickJS.{Native, Value}
   @enforce_keys [:resource]
   defstruct [:resource]
   @opaque t :: %__MODULE__{resource: reference()}
@@ -13,4 +13,9 @@ defmodule Kinda.QuickJS.Context do
 
   @spec close(t()) :: :ok
   def close(%__MODULE__{resource: context}), do: Native.close_context(context)
+
+  @spec value(t(), iodata()) :: Value.t()
+  def value(%__MODULE__{resource: context}, code) do
+    %Value{resource: Native.create_value(context, IO.iodata_to_binary(code))}
+  end
 end

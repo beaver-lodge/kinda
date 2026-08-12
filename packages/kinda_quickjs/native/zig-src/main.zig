@@ -52,11 +52,19 @@ const Context = struct {
     runtime: beam.ResourceRef(Runtime),
     mutex: std.atomic.Mutex = .unlocked,
     closed: bool = false,
+    values: std.atomic.Value(usize) = .init(0),
+    close_requested: std.atomic.Value(bool) = .init(false),
 
     fn close(self: *Context) void {
+        self.close_requested.store(true, .release);
+        self.closeIfUnused();
+    }
+
+    fn closeIfUnused(self: *Context) void {
+        if (!self.close_requested.load(.acquire) or self.values.load(.acquire) != 0) return;
         lock(&self.mutex);
         defer self.mutex.unlock();
-        if (self.closed) return;
+        if (self.closed or self.values.load(.acquire) != 0) return;
         const runtime = self.runtime.get();
         lock(&runtime.mutex);
         if (self.handle) |handle| quickjs.kinda_quickjs_context_destroy(handle);
@@ -67,14 +75,48 @@ const Context = struct {
         self.runtime.deinit();
     }
 
+    fn releaseValue(self: *Context) void {
+        _ = self.values.fetchSub(1, .acq_rel);
+        self.closeIfUnused();
+    }
+
     pub fn destroy(_: beam.env, object: ?*anyopaque) callconv(.c) void {
         const self: *Context = @ptrCast(@alignCast(object orelse return));
         self.close();
     }
 };
 
+const Value = struct {
+    pub const PtrType = *Value;
+    handle: ?*quickjs.kinda_quickjs_value,
+    context: beam.ResourceRef(Context),
+    mutex: std.atomic.Mutex = .unlocked,
+    closed: bool = false,
+
+    fn close(self: *Value) void {
+        lock(&self.mutex);
+        defer self.mutex.unlock();
+        if (self.closed) return;
+        const context = self.context.get();
+        const runtime = context.runtime.get();
+        lock(&runtime.mutex);
+        if (self.handle) |handle| quickjs.kinda_quickjs_value_destroy(handle);
+        self.handle = null;
+        runtime.mutex.unlock();
+        self.closed = true;
+        context.releaseValue();
+        self.context.deinit();
+    }
+
+    pub fn destroy(_: beam.env, object: ?*anyopaque) callconv(.c) void {
+        const self: *Value = @ptrCast(@alignCast(object orelse return));
+        self.close();
+    }
+};
+
 const RuntimeKind = kinda.ResourceKind(Runtime, "Elixir.Kinda.QuickJS.Runtime");
 const ContextKind = kinda.ResourceKind(Context, "Elixir.Kinda.QuickJS.Context");
+const ValueKind = kinda.ResourceKind(Value, "Elixir.Kinda.QuickJS.Value");
 
 fn makeValue(environment: beam.env, value: quickjs.struct_kinda_quickjs_result) !beam.term {
     return switch (value.type) {
@@ -168,6 +210,94 @@ fn closeContext(environment: beam.env, _: c_int, args: [*c]const beam.term) !bea
     return beam.make_ok(environment);
 }
 
+fn createValue(environment: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
+    const context = try beam.fetch_resource_ptr(*Context, environment, ContextKind.resource.t, args[0]);
+    if (context.close_requested.load(.acquire)) return error.ClosedContext;
+    const code = try beam.get_char_slice(environment, args[1]);
+    lock(&context.mutex);
+    defer context.mutex.unlock();
+    const runtime = context.runtime.get();
+    lock(&runtime.mutex);
+    defer runtime.mutex.unlock();
+    const runtime_handle = runtime.handle orelse return error.ClosedRuntime;
+    const context_handle = context.handle orelse return error.ClosedContext;
+    const handle = quickjs.kinda_quickjs_value_eval(runtime_handle, context_handle, code.ptr, code.len) orelse return Error.FailedToEvaluate;
+    _ = context.values.fetchAdd(1, .acq_rel);
+    var context_ref = beam.ResourceRef(Context).init(context);
+    errdefer {
+        quickjs.kinda_quickjs_value_destroy(handle);
+        context_ref.deinit();
+        context.releaseValue();
+    }
+    return ValueKind.resource.make(environment, .{ .handle = handle, .context = context_ref }) catch return error.OutOfMemory;
+}
+
+fn exportValue(environment: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
+    const value = try beam.fetch_resource_ptr(*Value, environment, ValueKind.resource.t, args[0]);
+    lock(&value.mutex);
+    defer value.mutex.unlock();
+    if (value.closed) return error.ClosedValue;
+    const context = value.context.get();
+    const runtime = context.runtime.get();
+    lock(&runtime.mutex);
+    defer runtime.mutex.unlock();
+    const handle = value.handle orelse return error.ClosedValue;
+    var exported: quickjs.struct_kinda_quickjs_result = std.mem.zeroes(quickjs.struct_kinda_quickjs_result);
+    if (quickjs.kinda_quickjs_value_export(handle, &exported) != 0) return error.FailedToExport;
+    defer quickjs.kinda_quickjs_result_release(&exported);
+    return makeValue(environment, exported);
+}
+
+fn promiseState(environment: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
+    const value = try beam.fetch_resource_ptr(*Value, environment, ValueKind.resource.t, args[0]);
+    lock(&value.mutex);
+    defer value.mutex.unlock();
+    if (value.closed) return error.ClosedValue;
+    const context = value.context.get();
+    const runtime = context.runtime.get();
+    lock(&runtime.mutex);
+    defer runtime.mutex.unlock();
+    const handle = value.handle orelse return error.ClosedValue;
+    return beam.make_atom(environment, switch (quickjs.kinda_quickjs_promise_state(handle)) {
+        0 => "pending",
+        1 => "fulfilled",
+        2 => "rejected",
+        else => "not_promise",
+    });
+}
+
+fn promiseResult(environment: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
+    const value = try beam.fetch_resource_ptr(*Value, environment, ValueKind.resource.t, args[0]);
+    lock(&value.mutex);
+    defer value.mutex.unlock();
+    if (value.closed) return error.ClosedValue;
+    const context = value.context.get();
+    const runtime = context.runtime.get();
+    lock(&runtime.mutex);
+    defer runtime.mutex.unlock();
+    const handle = value.handle orelse return error.ClosedValue;
+    var exported: quickjs.struct_kinda_quickjs_result = std.mem.zeroes(quickjs.struct_kinda_quickjs_result);
+    if (quickjs.kinda_quickjs_promise_result(handle, &exported) != 0) return error.FailedToExport;
+    defer quickjs.kinda_quickjs_result_release(&exported);
+    return makeValue(environment, exported);
+}
+
+fn runJobs(environment: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
+    const runtime = try beam.fetch_resource_ptr(*Runtime, environment, RuntimeKind.resource.t, args[0]);
+    const limit = try beam.get_usize(environment, args[1]);
+    lock(&runtime.mutex);
+    defer runtime.mutex.unlock();
+    const handle = runtime.handle orelse return error.ClosedRuntime;
+    var executed: usize = 0;
+    if (quickjs.kinda_quickjs_run_jobs(handle, limit, &executed) != 0) return error.FailedJob;
+    return beam.make_usize(environment, executed);
+}
+
+fn closeValue(environment: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
+    (try beam.fetch_resource_ptr(*Value, environment, ValueKind.resource.t, args[0])).close();
+    return beam.make_ok(environment);
+}
+
 fn version(environment: beam.env, _: c_int, _: [*c]const beam.term) !beam.term {
     return beam.make_slice(environment, std.mem.span(quickjs.kinda_quickjs_version()));
 }
@@ -181,13 +311,20 @@ const all_nifs = .{
     result.nif_with_flags("create_context", 1, createContext, cpu_bound).entry,
     result.nif_with_flags("eval_context", 3, evalContext, cpu_bound).entry,
     result.nif_with_flags("close_context", 1, closeContext, cpu_bound).entry,
+    result.nif_with_flags("create_value", 2, createValue, cpu_bound).entry,
+    result.nif_with_flags("export_value", 1, exportValue, cpu_bound).entry,
+    result.nif_with_flags("promise_state", 1, promiseState, cpu_bound).entry,
+    result.nif_with_flags("promise_result", 1, promiseResult, cpu_bound).entry,
+    result.nif_with_flags("run_jobs", 2, runJobs, cpu_bound).entry,
+    result.nif_with_flags("close_value", 1, closeValue, cpu_bound).entry,
 };
 pub export var nifs: [all_nifs.len]e.ErlNifFunc = all_nifs;
 
 fn nifLoad(environment: beam.env, _: [*c]?*anyopaque, _: beam.term) callconv(.c) c_int {
     RuntimeKind.open(environment);
     ContextKind.open(environment);
-    return if (RuntimeKind.resource.t == null or ContextKind.resource.t == null) 1 else 0;
+    ValueKind.open(environment);
+    return if (RuntimeKind.resource.t == null or ContextKind.resource.t == null or ValueKind.resource.t == null) 1 else 0;
 }
 
 const entry = e.ErlNifEntry{ .major = 2, .minor = 16, .name = root_module, .num_of_funcs = nifs.len, .funcs = &(nifs[0]), .load = nifLoad, .reload = null, .upgrade = null, .unload = null, .vm_variant = "beam.vanilla", .options = 1, .sizeof_ErlNifResourceTypeInit = @sizeOf(e.ErlNifResourceTypeInit), .min_erts = "erts-15.0" };

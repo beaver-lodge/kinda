@@ -13,6 +13,11 @@ struct kinda_quickjs_context {
   JSContext *handle;
 };
 
+struct kinda_quickjs_value {
+  JSContext *context;
+  JSValue handle;
+};
+
 static int interrupt_handler(JSRuntime *runtime, void *opaque) {
   (void)runtime;
   struct kinda_quickjs_runtime *owner = opaque;
@@ -146,4 +151,59 @@ int kinda_quickjs_context_eval(kinda_quickjs_runtime *runtime,
   int status = JS_IsException(value) ? -1 : export_value(context->handle, value, result);
   JS_FreeValue(context->handle, value);
   return status;
+}
+
+kinda_quickjs_value *kinda_quickjs_value_eval(kinda_quickjs_runtime *runtime,
+                                              kinda_quickjs_context *context,
+                                              const char *source, size_t length) {
+  (void)runtime;
+  char *terminated = malloc(length + 1);
+  if (terminated == NULL) return NULL;
+  memcpy(terminated, source, length);
+  terminated[length] = '\0';
+  JSValue handle = JS_Eval(context->handle, terminated, length, "kinda-value",
+                           JS_EVAL_TYPE_GLOBAL);
+  free(terminated);
+  if (JS_IsException(handle)) { JS_FreeValue(context->handle, handle); return NULL; }
+  struct kinda_quickjs_value *value = malloc(sizeof(*value));
+  if (value == NULL) { JS_FreeValue(context->handle, handle); return NULL; }
+  value->context = context->handle;
+  value->handle = handle;
+  return value;
+}
+
+void kinda_quickjs_value_destroy(kinda_quickjs_value *value) {
+  if (value == NULL) return;
+  JS_FreeValue(value->context, value->handle);
+  free(value);
+}
+
+int kinda_quickjs_value_export(kinda_quickjs_value *value,
+                               struct kinda_quickjs_result *result) {
+  return export_value(value->context, value->handle, result);
+}
+
+int kinda_quickjs_promise_state(kinda_quickjs_value *value) {
+  return JS_PromiseState(value->context, value->handle);
+}
+
+int kinda_quickjs_promise_result(kinda_quickjs_value *value,
+                                 struct kinda_quickjs_result *result) {
+  JSValue handle = JS_PromiseResult(value->context, value->handle);
+  int status = export_value(value->context, handle, result);
+  JS_FreeValue(value->context, handle);
+  return status;
+}
+
+int kinda_quickjs_run_jobs(kinda_quickjs_runtime *runtime, size_t limit,
+                           size_t *executed) {
+  *executed = 0;
+  while (limit == 0 || *executed < limit) {
+    JSContext *context = NULL;
+    int status = JS_ExecutePendingJob(runtime->handle, &context);
+    if (status < 0) return -1;
+    if (status == 0) return 0;
+    (*executed)++;
+  }
+  return 0;
 }

@@ -29,4 +29,7 @@ defmodule Kinda.QuickJS.Runtime do
 
   @spec close(t()) :: :ok
   def close(%__MODULE__{resource: runtime}), do: Native.close_runtime(runtime)
+
+  @spec run_jobs(t(), non_neg_integer()) :: non_neg_integer()
+  def run_jobs(%__MODULE__{resource: runtime}, limit \\ 0), do: Native.run_jobs(runtime, limit)
 end

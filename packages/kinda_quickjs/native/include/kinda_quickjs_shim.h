@@ -25,6 +25,7 @@ struct kinda_quickjs_result {
 
 typedef struct kinda_quickjs_runtime kinda_quickjs_runtime;
 typedef struct kinda_quickjs_context kinda_quickjs_context;
+typedef struct kinda_quickjs_value kinda_quickjs_value;
 
 const char *kinda_quickjs_version(void);
 int kinda_quickjs_eval(const char *source, size_t length,
@@ -43,5 +44,16 @@ int kinda_quickjs_context_eval(kinda_quickjs_runtime *runtime,
                                const char *source, size_t length,
                                uint64_t interrupt_budget,
                                struct kinda_quickjs_result *result);
+kinda_quickjs_value *kinda_quickjs_value_eval(kinda_quickjs_runtime *runtime,
+                                              kinda_quickjs_context *context,
+                                              const char *source, size_t length);
+void kinda_quickjs_value_destroy(kinda_quickjs_value *value);
+int kinda_quickjs_value_export(kinda_quickjs_value *value,
+                               struct kinda_quickjs_result *result);
+int kinda_quickjs_promise_state(kinda_quickjs_value *value);
+int kinda_quickjs_promise_result(kinda_quickjs_value *value,
+                                 struct kinda_quickjs_result *result);
+int kinda_quickjs_run_jobs(kinda_quickjs_runtime *runtime, size_t limit,
+                           size_t *executed);
 
 #endif
