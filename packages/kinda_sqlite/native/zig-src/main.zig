@@ -261,6 +261,9 @@ fn step(environment: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
     const statement = try fetchStatement(environment, args[0]);
     lock(&statement.mutex);
     defer statement.mutex.unlock();
+    const database = statement.database.get();
+    lock(&database.mutex);
+    defer database.mutex.unlock();
     return switch (sqlite.sqlite3_step(try statementHandle(statement))) {
         sqlite.SQLITE_ROW => beam.make_atom(environment, "row"),
         sqlite.SQLITE_DONE => beam.make_atom(environment, "done"),
