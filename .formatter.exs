@@ -13,5 +13,9 @@
       [
         "packages/kinda_python/{mix,.formatter}.exs",
         "packages/kinda_python/{lib,test,scripts}/**/*.{ex,exs}"
+      ] ++
+      [
+        "packages/kinda_mruby/{mix,.formatter}.exs",
+        "packages/kinda_mruby/{lib,test,scripts}/**/*.{ex,exs}"
       ]
 ]

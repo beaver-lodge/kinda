@@ -1,0 +1,11 @@
+.{
+    .name = .kinda_mruby,
+    .version = "0.0.0",
+    .fingerprint = 0xa92537c3e1f627ba,
+    .dependencies = .{
+        .kinda = .{
+            .path = "../..",
+        },
+    },
+    .paths = .{""},
+}
