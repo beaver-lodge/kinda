@@ -6,7 +6,7 @@ pub fn build(b: *std.Build) void {
 
     const sqlite = b.addLibrary(.{
         .name = "KindaSQLite",
-        .linkage = .dynamic,
+        .linkage = if (target.result.os.tag == .windows) .static else .dynamic,
         .root_module = b.createModule(.{
             .target = target,
             .optimize = optimize,
