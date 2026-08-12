@@ -5,10 +5,37 @@ defmodule Kinda.DuckDB.Native do
 
   @on_load :load_nif
 
-  def library_version, do: :erlang.nif_error({:nif_not_loaded, :library_version})
+  for {name, arity} <- [
+        library_version: 0,
+        query_int64: 2,
+        open: 1,
+        close_database: 1,
+        connect: 1,
+        close_connection: 1,
+        query: 2,
+        close_result: 1,
+        result_column_count: 1,
+        result_row_count: 1,
+        result_rows_changed: 1,
+        result_column_name: 2,
+        result_value: 3,
+        create_appender: 2,
+        close_appender: 1,
+        append_row: 2,
+        append_begin: 1,
+        append_end: 1,
+        append_null: 1,
+        append_bool: 2,
+        append_int64: 2,
+        append_double: 2,
+        append_varchar: 2,
+        flush_appender: 1
+      ] do
+    args = Macro.generate_arguments(arity, __MODULE__)
 
-  def query_int64(_database, _sql),
-    do: :erlang.nif_error({:nif_not_loaded, :query_int64})
+    def unquote(name)(unquote_splicing(args)),
+      do: :erlang.nif_error({:nif_not_loaded, unquote(name)})
+  end
 
   def load_nif do
     nif_file = ~c"#{:code.priv_dir(:kinda_duckdb)}/lib/libKindaDuckDBNIF"
