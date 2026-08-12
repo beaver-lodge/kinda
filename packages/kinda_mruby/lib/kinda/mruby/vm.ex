@@ -5,8 +5,26 @@ defmodule Kinda.MRuby.VM do
   defstruct [:resource]
   @opaque t :: %__MODULE__{resource: reference()}
 
-  @spec open() :: t()
-  def open, do: %__MODULE__{resource: Native.create_vm()}
+  @spec open(keyword()) :: t()
+  def open(options \\ []) do
+    resource =
+      case Keyword.fetch(options, :allocation_budget) do
+        {:ok, budget} when is_integer(budget) and budget >= 0 -> Native.create_limited_vm(budget)
+        :error -> Native.create_vm()
+      end
+
+    %__MODULE__{resource: resource}
+  end
+
+  @spec allocator_stats(t()) :: %{
+          allocations: non_neg_integer(),
+          live_bytes: non_neg_integer(),
+          peak_bytes: non_neg_integer()
+        }
+  def allocator_stats(%__MODULE__{resource: resource}) do
+    {allocations, live_bytes, peak_bytes} = Native.allocator_stats(resource)
+    %{allocations: allocations, live_bytes: live_bytes, peak_bytes: peak_bytes}
+  end
 
   @spec eval(t(), iodata()) :: Value.t()
   def eval(%__MODULE__{resource: resource}, code) do

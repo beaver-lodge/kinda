@@ -3,8 +3,11 @@ defmodule Kinda.MRuby.Native do
   @on_load :load_nif
 
   def version, do: :erlang.nif_error({:nif_not_loaded, :version})
+  def build_profile, do: :erlang.nif_error({:nif_not_loaded, :build_profile})
   def eval(_code), do: :erlang.nif_error({:nif_not_loaded, :eval})
   def create_vm, do: :erlang.nif_error({:nif_not_loaded, :create_vm})
+  def create_limited_vm(_budget), do: :erlang.nif_error({:nif_not_loaded, :create_limited_vm})
+  def allocator_stats(_vm), do: :erlang.nif_error({:nif_not_loaded, :allocator_stats})
   def close_vm(_vm), do: :erlang.nif_error({:nif_not_loaded, :close_vm})
   def eval_value(_vm, _code), do: :erlang.nif_error({:nif_not_loaded, :eval_value})
   def close_value(_value), do: :erlang.nif_error({:nif_not_loaded, :close_value})

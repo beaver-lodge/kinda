@@ -5,6 +5,9 @@ defmodule Kinda.MRuby do
   @spec open() :: Kinda.MRuby.VM.t()
   defdelegate open(), to: Kinda.MRuby.VM
 
+  @spec open(keyword()) :: Kinda.MRuby.VM.t()
+  defdelegate open(options), to: Kinda.MRuby.VM
+
   @spec eval(Kinda.MRuby.VM.t(), iodata()) :: Kinda.MRuby.Value.t()
   defdelegate eval(vm, code), to: Kinda.MRuby.VM
 
@@ -16,6 +19,9 @@ defmodule Kinda.MRuby do
 
   @spec version() :: String.t()
   def version, do: Native.version()
+
+  @spec build_profile() :: String.t()
+  def build_profile, do: Native.build_profile()
 
   @spec eval(iodata()) :: nil | boolean() | integer() | String.t()
   def eval(code), do: code |> IO.iodata_to_binary() |> Native.eval()
