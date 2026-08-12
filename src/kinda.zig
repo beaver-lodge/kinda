@@ -246,7 +246,7 @@ pub fn ResourceKind(comptime ElementType: type, comptime module_name_: anytype) 
             openSlot(env, slots[2]);
         }
         pub fn open_all(env: beam.env) void {
-            for (slots) |slot| {
+            inline for (slots) |slot| {
                 openSlot(env, slot);
             }
             if (@typeInfo(ElementType) == .@"struct" and @hasDecl(ElementType, "resource_type")) {
@@ -263,7 +263,7 @@ pub fn ResourceKind2(comptime ElementType: type) type {
 pub fn aliasKind(comptime AliasKind: type, comptime Kind: type) void {
     // Copy every slot handle: the two kinds share one ERTS resource type per
     // slot so terms created through either name fetch the same native data.
-    for (AliasKind.slots, Kind.slots) |alias_slot, target_slot| {
+    inline for (AliasKind.slots, Kind.slots) |alias_slot, target_slot| {
         alias_slot.t.* = target_slot.t.*;
     }
 }
