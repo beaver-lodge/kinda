@@ -15,11 +15,20 @@ defmodule Kinda.RootVerifier do
     root = project_root(opts)
     runner = Keyword.get(opts, :command_runner, Kinda.SystemCommandRunner)
     example_verifier = Keyword.get(opts, :example_verifier, Kinda.ExampleVerifier)
+
+    sqlite_example_verifier =
+      Keyword.get(opts, :sqlite_example_verifier, Kinda.ExampleVerifier)
+
     env = Kinda.ExampleVerifier.command_env(opts)
 
     run_step(runner, "mix", ["test"], cd: root, env: env)
     run_step(runner, "mix", ["kinda.wrapper.example", "--json"], cd: root, env: env)
     verify_example(example_verifier, opts)
+
+    verify_example(
+      sqlite_example_verifier,
+      Keyword.put(opts, :relative_path, "kinda_sqlite_example")
+    )
   end
 
   defp verify_example(verifier, opts) when is_function(verifier, 1), do: verifier.(opts)

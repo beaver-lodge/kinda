@@ -1,0 +1,11 @@
+.{
+    .name = .kinda_sqlite_example,
+    .version = "0.0.0",
+    .fingerprint = 0x75229881b73f9465,
+    .dependencies = .{
+        .kinda = .{
+            .path = "..",
+        },
+    },
+    .paths = .{""},
+}

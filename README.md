@@ -43,6 +43,7 @@ To verify the whole repo from the root, including:
 - root tests
 - wrapper-reporting JSON smoke
 - bundled `kinda_example`
+- the real SQLite integration and multi-NIF coexistence suite
 
 run:
 
@@ -56,6 +57,12 @@ If you only want the bundled application example from the repo root, run:
 
 ```sh
 mix kinda.example.verify
+```
+
+The SQLite integration can be verified independently with:
+
+```sh
+mix kinda.sqlite.example.verify
 ```
 
 If you want the same thing without compiling the project first, run:
@@ -82,6 +89,7 @@ Core runtime/building blocks:
 - `Kinda.Codec`
 - `Kinda.CallbackRuntime` for the common BEAM callback/reply boundary
 - `kinda.callback_runtime` for Zig-side native-thread callbacks into BEAM
+- `beam.ResourceRef(T)` for retaining parent resources from child resources
 
 Wrapper extraction/generation blocks:
 

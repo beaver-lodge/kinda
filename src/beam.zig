@@ -1433,6 +1433,36 @@ pub fn fetch_resource_ptr(comptime PtrT: type, environment: env, res_typ: resour
     return obj;
 }
 
+/// A retained native reference to a BEAM resource object.
+///
+/// Use this when one resource contains a pointer to another resource and must
+/// keep its parent alive independently of the parent's Erlang term. `init`
+/// acquires one native reference and `deinit` releases it. The reference owns
+/// that retain and must not be copied into multiple independently-deinitialized
+/// values.
+pub fn ResourceRef(comptime T: type) type {
+    return struct {
+        const Self = @This();
+
+        resource: ?*T = null,
+
+        pub fn init(resource: *T) Self {
+            e.enif_keep_resource(resource);
+            return .{ .resource = resource };
+        }
+
+        pub fn get(reference: *const Self) *T {
+            return reference.resource orelse @panic("accessed a released resource reference");
+        }
+
+        pub fn deinit(reference: *Self) void {
+            const resource = reference.resource orelse return;
+            reference.resource = null;
+            e.enif_release_resource(resource);
+        }
+    };
+}
+
 /// Turns the caller-owned reference returned by `enif_alloc_resource` into a
 /// BEAM-owned resource term. `enif_make_resource` adds the term reference; the
 /// original native reference must still be released so the destructor can run
