@@ -16,6 +16,14 @@ fn lock(mutex: *std.atomic.Mutex) void {
     while (!mutex.tryLock()) std.atomic.spinLoopHint();
 }
 
+fn decrefOptional(object: ?*py.PyObject) void {
+    if (object) |value| py.Py_DecRef(value);
+}
+
+fn hasExactType(object: *py.PyObject, python_type: *py.PyTypeObject) bool {
+    return py.Py_TYPE(object) == python_type;
+}
+
 fn ensureRuntime() void {
     lock(&runtime_mutex);
     defer runtime_mutex.unlock();
@@ -47,7 +55,7 @@ const Interpreter = struct {
         if (self.children.load(.acquire) != 0) return;
         const tstate = self.tstate orelse return;
         py.PyEval_AcquireThread(tstate);
-        py.Py_XDECREF(self.globals);
+        decrefOptional(self.globals);
         self.globals = null;
         py.Py_EndInterpreter(tstate);
         self.tstate = null;
@@ -184,9 +192,9 @@ fn valueToTerm(environment: beam.env, _: c_int, args: [*c]const beam.term) !beam
     py.PyEval_AcquireThread(tstate);
     defer py.PyEval_ReleaseThread(tstate);
     if (object == py.Py_None()) return beam.make_nil(environment);
-    if (py.PyBool_Check(object) != 0) return beam.make_bool(environment, object == py.Py_True());
-    if (py.PyLong_Check(object) != 0) return beam.make_i64(environment, py.PyLong_AsLongLong(object));
-    if (py.PyUnicode_Check(object) != 0) {
+    if (hasExactType(object, &py.PyBool_Type)) return beam.make_bool(environment, object == py.Py_True());
+    if (hasExactType(object, &py.PyLong_Type)) return beam.make_i64(environment, py.PyLong_AsLongLong(object));
+    if (hasExactType(object, &py.PyUnicode_Type)) {
         var length: py.Py_ssize_t = 0;
         const bytes = py.PyUnicode_AsUTF8AndSize(object, &length) orelse return Error.UnsupportedValue;
         return beam.make_slice(environment, bytes[0..@intCast(length)]);
@@ -213,22 +221,22 @@ fn isolatedEval(environment: beam.env, _: c_int, args: [*c]const beam.term) !bea
     const object = if (globals) |scope| py.PyRun_StringFlags(terminated.ptr, py.Py_eval_input, scope, scope, null) else null;
     if (object == null) {
         py.PyErr_Clear();
-        py.Py_XDECREF(globals);
+        decrefOptional(globals);
         py.Py_EndInterpreter(tstate);
         _ = py.PyThreadState_Swap(main_tstate);
         py.PyThreadState_Clear(main_tstate);
         py.PyThreadState_DeleteCurrent();
         return Error.FailedToEvaluate;
     }
-    const term = if (py.PyLong_Check(object) != 0)
+    const term = if (hasExactType(object, &py.PyLong_Type))
         beam.make_i64(environment, py.PyLong_AsLongLong(object))
-    else if (py.PyUnicode_Check(object) != 0) blk: {
+    else if (hasExactType(object, &py.PyUnicode_Type)) blk: {
         var length: py.Py_ssize_t = 0;
         const bytes = py.PyUnicode_AsUTF8AndSize(object, &length) orelse break :blk beam.make_nil(environment);
         break :blk beam.make_slice(environment, bytes[0..@intCast(length)]);
     } else beam.make_nil(environment);
     py.Py_DecRef(object);
-    py.Py_XDECREF(globals);
+    decrefOptional(globals);
     py.Py_EndInterpreter(tstate);
     _ = py.PyThreadState_Swap(main_tstate);
     py.PyThreadState_Clear(main_tstate);
