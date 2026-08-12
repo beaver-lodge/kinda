@@ -1,6 +1,15 @@
 defmodule Kinda.QuickJS do
   @moduledoc "A lightweight embedded QuickJS runtime."
-  alias Kinda.QuickJS.Native
+  alias Kinda.QuickJS.{Context, Native, Runtime}
+
+  @spec open(keyword()) :: Runtime.t()
+  def open(options \\ []), do: Runtime.open(options)
+
+  @spec context(Runtime.t()) :: Context.t()
+  def context(runtime), do: Runtime.context(runtime)
+
+  @spec eval(Context.t(), iodata(), keyword()) :: term()
+  def eval(context, code, options \\ []), do: Context.eval(context, code, options)
 
   @spec version() :: String.t()
   def version, do: Native.version()

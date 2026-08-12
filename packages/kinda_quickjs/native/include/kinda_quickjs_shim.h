@@ -23,9 +23,25 @@ struct kinda_quickjs_result {
   size_t string_length;
 };
 
+typedef struct kinda_quickjs_runtime kinda_quickjs_runtime;
+typedef struct kinda_quickjs_context kinda_quickjs_context;
+
 const char *kinda_quickjs_version(void);
 int kinda_quickjs_eval(const char *source, size_t length,
                        struct kinda_quickjs_result *result);
 void kinda_quickjs_result_release(struct kinda_quickjs_result *result);
+kinda_quickjs_runtime *kinda_quickjs_runtime_create(size_t memory_limit,
+                                                    size_t stack_limit);
+void kinda_quickjs_runtime_destroy(kinda_quickjs_runtime *runtime);
+void kinda_quickjs_runtime_stats(kinda_quickjs_runtime *runtime,
+                                 size_t *allocations, size_t *live_bytes,
+                                 size_t *limit);
+kinda_quickjs_context *kinda_quickjs_context_create(kinda_quickjs_runtime *runtime);
+void kinda_quickjs_context_destroy(kinda_quickjs_context *context);
+int kinda_quickjs_context_eval(kinda_quickjs_runtime *runtime,
+                               kinda_quickjs_context *context,
+                               const char *source, size_t length,
+                               uint64_t interrupt_budget,
+                               struct kinda_quickjs_result *result);
 
 #endif

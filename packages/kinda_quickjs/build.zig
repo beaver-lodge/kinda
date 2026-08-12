@@ -28,7 +28,7 @@ pub fn build(b: *std.Build) void {
     lib.root_module.addCSourceFiles(.{
         .root = .{ .cwd_relative = quickjs_root },
         .files = &.{ "quickjs.c", "dtoa.c", "libregexp.c", "libunicode.c", "cutils.c" },
-        .flags = &.{ "-std=gnu11", "-Wno-discarded-qualifiers" },
+        .flags = &.{ "-std=gnu11", "-fwrapv", "-Wno-discarded-qualifiers" },
     });
     if (target.result.os.tag != .windows) lib.root_module.linkSystemLibrary("m", .{});
     lib.linker_allow_shlib_undefined = true;
