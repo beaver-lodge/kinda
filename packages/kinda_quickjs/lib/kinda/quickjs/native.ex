@@ -16,6 +16,12 @@ defmodule Kinda.QuickJS.Native do
     do: :erlang.nif_error({:nif_not_loaded, :eval_context})
 
   def close_context(_context), do: :erlang.nif_error({:nif_not_loaded, :close_context})
+  def create_value(_context, _code), do: :erlang.nif_error({:nif_not_loaded, :create_value})
+  def export_value(_value), do: :erlang.nif_error({:nif_not_loaded, :export_value})
+  def promise_state(_value), do: :erlang.nif_error({:nif_not_loaded, :promise_state})
+  def promise_result(_value), do: :erlang.nif_error({:nif_not_loaded, :promise_result})
+  def run_jobs(_runtime, _limit), do: :erlang.nif_error({:nif_not_loaded, :run_jobs})
+  def close_value(_value), do: :erlang.nif_error({:nif_not_loaded, :close_value})
 
   def load_nif do
     nif_file = ~c"#{:code.priv_dir(:kinda_quickjs)}/lib/libKindaQuickJSNIF"
