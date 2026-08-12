@@ -44,9 +44,16 @@ defmodule KindaExample.NIF.Raw do
     end
 
     case :erlang.load_nif(nif_file, 0) do
-      :ok -> :ok
-      {:error, {:reload, _}} -> :ok
-      {:error, reason} -> IO.puts("Failed to load nif: #{inspect(reason)}")
+      :ok ->
+        :ok
+
+      {:error, {:reload, _}} ->
+        :ok
+
+      {:error, reason} ->
+        raise Kinda.NIFLoadError,
+          path: nif_file,
+          reason: reason
     end
   end
 end

@@ -9,14 +9,20 @@ pub fn is_stack_trace_enabled() bool {
 }
 
 pub fn nif_with_flags(comptime name: [*c]const u8, comptime arity: usize, comptime f: anytype, comptime flags: u32) type {
-    const ns = "Elixir.";
     return struct {
         fn exported(env: beam.env, n: c_int, args: [*c]const beam.term) callconv(.c) beam.term {
             return f(env, n, args) catch |err| {
                 if (is_stack_trace_enabled()) {
                     std.debug.dumpErrorReturnTrace(@errorReturnTrace().?);
                 }
-                return beam.raise_exception(env, ns ++ "Kinda.CallError", err);
+                return beam.raise_call_error(env, .{
+                    .message = @errorName(err),
+                    .reason = "native_error",
+                    .phase = "native",
+                    .function = std.mem.span(name),
+                    .arity = arity,
+                    .native_error = err,
+                });
             };
         }
         pub const entry = e.ErlNifFunc{ .name = name, .arity = arity, .fptr = exported, .flags = flags };

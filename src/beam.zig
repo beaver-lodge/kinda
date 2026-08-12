@@ -269,28 +269,6 @@ pub var general_purpose_allocator = general_purpose_allocator_instance.allocator
 pub const Error =
     error{ @"Function clause error", @"Fail to make resource", @"Fail to fetch resource", @"Fail to fetch resource ptr", @"Fail to fetch resource for array", @"Fail to fetch resource list element", @"Fail to make resource for opaque array", @"Fail to fetch primitive", @"Fail to create primitive", @"Fail to make resource for return type", @"Fail to allocate memory for tuple slice", @"Fail to make ptr resource", @"Fail to fetch ptr resource", @"Fail to make resource for opaque ptr", @"Fail to make array resource", @"Fail to make mutable array resource", @"Fail to fetch resource opaque ptr", @"Fail to fetch offset", @"Fail to make resource for extracted object", @"Fail to make object size", @"Fail to inspect resource binary", @"Fail to get boolean", @"Fail to get calling process" };
 
-pub const ArgumentError = error{
-    @"Fail to fetch argument",
-    @"Fail to fetch argument #1",
-    @"Fail to fetch argument #2",
-    @"Fail to fetch argument #3",
-    @"Fail to fetch argument #4",
-    @"Fail to fetch argument #5",
-    @"Fail to fetch argument #6",
-    @"Fail to fetch argument #7",
-    @"Fail to fetch argument #8",
-    @"Fail to fetch argument #9",
-    @"Fail to fetch argument #10",
-    @"Fail to fetch argument #11",
-    @"Fail to fetch argument #12",
-    @"Fail to fetch argument #13",
-    @"Fail to fetch argument #14",
-    @"Fail to fetch argument #15",
-    @"Fail to fetch argument #16",
-    @"Fail to fetch argument #17",
-    @"Fail to fetch argument #18",
-};
-
 /// errors for launching nif errors
 /// LaunchError Occurs when there's a problem launching a threaded nif.
 pub const ThreadError = error{LaunchError};
@@ -1331,14 +1309,63 @@ pub fn raise_assertion_error(env_: env) term {
     return e.enif_raise_exception(env_, make_atom(env_, assert_slice));
 }
 
+pub const CallErrorContext = struct {
+    message: []const u8,
+    reason: []const u8,
+    phase: []const u8,
+    function: []const u8,
+    arity: usize,
+    argument_index: ?usize = null,
+    expected: ?[]const u8 = null,
+    native_error: ?anyerror = null,
+};
+
+fn put_exception_field(env_: env, exception: *term, comptime key: []const u8, value: term) void {
+    _ = e.enif_make_map_put(env_, exception.*, make_atom(env_, key), value, exception);
+}
+
+fn optional_slice(env_: env, value: ?[]const u8) term {
+    return if (value) |slice| make_slice(env_, slice) else make_nil(env_);
+}
+
+fn optional_error(env_: env, value: ?anyerror) term {
+    return if (value) |err| make_slice(env_, @errorName(err)) else make_nil(env_);
+}
+
+pub fn make_call_error(env_: env, context: CallErrorContext) term {
+    var exception = e.enif_make_new_map(env_);
+    put_exception_field(env_, &exception, "__struct__", make_atom(env_, "Elixir.Kinda.CallError"));
+    put_exception_field(env_, &exception, "__exception__", make_bool(env_, true));
+    put_exception_field(env_, &exception, "message", make_slice(env_, context.message));
+    put_exception_field(env_, &exception, "reason", make_atom(env_, context.reason));
+    put_exception_field(env_, &exception, "phase", make_atom(env_, context.phase));
+    put_exception_field(env_, &exception, "function", make_slice(env_, context.function));
+    put_exception_field(env_, &exception, "arity", e.enif_make_uint64(env_, context.arity));
+    put_exception_field(
+        env_,
+        &exception,
+        "argument_index",
+        if (context.argument_index) |index| e.enif_make_uint64(env_, index) else make_nil(env_),
+    );
+    put_exception_field(env_, &exception, "argument_name", make_nil(env_));
+    put_exception_field(env_, &exception, "expected", optional_slice(env_, context.expected));
+    put_exception_field(env_, &exception, "actual", make_nil(env_));
+    put_exception_field(env_, &exception, "native_error", optional_error(env_, context.native_error));
+    return exception;
+}
+
+pub fn raise_call_error(env_: env, context: CallErrorContext) term {
+    return e.enif_raise_exception(env_, make_call_error(env_, context));
+}
+
 pub fn make_exception(env_: env, exception_module: []const u8, err: anyerror) term {
     const erl_err = make_slice(env_, @errorName(err));
     var exception = e.enif_make_new_map(env_);
     // define the struct
-    _ = e.enif_make_map_put(env_, exception, make_atom(env_, "__struct__"), make_atom(env_, exception_module), &exception);
-    _ = e.enif_make_map_put(env_, exception, make_atom(env_, "__exception__"), make_bool(env_, true), &exception);
+    put_exception_field(env_, &exception, "__struct__", make_atom(env_, exception_module));
+    put_exception_field(env_, &exception, "__exception__", make_bool(env_, true));
     // define the error
-    _ = e.enif_make_map_put(env_, exception, make_atom(env_, "message"), erl_err, &exception);
+    put_exception_field(env_, &exception, "message", erl_err);
     return exception;
 }
 

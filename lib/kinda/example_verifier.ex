@@ -3,7 +3,7 @@ defmodule Kinda.ExampleVerifier do
   Verifies the bundled `kinda_example` application from the root repo.
   """
 
-  @type command_runner :: module()
+  @type command_runner :: Kinda.SystemCommandRunner.runner()
 
   @spec example_root(keyword()) :: Path.t()
   def example_root(opts \\ []) do
@@ -54,18 +54,11 @@ defmodule Kinda.ExampleVerifier do
   end
 
   defp run_step(runner, command, args, opts) do
-    case runner.cmd(command, args, Keyword.put_new(opts, :stderr_to_stdout, true)) do
-      {_output, 0} ->
-        :ok
+    Kinda.SystemCommandRunner.run!(runner, command, args, opts,
+      stage: :example_verification,
+      message: "kinda_example verification failed"
+    )
 
-      {output, status} ->
-        raise """
-        kinda_example verification failed.
-        command: #{command} #{Enum.join(args, " ")}
-        status: #{status}
-
-        #{output}
-        """
-    end
+    :ok
   end
 end

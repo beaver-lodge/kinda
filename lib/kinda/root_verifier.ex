@@ -3,7 +3,7 @@ defmodule Kinda.RootVerifier do
   Verifies the root `kinda` repo, including bundled example surfaces.
   """
 
-  @type command_runner :: module()
+  @type command_runner :: Kinda.SystemCommandRunner.runner()
 
   @spec project_root(keyword()) :: Path.t()
   def project_root(opts \\ []) do
@@ -19,22 +19,18 @@ defmodule Kinda.RootVerifier do
 
     run_step(runner, "mix", ["test"], cd: root, env: env)
     run_step(runner, "mix", ["kinda.wrapper.example", "--json"], cd: root, env: env)
-    example_verifier.verify(opts)
+    verify_example(example_verifier, opts)
   end
 
+  defp verify_example(verifier, opts) when is_function(verifier, 1), do: verifier.(opts)
+  defp verify_example(verifier, opts), do: verifier.verify(opts)
+
   defp run_step(runner, command, args, opts) do
-    case runner.cmd(command, args, Keyword.put_new(opts, :stderr_to_stdout, true)) do
-      {_output, 0} ->
-        :ok
+    Kinda.SystemCommandRunner.run!(runner, command, args, opts,
+      stage: :root_verification,
+      message: "kinda root verification failed"
+    )
 
-      {output, status} ->
-        raise """
-        kinda root verification failed.
-        command: #{command} #{Enum.join(args, " ")}
-        status: #{status}
-
-        #{output}
-        """
-    end
+    :ok
   end
 end

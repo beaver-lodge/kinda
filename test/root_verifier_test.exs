@@ -1,68 +1,65 @@
 defmodule Kinda.RootVerifierTest do
   use ExUnit.Case, async: true
 
-  defmodule RunnerStub do
-    def cmd(command, args, opts) do
-      calls = Process.get(:root_verifier_calls, [])
-      Process.put(:root_verifier_calls, calls ++ [%{command: command, args: args, opts: opts}])
-
-      case Process.get(:root_verifier_results, %{}) do
-        %{^command => %{args: ^args} = result} -> {result.output, result.status}
-        _ -> {"", 0}
-      end
-    end
-  end
-
-  defmodule ExampleVerifierStub do
-    def verify(opts) do
-      Process.put(:example_verifier_opts, opts)
-      :ok
-    end
-  end
-
-  setup do
-    Process.delete(:root_verifier_calls)
-    Process.delete(:root_verifier_results)
-    Process.delete(:example_verifier_opts)
-    :ok
-  end
-
   test "runs the root verification sequence" do
     root = Path.expand("..", __DIR__)
+    test_process = self()
+
+    runner = fn command, args, opts ->
+      send(test_process, {:command, command, args, opts})
+      {"", 0}
+    end
+
+    example_verifier = fn opts ->
+      send(test_process, {:example_verifier, opts})
+      :ok
+    end
 
     assert :ok =
              Kinda.RootVerifier.verify(
                project_root: root,
-               command_runner: RunnerStub,
-               example_verifier: ExampleVerifierStub
+               command_runner: runner,
+               example_verifier: example_verifier
              )
 
-    assert [
-             %{command: "mix", args: ["test"]},
-             %{command: "mix", args: ["kinda.wrapper.example", "--json"]}
-           ] = Process.get(:root_verifier_calls)
+    assert_received {:command, "mix", ["test"], test_opts}
+    assert_received {:command, "mix", ["kinda.wrapper.example", "--json"], wrapper_opts}
+    assert test_opts[:stderr_to_stdout]
+    assert wrapper_opts[:stderr_to_stdout]
 
-    assert [
-             project_root: ^root,
-             command_runner: RunnerStub,
-             example_verifier: ExampleVerifierStub
-           ] =
-             Process.get(:example_verifier_opts)
+    assert_received {:example_verifier,
+                     [
+                       project_root: ^root,
+                       command_runner: ^runner,
+                       example_verifier: ^example_verifier
+                     ]}
   end
 
   test "raises with command context when root verification fails" do
     root = Path.expand("..", __DIR__)
 
-    Process.put(:root_verifier_results, %{
-      "mix" => %{args: ["kinda.wrapper.example", "--json"], output: "boom", status: 1}
-    })
-
-    assert_raise RuntimeError, ~r/kinda root verification failed/, fn ->
-      Kinda.RootVerifier.verify(
-        project_root: root,
-        command_runner: RunnerStub,
-        example_verifier: ExampleVerifierStub
-      )
+    runner = fn
+      "mix", ["kinda.wrapper.example", "--json"], _opts -> {"boom", 1}
+      _command, _args, _opts -> {"", 0}
     end
+
+    example_verifier = fn _opts -> :ok end
+
+    error =
+      assert_raise Kinda.CommandError, fn ->
+        Kinda.RootVerifier.verify(
+          project_root: root,
+          command_runner: runner,
+          example_verifier: example_verifier
+        )
+      end
+
+    assert error.stage == :root_verification
+    assert error.command == "mix"
+    assert error.args == ["kinda.wrapper.example", "--json"]
+    assert error.cwd == root
+    assert error.status == 1
+    assert error.output == "boom"
+    assert Exception.message(error) =~ "kinda root verification failed"
   end
 end

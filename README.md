@@ -207,6 +207,43 @@ single source. These generated aliases use atom field keys derived from
 extracted C field names, while the machine-readable manifest keeps the
 original string names.
 
+## Structured NIF Call Errors
+
+Generated NIF failures raise `Kinda.CallError`. The legacy `:message` remains
+available, while stable fields identify the failed function and boundary
+phase. Argument decoding failures also include the one-based argument index,
+manifest parameter name, expected C type and the category of the original
+Elixir value when those facts are available.
+
+```elixir
+try do
+  Foo.CAPI.add(1, "2")
+rescue
+  error in Kinda.CallError ->
+    error.phase
+    #=> :argument_decode
+
+    Exception.message(error)
+    #=> "add/2 rejected argument #2 (rhs): expected int, got binary"
+end
+```
+
+Internal native failures retain the native Zig error name and suggest
+`KINDA_DUMP_STACK_TRACE=1`. Caller-correctable argument errors omit that hint.
+
+Other framework boundaries use the same structured-error approach:
+
+- `Kinda.GenerationError` identifies declaration and code-generation failures
+  with stable `:stage` and `:reason` fields plus the source, expected and actual
+  values when relevant.
+- `Kinda.CommandError` retains the command, arguments, working directory, exit
+  status and captured output from failed `mix`, `zig` or other tool invocations.
+- `Kinda.NIFLoadError` retains the attempted library path and the original
+  `:erlang.load_nif/2` reason instead of printing the failure and continuing.
+
+This keeps terminal messages useful while allowing Mix tasks and downstream
+projects to handle failures without parsing those messages.
+
 For larger generated bindings, the newer wrapper pipeline is usually more
 important.
 

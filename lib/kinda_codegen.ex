@@ -49,8 +49,12 @@ defmodule Kinda.CodeGen do
             Kinda.CodeGen.raw_nif_ast_from_decls(decls)
 
           other ->
-            raise ArgumentError,
-                  "expected :surface to be :combined, :public, or :raw, got: #{inspect(other)}"
+            raise Kinda.GenerationError,
+              message: "unsupported code generation surface",
+              stage: :module_generation,
+              reason: :invalid_surface,
+              expected: [:combined, :public, :raw],
+              actual: other
         end
 
       type_ast = if surface == :raw, do: [], else: Kinda.CodeGen.type_decls_ast(type_decls)
@@ -148,6 +152,8 @@ defmodule Kinda.CodeGen do
 
         wrapper_ast =
           if nif_name != wrapper_name do
+            call_error_context = call_error_context(nif, wrapper_name, arity)
+
             raw_args =
               Enum.map(args_ast, fn arg ->
                 quote do
@@ -165,8 +171,18 @@ defmodule Kinda.CodeGen do
               unquote(doc_attribute_ast(nif.doc))
 
               def unquote(wrapper_name)(unquote_splicing(args_ast)) do
-                unquote(raw_call)
-                |> unquote(codec).normalize()
+                try do
+                  unquote(raw_call)
+                  |> unquote(codec).normalize()
+                rescue
+                  error in Kinda.CallError ->
+                    reraise Kinda.CallError.enrich(
+                              error,
+                              unquote(Macro.escape(call_error_context)),
+                              [unquote_splicing(args_ast)]
+                            ),
+                            __STACKTRACE__
+                end
               end
             end
           end
@@ -237,6 +253,7 @@ defmodule Kinda.CodeGen do
       else
         {args_ast, arity} = arguments_for(nif)
         wrapper_name = normalize_function_name(wrapper_name)
+        call_error_context = call_error_context(nif, wrapper_name, arity)
 
         raw_args =
           Enum.map(args_ast, fn arg ->
@@ -256,8 +273,18 @@ defmodule Kinda.CodeGen do
             unquote(doc_attribute_ast(nif.doc))
 
             def unquote(wrapper_name)(unquote_splicing(args_ast)) do
-              unquote(raw_call)
-              |> unquote(codec).normalize()
+              try do
+                unquote(raw_call)
+                |> unquote(codec).normalize()
+              rescue
+                error in Kinda.CallError ->
+                  reraise Kinda.CallError.enrich(
+                            error,
+                            unquote(Macro.escape(call_error_context)),
+                            [unquote_splicing(args_ast)]
+                          ),
+                          __STACKTRACE__
+              end
             end
           end
 
@@ -330,6 +357,23 @@ defmodule Kinda.CodeGen do
 
   defp normalize_function_name(name) when is_binary(name), do: String.to_atom(name)
   defp normalize_function_name(name) when is_atom(name), do: name
+
+  defp call_error_context(%NIFDecl{} = nif, wrapper_name, arity) do
+    argument_names = if is_list(nif.params), do: nif.params, else: []
+
+    argument_types =
+      Enum.map(nif.param_ctypes || [], fn
+        %{spelling: spelling} -> spelling
+        _ -> nil
+      end)
+
+    %{
+      function: wrapper_name,
+      arity: arity,
+      argument_names: argument_names,
+      argument_types: argument_types
+    }
+  end
 
   defp remote_call_ast(module, function, args) do
     {{:., [], [module, function]}, [], args}
