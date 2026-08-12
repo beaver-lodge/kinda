@@ -51,6 +51,12 @@ jobs:
           path: ./kinda_example/deps
           key: ${{ runner.os }}-mix-example-${{ hashFiles('**/mix.exs') }}
           restore-keys: ${{ runner.os }}-mix-example-
+      - name: Restore Kinda SQLite dependencies cache
+        uses: actions/cache@v4
+        with:
+          path: ./packages/kinda_sqlite/deps
+          key: ${{ runner.os }}-mix-kinda-sqlite-${{ hashFiles('**/mix.exs') }}
+          restore-keys: ${{ runner.os }}-mix-kinda-sqlite-
       - name: Install dependencies
         run: mix deps.get
       - name: Check formatting of Elixir
@@ -87,6 +93,21 @@ jobs:
         run: |
           zig fmt --check src
           zig fmt --check kinda_example/native/zig-src
+          zig fmt --check packages/kinda_sqlite/build.zig
+          zig fmt --check packages/kinda_sqlite/native/zig-src
+      - name: Install dependencies (Kinda SQLite)
+        working-directory: ./packages/kinda_sqlite
+        run: mix deps.get
+      - name: Reject compiler warnings (Kinda SQLite)
+        if: matrix.elixir == '1.20.3'
+        working-directory: ./packages/kinda_sqlite
+        env:
+          MIX_ENV: test
+        run: mix compile --force --warnings-as-errors
+      - name: Check formatting of Elixir (Kinda SQLite)
+        if: matrix.elixir == '1.20.3'
+        working-directory: ./packages/kinda_sqlite
+        run: mix format --check-formatted
       - name: Install gdb
         run: |
           sudo apt update
@@ -114,6 +135,15 @@ jobs:
           KINDA_DUMP_STACK_TRACE: "1"
       - name: Precompile
         working-directory: ./kinda_example
+        env:
+          MIX_ENV: prod
+          ELIXIR_MAKE_CACHE_DIR: .
+        run: |
+          rm -rf _build
+          mix elixir_make.precompile
+      - name: Precompile Kinda SQLite
+        if: matrix.elixir == '1.20.3'
+        working-directory: ./packages/kinda_sqlite
         env:
           MIX_ENV: prod
           ELIXIR_MAKE_CACHE_DIR: .

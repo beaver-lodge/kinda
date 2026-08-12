@@ -1,7 +1,7 @@
 defmodule Mix.Tasks.Kinda.Verify do
   use Mix.Task
 
-  @shortdoc "Verifies root tests, wrapper reporting, and the bundled example app"
+  @shortdoc "Verifies root tests, reporting, and all bundled example apps"
 
   @impl Mix.Task
   def run(_args) do
