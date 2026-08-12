@@ -51,10 +51,7 @@ defmodule Kinda.SQLite do
 
   @spec execute(Statement.t(), [value()]) :: {:ok, Result.t()} | {:error, Error.t()}
   def execute(%Statement{} = statement, params \\ []) when is_list(params) do
-    with :ok <- reset(statement),
-         :ok <- bind(statement, params) do
-      columns = column_names(statement)
-
+    with {:ok, columns} <- declare(statement, params) do
       case collect_rows(statement, []) do
         {:ok, rows} ->
           {:ok, build_result(statement.database, columns, rows)}
@@ -62,6 +59,26 @@ defmodule Kinda.SQLite do
         {:error, error} ->
           {:error, error}
       end
+    end
+  end
+
+  @doc "Resets and binds a statement for incremental fetching."
+  @spec declare(Statement.t(), [value()]) :: {:ok, [String.t()]} | {:error, Error.t()}
+  def declare(%Statement{} = statement, params) do
+    with :ok <- reset(statement),
+         :ok <- bind(statement, params) do
+      {:ok, column_names(statement)}
+    end
+  end
+
+  @doc "Fetches up to `max_rows` from a previously declared statement."
+  @spec fetch(Statement.t(), [String.t()], pos_integer()) ::
+          {:cont | :halt, Result.t()} | {:error, Error.t()}
+  def fetch(%Statement{} = statement, columns, max_rows) when max_rows > 0 do
+    case fetch_rows(statement, max_rows, []) do
+      {:cont, rows} -> {:cont, %Result{columns: columns, rows: rows, num_rows: length(rows)}}
+      {:halt, rows} -> {:halt, build_result(statement.database, columns, rows)}
+      {:error, error} -> {:error, error}
     end
   end
 
@@ -130,6 +147,19 @@ defmodule Kinda.SQLite do
     case Native.step(statement.resource) do
       :row -> collect_rows(statement, [read_row(statement) | rows])
       :done -> {:ok, Enum.reverse(rows)}
+      :error -> {:error, database_error(statement.database, nil, :step, statement.sql)}
+    end
+  rescue
+    error in Kinda.CallError ->
+      {:error, database_error(statement.database, error, :step, statement.sql)}
+  end
+
+  defp fetch_rows(_statement, 0, rows), do: {:cont, Enum.reverse(rows)}
+
+  defp fetch_rows(statement, remaining, rows) do
+    case Native.step(statement.resource) do
+      :row -> fetch_rows(statement, remaining - 1, [read_row(statement) | rows])
+      :done -> {:halt, Enum.reverse(rows)}
       :error -> {:error, database_error(statement.database, nil, :step, statement.sql)}
     end
   rescue
