@@ -7,7 +7,7 @@ useful runnable artifact.
 
 Today the active micro-example is:
 
-- [wrapper_reporting.exs](/Users/tsai/oss/kinda/examples/wrapper_reporting.exs:1)
+- [`wrapper_reporting.exs`](wrapper_reporting.exs)
 
 Preferred repo-root entry points:
 
@@ -38,8 +38,8 @@ That umbrella verifier covers:
 This directory is intentionally not the place for end-to-end native-app demos.
 Those belong in:
 
-- [kinda_example/](/Users/tsai/oss/kinda/kinda_example/README.md:1)
+- [`packages/kinda_example/`](../packages/kinda_example/README.md)
 
 The governing plan for that split is:
 
-- [example-surface-unification-plan.md](/Users/tsai/oss/kinda/docs/example-surface-unification-plan.md:1)
+- [`docs/example-surface-unification-plan.md`](../docs/example-surface-unification-plan.md)

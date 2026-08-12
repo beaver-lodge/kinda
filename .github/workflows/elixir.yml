@@ -48,7 +48,7 @@ jobs:
       - name: Restore dependencies cache
         uses: actions/cache@v4
         with:
-          path: ./kinda_example/deps
+          path: ./packages/kinda_example/deps
           key: ${{ runner.os }}-mix-example-${{ hashFiles('**/mix.exs') }}
           restore-keys: ${{ runner.os }}-mix-example-
       - name: Restore Kinda SQLite dependencies cache
@@ -76,23 +76,23 @@ jobs:
         run: |
           mix kinda.verify
       - name: Install dependencies (example)
-        working-directory: ./kinda_example
+        working-directory: ./packages/kinda_example
         run: mix deps.get
       - name: Reject compiler warnings (example)
         if: matrix.elixir == '1.20.3'
-        working-directory: ./kinda_example
+        working-directory: ./packages/kinda_example
         env:
           MIX_ENV: test
         run: mix compile --force --warnings-as-errors
       - name: Check formatting of Elixir
         if: matrix.elixir == '1.20.3'
-        working-directory: ./kinda_example
+        working-directory: ./packages/kinda_example
         run: mix format --check-formatted
       - name: Check formatting of Zig
         if: matrix.elixir == '1.20.3'
         run: |
           zig fmt --check src
-          zig fmt --check kinda_example/native/zig-src
+          zig fmt --check packages/kinda_example/native/zig-src
           zig fmt --check packages/kinda_sqlite/build.zig
           zig fmt --check packages/kinda_sqlite/native/zig-src
       - name: Install dependencies (Kinda SQLite)
@@ -113,28 +113,28 @@ jobs:
           sudo apt update
           sudo apt install -y gdb
       - name: Run tests (example with gdb and stack trace)
-        working-directory: ./kinda_example
+        working-directory: ./packages/kinda_example
         run: |
-          bash ../scripts/gdb.sh test
+          bash ../../scripts/gdb.sh test
         env:
           KINDA_DUMP_STACK_TRACE: "1"
       - name: Run tests (example with gdb)
-        working-directory: ./kinda_example
+        working-directory: ./packages/kinda_example
         run: |
-          bash ../scripts/gdb.sh test
+          bash ../../scripts/gdb.sh test
       - name: Run tests (example)
-        working-directory: ./kinda_example
+        working-directory: ./packages/kinda_example
         run: |
           mix test --force
       - name: Run tests (example with stack trace)
         continue-on-error: true
-        working-directory: ./kinda_example
+        working-directory: ./packages/kinda_example
         run: |
           mix test --force
         env:
           KINDA_DUMP_STACK_TRACE: "1"
       - name: Precompile
-        working-directory: ./kinda_example
+        working-directory: ./packages/kinda_example
         env:
           MIX_ENV: prod
           ELIXIR_MAKE_CACHE_DIR: .
@@ -151,13 +151,13 @@ jobs:
           rm -rf _build
           mix elixir_make.precompile
       - name: Start mock server in the background
-        working-directory: ./kinda_example
+        working-directory: ./packages/kinda_example
         run: |
           python3 -m http.server --directory . &> /dev/null &
           sleep 3
           ps aux
       - name: Test precompiled
-        working-directory: ./kinda_example
+        working-directory: ./packages/kinda_example
         run: |
           MIX_ENV=prod mix elixir_make.checksum --all --ignore-unavailable --only-local --print
           mix clean

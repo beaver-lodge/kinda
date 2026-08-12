@@ -24,18 +24,18 @@ mix kinda.verify
 That keeps the bundled app inside the same verifier surface as the main repo,
 instead of treating it as a detached demo.
 
-You can still run it directly from `kinda_example/`:
+You can still run it directly from `packages/kinda_example/`:
 
 ```sh
-cd kinda_example
+cd packages/kinda_example
 mix test --force
 ```
 
 The companion plan that formalizes the split between:
 
 - `examples/`
-- `kinda_example/`
+- `packages/kinda_example/`
 
 is:
 
-- [example-surface-unification-plan.md](/Users/tsai/oss/kinda/docs/example-surface-unification-plan.md:1)
+- [`docs/example-surface-unification-plan.md`](../../docs/example-surface-unification-plan.md)

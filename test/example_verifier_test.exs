@@ -2,8 +2,8 @@ defmodule Kinda.ExampleVerifierTest do
   use ExUnit.Case, async: true
 
   test "default example_root resolves to the bundled kinda_example app" do
-    assert Kinda.ExampleVerifier.example_root()
-           |> Path.basename() == "kinda_example"
+    assert Kinda.ExampleVerifier.example_root() ==
+             Path.expand("../packages/kinda_example", __DIR__)
   end
 
   test "syncs deps when lockfile and deps directory are present" do

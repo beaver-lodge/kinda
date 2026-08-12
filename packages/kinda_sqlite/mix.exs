@@ -23,7 +23,7 @@ defmodule Kinda.SQLite.MixProject do
   defp deps do
     [
       {:kinda, path: "../.."},
-      {:kinda_example, path: "../../kinda_example", only: :test},
+      {:kinda_example, path: "../kinda_example", only: :test},
       {:elixir_make, "~> 0.4", runtime: false}
     ]
   end
