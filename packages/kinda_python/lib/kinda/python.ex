@@ -9,6 +9,9 @@ defmodule Kinda.Python do
 
   alias Kinda.Python.Native
 
+  @spec open() :: Kinda.Python.Interpreter.t()
+  defdelegate open(), to: Kinda.Python.Interpreter
+
   @spec version() :: String.t()
   def version, do: Native.version()
 
