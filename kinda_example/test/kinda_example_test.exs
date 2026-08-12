@@ -38,6 +38,51 @@ defmodule KindaExampleTest do
     assert 1 == ref |> NIF.Raw."Elixir.KindaExample.NIF.CInt.primitive"()
   end
 
+  test "resource helpers release native references and run destructors after GC" do
+    baseline = Raw.lifecycle_fixture_stats()
+    parent = self()
+
+    {owner, monitor} =
+      spawn_monitor(fn ->
+        value = Raw.lifecycle_fixture_make_value(42)
+
+        resources = [
+          value,
+          Raw.lifecycle_fixture_make_pointer(value),
+          Raw.lifecycle_fixture_make_list_array([1, 2, 3]),
+          Raw.lifecycle_fixture_make_binary_array(<<1, 2, 3, 4>>)
+        ]
+
+        send(parent, {:resources_created, self()})
+
+        receive do
+          :release_resources -> send(parent, {:resources_released, length(resources)})
+        end
+      end)
+
+    assert_receive {:resources_created, ^owner}
+    send(owner, :release_resources)
+    assert_receive {:resources_released, 4}
+    assert_receive {:DOWN, ^monitor, :process, ^owner, :normal}
+
+    assert_eventually(fn ->
+      lifecycle_counts_reached?(Raw.lifecycle_fixture_stats(), baseline, {1, 1, 1, 1})
+    end)
+  end
+
+  test "partially initialized resources release their native references on error" do
+    baseline = Raw.lifecycle_fixture_stats()
+
+    assert %Kinda.CallError{} =
+             catch_error(Raw.lifecycle_fixture_make_list_array([1, :not_an_integer]))
+
+    assert %Kinda.CallError{} = catch_error(Raw.lifecycle_fixture_make_pointer(:not_a_resource))
+
+    assert_eventually(fn ->
+      lifecycle_counts_reached?(Raw.lifecycle_fixture_stats(), baseline, {0, 1, 1, 0})
+    end)
+  end
+
   test "callback fixture rejects scheduler calls and projects worker return values" do
     callback = fn handle, range ->
       assert {:kind, KindaExample.NIF.CallbackHandle, handle_ref} = handle
@@ -154,6 +199,27 @@ defmodule KindaExampleTest do
 
   defp reply_projection(token, _outcome),
     do: Raw.callback_fixture_reply_projection(token, false, 0, 0)
+
+  defp lifecycle_counts_reached?(counts, baseline, increments) do
+    counts
+    |> Tuple.to_list()
+    |> Enum.zip(Tuple.to_list(baseline))
+    |> Enum.zip(Tuple.to_list(increments))
+    |> Enum.all?(fn {{count, initial}, increment} -> count >= initial + increment end)
+  end
+
+  defp assert_eventually(assertion, attempts \\ 100)
+
+  defp assert_eventually(assertion, attempts) when attempts > 0 do
+    if assertion.() do
+      :ok
+    else
+      Process.sleep(10)
+      assert_eventually(assertion, attempts - 1)
+    end
+  end
+
+  defp assert_eventually(assertion, 0), do: assert(assertion.())
 
   defp hot_upgrade_raw_module(nif_file) do
     stubs =

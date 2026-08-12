@@ -4,6 +4,7 @@ const beam = kinda.beam;
 const e = kinda.erl_nif;
 const capi = @import("prelude.zig").c;
 const callback_fixture = @import("callback_fixture.zig");
+const lifecycle_fixture = @import("lifecycle_fixture.zig");
 const public_module = "Elixir.KindaExample.NIF";
 const root_module = public_module ++ ".Raw";
 const Kinds = struct {
@@ -27,7 +28,7 @@ const Kinds = struct {
 
 const all_nifs = .{
     kinda.NIFFunc(Kinds.All, capi, "kinda_example_add", .{}),
-} ++ Kinds.CInt.nifs ++ Kinds.StrInt.nifs ++ callback_fixture.nifs;
+} ++ Kinds.CInt.nifs ++ Kinds.StrInt.nifs ++ callback_fixture.nifs ++ lifecycle_fixture.nifs;
 pub export var nifs: [all_nifs.len]e.ErlNifFunc = all_nifs;
 
 const entry = e.ErlNifEntry{
@@ -50,6 +51,7 @@ export fn nif_load(env: beam.env, _: [*c]?*anyopaque, _: beam.term) c_int {
     Kinds.open(env);
     kinda.callback_runtime.ReplyToken.open(env);
     callback_fixture.open(env);
+    lifecycle_fixture.open(env);
     return 0;
 }
 

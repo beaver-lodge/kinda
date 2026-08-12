@@ -1406,6 +1406,16 @@ pub fn fetch_resource_ptr(comptime PtrT: type, environment: env, res_typ: resour
     return obj;
 }
 
+/// Turns the caller-owned reference returned by `enif_alloc_resource` into a
+/// BEAM-owned resource term. `enif_make_resource` adds the term reference; the
+/// original native reference must still be released so the destructor can run
+/// after the term becomes unreachable.
+fn make_resource_term(environment: env, resource: *anyopaque) term {
+    const result = e.enif_make_resource(environment, resource);
+    e.enif_release_resource(resource);
+    return result;
+}
+
 // res_typ should be opened resource type of the array resource
 pub fn get_resource_array_from_list(comptime ElementType: type, environment: env, resource_type_element: resource_type, resource_type_array: resource_type, list: term) !term {
     const size = try get_list_length(environment, list);
@@ -1420,19 +1430,16 @@ pub fn get_resource_array_from_list(comptime ElementType: type, environment: env
         else => {},
     }
     const ArrayPtr = [*c]ElementType;
-    const ptr: ?*anyopaque = e.enif_alloc_resource(resource_type_array, @sizeOf(ArrayPtr) + size * @sizeOf(ElementType));
+    const ptr = e.enif_alloc_resource(resource_type_array, @sizeOf(ArrayPtr) + size * @sizeOf(ElementType)) orelse
+        return Error.@"Fail to make array resource";
+    errdefer e.enif_release_resource(ptr);
     var data_ptr: ArrayPtr = undefined;
-    if (ptr == null) {
-        unreachable();
+    const obj: *ArrayPtr = @ptrCast(@alignCast(ptr));
+    data_ptr = @ptrCast(@alignCast(@as(U8Ptr, @ptrCast(ptr)) + @sizeOf(ArrayPtr)));
+    if (size > 0) {
+        obj.* = data_ptr;
     } else {
-        var obj: *ArrayPtr = undefined;
-        obj = @ptrCast(@alignCast(ptr));
-        data_ptr = @ptrCast(@alignCast(@as(U8Ptr, @ptrCast(ptr)) + @sizeOf(ArrayPtr)));
-        if (size > 0) {
-            obj.* = data_ptr;
-        } else {
-            obj.* = 0;
-        }
+        obj.* = null;
     }
     var idx: usize = 0;
     var head: term = undefined;
@@ -1447,7 +1454,7 @@ pub fn get_resource_array_from_list(comptime ElementType: type, environment: env
         }
         idx += 1;
     }
-    return e.enif_make_resource(environment, ptr);
+    return make_resource_term(environment, ptr);
 }
 
 const mem = @import("std").mem;
@@ -1458,19 +1465,13 @@ pub fn get_resource_array_from_binary(environment: env, resource_type_array: res
     if (0 == e.enif_inspect_binary(environment, binary_term, &bin)) {
         return Error.@"Fail to inspect resource binary";
     }
-    const ptr: ?*anyopaque = e.enif_alloc_resource(resource_type_array, @sizeOf(RType) + bin.size);
-    var obj: *RType = undefined;
-    var real_binary: RType = undefined;
-    if (ptr == null) {
-        unreachable();
-    } else {
-        obj = @ptrCast(@alignCast(ptr));
-        real_binary = @ptrCast(@alignCast(ptr));
-        real_binary += @sizeOf(RType);
-        obj.* = real_binary;
-    }
+    const ptr = e.enif_alloc_resource(resource_type_array, @sizeOf(RType) + bin.size) orelse
+        return Error.@"Fail to make array resource";
+    const obj: *RType = @ptrCast(@alignCast(ptr));
+    const real_binary: RType = @ptrCast(@alignCast(@as([*c]u8, @ptrCast(ptr)) + @sizeOf(RType)));
+    obj.* = real_binary;
     mem.copyForwards(u8, real_binary[0..bin.size], bin.data[0..bin.size]);
-    return e.enif_make_resource(environment, ptr);
+    return make_resource_term(environment, ptr);
 }
 
 // the term could be:
@@ -1489,28 +1490,21 @@ pub fn get_resource_array(comptime ElementType: type, environment: env, resource
     }
 }
 pub fn get_resource_ptr_from_term(environment: env, comptime PtrType: type, element_resource_type: resource_type, ptr_resource_type: resource_type, element: term) !term {
-    const ptr: ?*anyopaque = e.enif_alloc_resource(ptr_resource_type, @sizeOf(PtrType));
-    var obj: *PtrType = undefined;
-    obj = @ptrCast(@alignCast(ptr));
-    if (ptr == null) {
-        unreachable();
-    } else {
-        obj.* = try fetch_resource_ptr(PtrType, environment, element_resource_type, element);
-    }
-    return e.enif_make_resource(environment, ptr);
+    const ptr = e.enif_alloc_resource(ptr_resource_type, @sizeOf(PtrType)) orelse
+        return Error.@"Fail to make ptr resource";
+    errdefer e.enif_release_resource(ptr);
+    const obj: *PtrType = @ptrCast(@alignCast(ptr));
+    obj.* = try fetch_resource_ptr(PtrType, environment, element_resource_type, element);
+    return make_resource_term(environment, ptr);
 }
 
 pub fn make_resource(environment: env, value: anytype, rst: resource_type) !term {
     const RType = @TypeOf(value);
-    const ptr: ?*anyopaque = e.enif_alloc_resource(rst, @sizeOf(RType));
-    var obj: *RType = undefined;
-    if (ptr == null) {
+    const ptr = e.enif_alloc_resource(rst, @sizeOf(RType)) orelse
         return Error.@"Fail to make resource";
-    } else {
-        obj = @ptrCast(@alignCast(ptr));
-        obj.* = value;
-    }
-    return e.enif_make_resource(environment, ptr);
+    const obj: *RType = @ptrCast(@alignCast(ptr));
+    obj.* = value;
+    return make_resource_term(environment, ptr);
 }
 
 pub fn make_resource_wrapped(environment: env, value: anytype) !term {
