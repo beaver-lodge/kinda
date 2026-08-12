@@ -23,7 +23,12 @@ defmodule KindaExample.NIF.Raw do
         callback_fixture_stats: 0,
         callback_fixture_reply_code: 3,
         callback_fixture_reply_projection: 4,
-        callback_fixture_cancel: 1
+        callback_fixture_cancel: 1,
+        lifecycle_fixture_make_value: 1,
+        lifecycle_fixture_make_pointer: 1,
+        lifecycle_fixture_make_list_array: 1,
+        lifecycle_fixture_make_binary_array: 1,
+        lifecycle_fixture_stats: 0
       ] do
     args = Macro.generate_arguments(arity, __MODULE__)
 
