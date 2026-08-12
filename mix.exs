@@ -58,6 +58,7 @@ defmodule Kinda.MixProject do
           Kinda.Declaration,
           Kinda.GenerationError,
           Kinda.NIFLoadError,
+          Kinda.Resource.Declaration,
           Kinda.ResourceKind
         ],
         Codegen: [
@@ -88,6 +89,7 @@ defmodule Kinda.MixProject do
         ],
         Testing: [
           Kinda.Testing.Isolated,
+          Kinda.Testing.Lifecycle,
           Kinda.Testing.Sandbox
         ],
         Precompilation: [
