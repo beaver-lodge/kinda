@@ -1,0 +1,9 @@
+.{
+    .name = .kinda_quickjs,
+    .version = "0.0.0",
+    .fingerprint = 0xf0d8950992e648f7,
+    .dependencies = .{
+        .kinda = .{ .path = "../.." },
+    },
+    .paths = .{""},
+}
