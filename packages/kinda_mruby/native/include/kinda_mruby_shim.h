@@ -30,5 +30,8 @@ int kinda_mruby_immediate(kinda_mruby_value value);
 void kinda_mruby_gc_register(mrb_state *mrb, kinda_mruby_value value);
 void kinda_mruby_gc_unregister(mrb_state *mrb, kinda_mruby_value value);
 void kinda_mruby_clear_exception(mrb_state *mrb);
+int kinda_mruby_compile(mrb_state *mrb, const char *source, size_t length, uint8_t **bytes, size_t *size);
+void kinda_mruby_free(mrb_state *mrb, void *pointer);
+kinda_mruby_value kinda_mruby_run_bytecode_protected(mrb_state *mrb, const void *bytes, size_t size, int *raised);
 
 #endif

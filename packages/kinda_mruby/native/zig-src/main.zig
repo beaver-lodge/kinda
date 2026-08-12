@@ -77,9 +77,30 @@ const Value = struct {
     }
 };
 
+const Bytecode = struct {
+    pub const PtrType = *Bytecode;
+    bytes: []u8,
+    mutex: std.atomic.Mutex = .unlocked,
+    closed: bool = false,
+
+    fn close(self: *Bytecode) void {
+        lock(&self.mutex);
+        defer self.mutex.unlock();
+        if (self.closed) return;
+        beam.allocator.free(self.bytes);
+        self.closed = true;
+    }
+
+    pub fn destroy(_: beam.env, object: ?*anyopaque) callconv(.c) void {
+        const self: *Bytecode = @ptrCast(@alignCast(object orelse return));
+        self.close();
+    }
+};
+
 const VMKind = kinda.ResourceKind(VM, "Elixir.Kinda.MRuby.VM");
 const ValueKind = kinda.ResourceKind(Value, "Elixir.Kinda.MRuby.Value");
-const Error = error{ FailedToCreateVM, FailedToEvaluate, FailedToCreateResource, ClosedVM, ClosedValue, UnsupportedValue };
+const BytecodeKind = kinda.ResourceKind(Bytecode, "Elixir.Kinda.MRuby.Bytecode");
+const Error = error{ FailedToCreateVM, FailedToEvaluate, FailedToCompile, FailedToCreateResource, ClosedVM, ClosedValue, ClosedBytecode, UnsupportedValue };
 
 fn fetchVM(environment: beam.env, term: beam.term) !*VM {
     return beam.fetch_resource_ptr(*VM, environment, VMKind.resource.t, term);
@@ -87,6 +108,23 @@ fn fetchVM(environment: beam.env, term: beam.term) !*VM {
 
 fn fetchValue(environment: beam.env, term: beam.term) !*Value {
     return beam.fetch_resource_ptr(*Value, environment, ValueKind.resource.t, term);
+}
+
+fn fetchBytecode(environment: beam.env, term: beam.term) !*Bytecode {
+    return beam.fetch_resource_ptr(*Bytecode, environment, BytecodeKind.resource.t, term);
+}
+
+fn makeValue(environment: beam.env, vm: *VM, state: *mrb.mrb_state, value: mrb.kinda_mruby_value) !beam.term {
+    const registered = mrb.kinda_mruby_immediate(value) == 0;
+    if (registered) mrb.kinda_mruby_gc_register(state, value);
+    _ = vm.children.fetchAdd(1, .acq_rel);
+    var vm_ref = beam.ResourceRef(VM).init(vm);
+    errdefer {
+        if (registered) mrb.kinda_mruby_gc_unregister(state, value);
+        vm_ref.deinit();
+        vm.releaseChild();
+    }
+    return ValueKind.resource.make(environment, .{ .value = value, .registered = registered, .vm = vm_ref }) catch return Error.FailedToCreateResource;
 }
 
 fn createVM(environment: beam.env, _: c_int, _: [*c]const beam.term) !beam.term {
@@ -117,16 +155,46 @@ fn evalValue(environment: beam.env, _: c_int, args: [*c]const beam.term) !beam.t
         mrb.kinda_mruby_clear_exception(state);
         return Error.FailedToEvaluate;
     }
-    const registered = mrb.kinda_mruby_immediate(value) == 0;
-    if (registered) mrb.kinda_mruby_gc_register(state, value);
-    _ = vm.children.fetchAdd(1, .acq_rel);
-    var vm_ref = beam.ResourceRef(VM).init(vm);
-    errdefer {
-        if (registered) mrb.kinda_mruby_gc_unregister(state, value);
-        vm_ref.deinit();
-        vm.releaseChild();
+    return makeValue(environment, vm, state, value);
+}
+
+fn compileBytecode(environment: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
+    const code = try beam.get_char_slice(environment, args[0]);
+    const state = mrb.kinda_mruby_open() orelse return Error.FailedToCreateVM;
+    defer mrb.kinda_mruby_close(state);
+    var compiled: [*c]u8 = null;
+    var size: usize = 0;
+    if (mrb.kinda_mruby_compile(state, code.ptr, code.len, &compiled, &size) != 0 or compiled == null) return Error.FailedToCompile;
+    defer mrb.kinda_mruby_free(state, compiled);
+    const bytes = beam.allocator.dupe(u8, compiled[0..size]) catch return Error.FailedToCreateResource;
+    errdefer beam.allocator.free(bytes);
+    return BytecodeKind.resource.make(environment, .{ .bytes = bytes }) catch return Error.FailedToCreateResource;
+}
+
+fn closeBytecode(environment: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
+    (try fetchBytecode(environment, args[0])).close();
+    return beam.make_ok(environment);
+}
+
+fn runBytecode(environment: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
+    const vm = try fetchVM(environment, args[0]);
+    if (vm.close_requested.load(.acquire)) return Error.ClosedVM;
+    const bytecode = try fetchBytecode(environment, args[1]);
+    lock(&bytecode.mutex);
+    defer bytecode.mutex.unlock();
+    if (bytecode.closed) return Error.ClosedBytecode;
+    lock(&vm.mutex);
+    defer vm.mutex.unlock();
+    const state = vm.state orelse return Error.ClosedVM;
+    const arena = mrb.kinda_mruby_arena_save(state);
+    defer mrb.kinda_mruby_arena_restore(state, arena);
+    var raised: c_int = 0;
+    const value = mrb.kinda_mruby_run_bytecode_protected(state, bytecode.bytes.ptr, bytecode.bytes.len, &raised);
+    if (raised != 0 or mrb.kinda_mruby_raised(state) != 0) {
+        mrb.kinda_mruby_clear_exception(state);
+        return Error.FailedToEvaluate;
     }
-    return ValueKind.resource.make(environment, .{ .value = value, .registered = registered, .vm = vm_ref }) catch return Error.FailedToCreateResource;
+    return makeValue(environment, vm, state, value);
 }
 
 fn closeValue(environment: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
@@ -181,13 +249,17 @@ const all_nifs = .{
     result.nif_with_flags("eval_value", 2, evalValue, cpu_bound).entry,
     result.nif_with_flags("close_value", 1, closeValue, cpu_bound).entry,
     result.nif_with_flags("value_to_term", 1, valueToTerm, cpu_bound).entry,
+    result.nif_with_flags("compile_bytecode", 1, compileBytecode, cpu_bound).entry,
+    result.nif_with_flags("close_bytecode", 1, closeBytecode, cpu_bound).entry,
+    result.nif_with_flags("run_bytecode", 2, runBytecode, cpu_bound).entry,
 };
 pub export var nifs: [all_nifs.len]e.ErlNifFunc = all_nifs;
 
 fn nifLoad(environment: beam.env, _: [*c]?*anyopaque, _: beam.term) callconv(.c) c_int {
     VMKind.open(environment);
     ValueKind.open(environment);
-    return if (VMKind.resource.t == null or ValueKind.resource.t == null) 1 else 0;
+    BytecodeKind.open(environment);
+    return if (VMKind.resource.t == null or ValueKind.resource.t == null or BytecodeKind.resource.t == null) 1 else 0;
 }
 
 fn nifUpgrade(environment: beam.env, private_data: [*c]?*anyopaque, _: [*c]?*anyopaque, load_info: beam.term) callconv(.c) c_int {

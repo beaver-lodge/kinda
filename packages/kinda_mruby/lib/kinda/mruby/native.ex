@@ -9,6 +9,9 @@ defmodule Kinda.MRuby.Native do
   def eval_value(_vm, _code), do: :erlang.nif_error({:nif_not_loaded, :eval_value})
   def close_value(_value), do: :erlang.nif_error({:nif_not_loaded, :close_value})
   def value_to_term(_value), do: :erlang.nif_error({:nif_not_loaded, :value_to_term})
+  def compile_bytecode(_code), do: :erlang.nif_error({:nif_not_loaded, :compile_bytecode})
+  def close_bytecode(_bytecode), do: :erlang.nif_error({:nif_not_loaded, :close_bytecode})
+  def run_bytecode(_vm, _bytecode), do: :erlang.nif_error({:nif_not_loaded, :run_bytecode})
 
   def load_nif do
     nif_file = ~c"#{:code.priv_dir(:kinda_mruby)}/lib/libKindaMRubyNIF"

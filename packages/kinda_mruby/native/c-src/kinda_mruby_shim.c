@@ -19,6 +19,10 @@ static mrb_value kinda_mruby_import_value(kinda_mruby_value value) {
   mrb_value result = {value};
   return result;
 }
+#include <mruby/dump.h>
+#include <mruby/internal.h>
+#include <mruby/irep.h>
+#include <mruby/proc.h>
 
 const char *kinda_mruby_version(void) { return MRUBY_VERSION; }
 mrb_state *kinda_mruby_open(void) { return mrb_open(); }
@@ -53,3 +57,36 @@ int kinda_mruby_immediate(kinda_mruby_value value) { return mrb_immediate_p(kind
 void kinda_mruby_gc_register(mrb_state *mrb, kinda_mruby_value value) { mrb_gc_register(mrb, kinda_mruby_import_value(value)); }
 void kinda_mruby_gc_unregister(mrb_state *mrb, kinda_mruby_value value) { mrb_gc_unregister(mrb, kinda_mruby_import_value(value)); }
 void kinda_mruby_clear_exception(mrb_state *mrb) { mrb->exc = NULL; }
+
+int kinda_mruby_compile(mrb_state *mrb, const char *source, size_t length, uint8_t **bytes, size_t *size) {
+  struct mrb_parser_state *parser = mrb_parse_nstring(mrb, source, length, NULL);
+  if (parser == NULL) return MRB_DUMP_GENERAL_FAILURE;
+  if (parser->nerr > 0) {
+    mrb_parser_free(parser);
+    return MRB_DUMP_INVALID_ARGUMENT;
+  }
+  struct RProc *proc = mrb_generate_code(mrb, parser);
+  mrb_parser_free(parser);
+  if (proc == NULL) return MRB_DUMP_GENERAL_FAILURE;
+  return mrb_dump_irep(mrb, proc->body.irep, 0, bytes, size);
+}
+
+void kinda_mruby_free(mrb_state *mrb, void *pointer) { mrb_free(mrb, pointer); }
+
+struct kinda_mruby_bytecode_request {
+  const void *bytes;
+  size_t size;
+};
+
+static mrb_value kinda_mruby_run_bytecode_body(mrb_state *mrb, void *userdata) {
+  struct kinda_mruby_bytecode_request *request = userdata;
+  return mrb_load_irep_buf(mrb, request->bytes, request->size);
+}
+
+kinda_mruby_value kinda_mruby_run_bytecode_protected(mrb_state *mrb, const void *bytes, size_t size, int *raised) {
+  struct kinda_mruby_bytecode_request request = {bytes, size};
+  mrb_bool did_raise = FALSE;
+  mrb_value value = mrb_protect_error(mrb, kinda_mruby_run_bytecode_body, &request, &did_raise);
+  *raised = did_raise;
+  return kinda_mruby_export_value(value);
+}

@@ -13,3 +13,8 @@ rejects new evaluation but defers `mrb_close` until every child has been
 released, making explicit close and BEAM GC safe in either order. Every entry
 into a VM is serialized and Ruby exceptions are contained with
 `mrb_protect_error` before control returns to the NIF boundary.
+
+Independent VMs run on dirty CPU schedulers and can execute concurrently;
+calls into the same VM remain serialized. `Kinda.MRuby.Bytecode` compiles a
+source program once into mruby's RITE format and owns the copied bytes without
+retaining a compiler VM, so the program can be reused across isolated states.
