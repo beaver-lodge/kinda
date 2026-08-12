@@ -1,0 +1,11 @@
+/_build/
+/.runtime/
+/cover/
+/deps/
+/doc/
+/mix.lock
+/tmp/
+/checksum.exs
+/*.tar.gz
+/*.tar.gz.sha256
+erl_crash.dump

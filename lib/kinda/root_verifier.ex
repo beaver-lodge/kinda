@@ -18,6 +18,7 @@ defmodule Kinda.RootVerifier do
 
     sqlite_verifier = Keyword.get(opts, :sqlite_verifier, Kinda.ExampleVerifier)
     ecto_sqlite_verifier = Keyword.get(opts, :ecto_sqlite_verifier, Kinda.ExampleVerifier)
+    duckdb_verifier = Keyword.get(opts, :duckdb_verifier, Kinda.ExampleVerifier)
 
     env = Kinda.ExampleVerifier.command_env(opts)
 
@@ -33,6 +34,11 @@ defmodule Kinda.RootVerifier do
     verify_example(
       ecto_sqlite_verifier,
       Keyword.put(opts, :relative_path, "packages/ecto_kinda_sqlite")
+    )
+
+    verify_example(
+      duckdb_verifier,
+      Keyword.put(opts, :relative_path, "packages/kinda_duckdb")
     )
   end
 

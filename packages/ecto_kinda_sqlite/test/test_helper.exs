@@ -12,8 +12,25 @@ Application.put_env(:ecto_kinda_sqlite, EctoKindaSQLite.TestRepo,
   show_sensitive_data_on_connection_error: true
 )
 
+{:ok, migration_repo} = EctoKindaSQLite.TestRepo.start_link()
+
+:ok =
+  Ecto.Migrator.up(EctoKindaSQLite.TestRepo, 1, EctoKindaSQLite.Migration,
+    log: false,
+    migration_lock: false
+  )
+
+:ok = Supervisor.stop(migration_repo)
+
+repo_config = Application.fetch_env!(:ecto_kinda_sqlite, EctoKindaSQLite.TestRepo)
+
+Application.put_env(
+  :ecto_kinda_sqlite,
+  EctoKindaSQLite.TestRepo,
+  Keyword.put(repo_config, :pool_size, 1)
+)
+
 {:ok, _pid} = EctoKindaSQLite.TestRepo.start_link()
-:ok = Ecto.Migrator.up(EctoKindaSQLite.TestRepo, 1, EctoKindaSQLite.Migration, log: false)
 :ok = Ecto.Adapters.SQL.Sandbox.mode(EctoKindaSQLite.TestRepo, :manual)
 
 ExUnit.start()
