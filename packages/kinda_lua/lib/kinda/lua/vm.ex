@@ -19,6 +19,14 @@ defmodule Kinda.Lua.VM do
     end
   end
 
+  @spec run(t(), Kinda.Lua.Bytecode.t()) :: term()
+  def run(%__MODULE__{resource: vm}, %Kinda.Lua.Bytecode{resource: bytecode}) do
+    case Native.run_bytecode(vm, bytecode) do
+      [value] -> value
+      values -> values
+    end
+  end
+
   @spec allocator_stats(t()) :: %{
           calls: non_neg_integer(),
           live_bytes: non_neg_integer(),

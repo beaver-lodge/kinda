@@ -11,6 +11,12 @@ defmodule Kinda.Lua.Native do
   def create_coroutine(_vm, _code), do: :erlang.nif_error({:nif_not_loaded, :create_coroutine})
   def resume_coroutine(_coroutine), do: :erlang.nif_error({:nif_not_loaded, :resume_coroutine})
   def close_coroutine(_coroutine), do: :erlang.nif_error({:nif_not_loaded, :close_coroutine})
+  def compile_bytecode(_code), do: :erlang.nif_error({:nif_not_loaded, :compile_bytecode})
+  def run_bytecode(_vm, _bytecode), do: :erlang.nif_error({:nif_not_loaded, :run_bytecode})
+  def close_bytecode(_bytecode), do: :erlang.nif_error({:nif_not_loaded, :close_bytecode})
+  def create_userdata(_vm, _value), do: :erlang.nif_error({:nif_not_loaded, :create_userdata})
+  def userdata_value(_userdata), do: :erlang.nif_error({:nif_not_loaded, :userdata_value})
+  def close_userdata(_userdata), do: :erlang.nif_error({:nif_not_loaded, :close_userdata})
 
   def load_nif do
     nif_file = ~c"#{:code.priv_dir(:kinda_lua)}/lib/libKindaLuaNIF"

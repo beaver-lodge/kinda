@@ -133,6 +133,72 @@ void kinda_lua_coroutine_release(lua_State *state, int reference) {
   luaL_unref(state, LUA_REGISTRYINDEX, reference);
 }
 
+struct kinda_lua_buffer { unsigned char *bytes; size_t size; size_t capacity; };
+
+static int kinda_lua_writer(lua_State *state, const void *data, size_t size, void *userdata) {
+  (void)state;
+  struct kinda_lua_buffer *buffer = userdata;
+  if (buffer->size + size > buffer->capacity) {
+    size_t capacity = buffer->capacity == 0 ? 256 : buffer->capacity;
+    while (capacity < buffer->size + size) capacity *= 2;
+    unsigned char *bytes = realloc(buffer->bytes, capacity);
+    if (bytes == NULL) return 1;
+    buffer->bytes = bytes;
+    buffer->capacity = capacity;
+  }
+  memcpy(buffer->bytes + buffer->size, data, size);
+  buffer->size += size;
+  return 0;
+}
+
+int kinda_lua_compile(const char *source, size_t length, unsigned char **bytes, size_t *size) {
+  lua_State *state = luaL_newstate();
+  if (state == NULL) return LUA_ERRMEM;
+  int status = luaL_loadbufferx(state, source, length, "kinda-bytecode", "t");
+  struct kinda_lua_buffer buffer = {NULL, 0, 0};
+  if (status == LUA_OK && lua_dump(state, kinda_lua_writer, &buffer, 0) != 0) status = LUA_ERRMEM;
+  lua_close(state);
+  if (status != LUA_OK) free(buffer.bytes);
+  else { *bytes = buffer.bytes; *size = buffer.size; }
+  return status;
+}
+
+void kinda_lua_free(void *pointer) { free(pointer); }
+
+int kinda_lua_run_bytecode(lua_State *state, const unsigned char *bytes, size_t size, int *count) {
+  lua_settop(state, 0);
+  int status = luaL_loadbufferx(state, (const char *)bytes, size, "kinda-bytecode", "b");
+  if (status == LUA_OK) status = lua_pcall(state, 0, LUA_MULTRET, 0);
+  *count = status == LUA_OK ? lua_gettop(state) : 0;
+  return status;
+}
+
+int kinda_lua_userdata_create(lua_State *state, int64_t value, int *reference) {
+  int64_t *userdata = lua_newuserdatauv(state, sizeof(*userdata), 0);
+  if (userdata == NULL) return LUA_ERRMEM;
+  *userdata = value;
+  if (luaL_newmetatable(state, "kinda.userdata")) {
+    lua_pushstring(state, "kinda.userdata");
+    lua_setfield(state, -2, "__name");
+  }
+  lua_setmetatable(state, -2);
+  lua_pushvalue(state, -1);
+  lua_setglobal(state, "kinda_userdata");
+  *reference = luaL_ref(state, LUA_REGISTRYINDEX);
+  return LUA_OK;
+}
+
+int64_t kinda_lua_userdata_value(lua_State *state, int reference) {
+  lua_rawgeti(state, LUA_REGISTRYINDEX, reference);
+  int64_t value = *(int64_t *)lua_touserdata(state, -1);
+  lua_pop(state, 1);
+  return value;
+}
+
+void kinda_lua_userdata_release(lua_State *state, int reference) {
+  luaL_unref(state, LUA_REGISTRYINDEX, reference);
+}
+
 int kinda_lua_eval(const char *source, size_t length, struct kinda_lua_result *result) {
   lua_State *state = luaL_newstate();
   if (state == NULL) return LUA_ERRMEM;
