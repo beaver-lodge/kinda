@@ -23,6 +23,7 @@ pub fn build(b: *std.Build) void {
     lib.root_module.addIncludePath(.{ .cwd_relative = quickjs_root });
     lib.root_module.addCMacro("CONFIG_VERSION", "\"2026-06-04\"");
     lib.root_module.addCMacro("_GNU_SOURCE", "1");
+    lib.root_module.addCMacro("offsetof", "__builtin_offsetof");
     lib.root_module.addCSourceFile(.{ .file = b.path("native/c-src/kinda_quickjs_shim.c"), .flags = &.{"-std=c11"} });
     lib.root_module.addCSourceFiles(.{
         .root = .{ .cwd_relative = quickjs_root },
