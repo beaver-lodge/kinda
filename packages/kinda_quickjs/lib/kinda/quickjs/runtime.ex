@@ -32,4 +32,9 @@ defmodule Kinda.QuickJS.Runtime do
 
   @spec run_jobs(t(), non_neg_integer()) :: non_neg_integer()
   def run_jobs(%__MODULE__{resource: runtime}, limit \\ 0), do: Native.run_jobs(runtime, limit)
+
+  @spec register_module(t(), iodata(), iodata()) :: :ok
+  def register_module(%__MODULE__{resource: runtime}, name, source) do
+    Native.register_module(runtime, IO.iodata_to_binary(name), IO.iodata_to_binary(source))
+  end
 end

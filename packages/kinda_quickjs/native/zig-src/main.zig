@@ -114,9 +114,28 @@ const Value = struct {
     }
 };
 
+const Bytecode = struct {
+    pub const PtrType = *Bytecode;
+    bytes: []u8,
+    mutex: std.atomic.Mutex = .unlocked,
+    closed: bool = false,
+    fn close(self: *Bytecode) void {
+        lock(&self.mutex);
+        defer self.mutex.unlock();
+        if (self.closed) return;
+        beam.allocator.free(self.bytes);
+        self.closed = true;
+    }
+    pub fn destroy(_: beam.env, object: ?*anyopaque) callconv(.c) void {
+        const self: *Bytecode = @ptrCast(@alignCast(object orelse return));
+        self.close();
+    }
+};
+
 const RuntimeKind = kinda.ResourceKind(Runtime, "Elixir.Kinda.QuickJS.Runtime");
 const ContextKind = kinda.ResourceKind(Context, "Elixir.Kinda.QuickJS.Context");
 const ValueKind = kinda.ResourceKind(Value, "Elixir.Kinda.QuickJS.Value");
+const BytecodeKind = kinda.ResourceKind(Bytecode, "Elixir.Kinda.QuickJS.Bytecode");
 
 fn makeValue(environment: beam.env, value: quickjs.struct_kinda_quickjs_result) !beam.term {
     return switch (value.type) {
@@ -298,6 +317,79 @@ fn closeValue(environment: beam.env, _: c_int, args: [*c]const beam.term) !beam.
     return beam.make_ok(environment);
 }
 
+fn registerModule(environment: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
+    const runtime = try beam.fetch_resource_ptr(*Runtime, environment, RuntimeKind.resource.t, args[0]);
+    const name = try beam.get_char_slice(environment, args[1]);
+    const source = try beam.get_char_slice(environment, args[2]);
+    lock(&runtime.mutex);
+    defer runtime.mutex.unlock();
+    const handle = runtime.handle orelse return error.ClosedRuntime;
+    if (quickjs.kinda_quickjs_register_module(handle, name.ptr, name.len, source.ptr, source.len) != 0) return error.OutOfMemory;
+    return beam.make_ok(environment);
+}
+
+fn evalModule(environment: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
+    const context = try beam.fetch_resource_ptr(*Context, environment, ContextKind.resource.t, args[0]);
+    const source = try beam.get_char_slice(environment, args[1]);
+    lock(&context.mutex);
+    defer context.mutex.unlock();
+    if (context.closed) return error.ClosedContext;
+    const runtime = context.runtime.get();
+    lock(&runtime.mutex);
+    defer runtime.mutex.unlock();
+    const runtime_handle = runtime.handle orelse return error.ClosedRuntime;
+    const context_handle = context.handle orelse return error.ClosedContext;
+    if (quickjs.kinda_quickjs_eval_module(runtime_handle, context_handle, source.ptr, source.len) != 0) return Error.FailedToEvaluate;
+    return beam.make_ok(environment);
+}
+
+fn compileBytecode(environment: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
+    const context = try beam.fetch_resource_ptr(*Context, environment, ContextKind.resource.t, args[0]);
+    const source = try beam.get_char_slice(environment, args[1]);
+    lock(&context.mutex);
+    defer context.mutex.unlock();
+    const runtime = context.runtime.get();
+    lock(&runtime.mutex);
+    defer runtime.mutex.unlock();
+    const context_handle = context.handle orelse return error.ClosedContext;
+    var compiled: [*c]u8 = null;
+    var size: usize = 0;
+    if (quickjs.kinda_quickjs_compile(context_handle, source.ptr, source.len, &compiled, &size) != 0 or compiled == null) return error.FailedToCompile;
+    defer quickjs.kinda_quickjs_free(compiled);
+    const signature = "QuickJS 2026-06-04\x00";
+    const bytes = try beam.allocator.alloc(u8, signature.len + size);
+    errdefer beam.allocator.free(bytes);
+    @memcpy(bytes[0..signature.len], signature);
+    @memcpy(bytes[signature.len..], compiled[0..size]);
+    return BytecodeKind.resource.make(environment, .{ .bytes = bytes }) catch return error.OutOfMemory;
+}
+
+fn runBytecode(environment: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
+    const context = try beam.fetch_resource_ptr(*Context, environment, ContextKind.resource.t, args[0]);
+    const bytecode = try beam.fetch_resource_ptr(*Bytecode, environment, BytecodeKind.resource.t, args[1]);
+    lock(&bytecode.mutex);
+    defer bytecode.mutex.unlock();
+    if (bytecode.closed) return error.ClosedBytecode;
+    const signature = "QuickJS 2026-06-04\x00";
+    if (bytecode.bytes.len < signature.len or !std.mem.eql(u8, bytecode.bytes[0..signature.len], signature)) return error.IncompatibleBytecode;
+    lock(&context.mutex);
+    defer context.mutex.unlock();
+    const runtime = context.runtime.get();
+    lock(&runtime.mutex);
+    defer runtime.mutex.unlock();
+    const context_handle = context.handle orelse return error.ClosedContext;
+    var exported: quickjs.struct_kinda_quickjs_result = std.mem.zeroes(quickjs.struct_kinda_quickjs_result);
+    const payload = bytecode.bytes[signature.len..];
+    if (quickjs.kinda_quickjs_run_bytecode(context_handle, payload.ptr, payload.len, &exported) != 0) return Error.FailedToEvaluate;
+    defer quickjs.kinda_quickjs_result_release(&exported);
+    return makeValue(environment, exported);
+}
+
+fn closeBytecode(environment: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
+    (try beam.fetch_resource_ptr(*Bytecode, environment, BytecodeKind.resource.t, args[0])).close();
+    return beam.make_ok(environment);
+}
+
 fn version(environment: beam.env, _: c_int, _: [*c]const beam.term) !beam.term {
     return beam.make_slice(environment, std.mem.span(quickjs.kinda_quickjs_version()));
 }
@@ -317,6 +409,11 @@ const all_nifs = .{
     result.nif_with_flags("promise_result", 1, promiseResult, cpu_bound).entry,
     result.nif_with_flags("run_jobs", 2, runJobs, cpu_bound).entry,
     result.nif_with_flags("close_value", 1, closeValue, cpu_bound).entry,
+    result.nif_with_flags("register_module", 3, registerModule, cpu_bound).entry,
+    result.nif_with_flags("eval_module", 2, evalModule, cpu_bound).entry,
+    result.nif_with_flags("compile_bytecode", 2, compileBytecode, cpu_bound).entry,
+    result.nif_with_flags("run_bytecode", 2, runBytecode, cpu_bound).entry,
+    result.nif_with_flags("close_bytecode", 1, closeBytecode, cpu_bound).entry,
 };
 pub export var nifs: [all_nifs.len]e.ErlNifFunc = all_nifs;
 
@@ -324,10 +421,15 @@ fn nifLoad(environment: beam.env, _: [*c]?*anyopaque, _: beam.term) callconv(.c)
     RuntimeKind.open(environment);
     ContextKind.open(environment);
     ValueKind.open(environment);
-    return if (RuntimeKind.resource.t == null or ContextKind.resource.t == null or ValueKind.resource.t == null) 1 else 0;
+    BytecodeKind.open(environment);
+    return if (RuntimeKind.resource.t == null or ContextKind.resource.t == null or ValueKind.resource.t == null or BytecodeKind.resource.t == null) 1 else 0;
 }
 
-const entry = e.ErlNifEntry{ .major = 2, .minor = 16, .name = root_module, .num_of_funcs = nifs.len, .funcs = &(nifs[0]), .load = nifLoad, .reload = null, .upgrade = null, .unload = null, .vm_variant = "beam.vanilla", .options = 1, .sizeof_ErlNifResourceTypeInit = @sizeOf(e.ErlNifResourceTypeInit), .min_erts = "erts-15.0" };
+fn nifUpgrade(environment: beam.env, private_data: [*c]?*anyopaque, _: [*c]?*anyopaque, load_info: beam.term) callconv(.c) c_int {
+    return nifLoad(environment, private_data, load_info);
+}
+
+const entry = e.ErlNifEntry{ .major = 2, .minor = 16, .name = root_module, .num_of_funcs = nifs.len, .funcs = &(nifs[0]), .load = nifLoad, .reload = null, .upgrade = nifUpgrade, .unload = null, .vm_variant = "beam.vanilla", .options = 1, .sizeof_ErlNifResourceTypeInit = @sizeOf(e.ErlNifResourceTypeInit), .min_erts = "erts-15.0" };
 const NifInit = if (builtin.os.tag == .windows) struct {
     var callbacks: e.TWinDynNifCallbacks = undefined;
     fn init(win_callbacks: *const e.TWinDynNifCallbacks) callconv(.c) *const e.ErlNifEntry { callbacks = win_callbacks.*; return &entry; }

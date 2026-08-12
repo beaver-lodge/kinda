@@ -7,6 +7,14 @@ struct kinda_quickjs_runtime {
   JSRuntime *handle;
   uint64_t interrupt_budget;
   int interrupt_limited;
+  struct kinda_quickjs_module *modules;
+};
+
+struct kinda_quickjs_module {
+  char *name;
+  char *source;
+  size_t source_length;
+  struct kinda_quickjs_module *next;
 };
 
 struct kinda_quickjs_context {
@@ -25,6 +33,23 @@ static int interrupt_handler(JSRuntime *runtime, void *opaque) {
   if (owner->interrupt_budget == 0) return 1;
   owner->interrupt_budget--;
   return 0;
+}
+
+static JSModuleDef *module_loader(JSContext *context, const char *name,
+                                  void *opaque) {
+  struct kinda_quickjs_runtime *runtime = opaque;
+  struct kinda_quickjs_module *module = runtime->modules;
+  while (module != NULL && strcmp(module->name, name) != 0) module = module->next;
+  if (module == NULL) {
+    JS_ThrowReferenceError(context, "module '%s' is not registered", name);
+    return NULL;
+  }
+  JSValue compiled = JS_Eval(context, module->source, module->source_length,
+                             name, JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
+  if (JS_IsException(compiled)) return NULL;
+  JSModuleDef *definition = JS_VALUE_GET_PTR(compiled);
+  JS_FreeValue(context, compiled);
+  return definition;
 }
 
 const char *kinda_quickjs_version(void) { return CONFIG_VERSION; }
@@ -96,11 +121,20 @@ kinda_quickjs_runtime *kinda_quickjs_runtime_create(size_t memory_limit,
   if (memory_limit != 0) JS_SetMemoryLimit(runtime->handle, memory_limit);
   if (stack_limit != 0) JS_SetMaxStackSize(runtime->handle, stack_limit);
   JS_SetInterruptHandler(runtime->handle, interrupt_handler, runtime);
+  JS_SetModuleLoaderFunc(runtime->handle, NULL, module_loader, runtime);
   return runtime;
 }
 
 void kinda_quickjs_runtime_destroy(kinda_quickjs_runtime *runtime) {
   if (runtime == NULL) return;
+  struct kinda_quickjs_module *module = runtime->modules;
+  while (module != NULL) {
+    struct kinda_quickjs_module *next = module->next;
+    free(module->name);
+    free(module->source);
+    free(module);
+    module = next;
+  }
   JS_FreeRuntime(runtime->handle);
   free(runtime);
 }
@@ -207,3 +241,70 @@ int kinda_quickjs_run_jobs(kinda_quickjs_runtime *runtime, size_t limit,
   }
   return 0;
 }
+
+int kinda_quickjs_register_module(kinda_quickjs_runtime *runtime,
+                                  const char *name, size_t name_length,
+                                  const char *source, size_t source_length) {
+  struct kinda_quickjs_module *module = calloc(1, sizeof(*module));
+  if (module == NULL) return -1;
+  module->name = malloc(name_length + 1);
+  module->source = malloc(source_length + 1);
+  if (module->name == NULL || module->source == NULL) {
+    free(module->name); free(module->source); free(module); return -1;
+  }
+  memcpy(module->name, name, name_length); module->name[name_length] = '\0';
+  memcpy(module->source, source, source_length); module->source[source_length] = '\0';
+  module->source_length = source_length;
+  module->next = runtime->modules;
+  runtime->modules = module;
+  return 0;
+}
+
+int kinda_quickjs_eval_module(kinda_quickjs_runtime *runtime,
+                              kinda_quickjs_context *context,
+                              const char *source, size_t length) {
+  (void)runtime;
+  char *terminated = malloc(length + 1);
+  if (terminated == NULL) return -1;
+  memcpy(terminated, source, length);
+  terminated[length] = '\0';
+  JSValue value = JS_Eval(context->handle, terminated, length, "kinda-entry.mjs",
+                          JS_EVAL_TYPE_MODULE);
+  free(terminated);
+  int status = JS_IsException(value) ? -1 : 0;
+  JS_FreeValue(context->handle, value);
+  return status;
+}
+
+int kinda_quickjs_compile(kinda_quickjs_context *context,
+                          const char *source, size_t length,
+                          unsigned char **bytes, size_t *size) {
+  char *terminated = malloc(length + 1);
+  if (terminated == NULL) return -1;
+  memcpy(terminated, source, length);
+  terminated[length] = '\0';
+  JSValue compiled = JS_Eval(context->handle, terminated, length, "kinda-bytecode",
+                             JS_EVAL_TYPE_GLOBAL | JS_EVAL_FLAG_COMPILE_ONLY);
+  free(terminated);
+  if (JS_IsException(compiled)) return -1;
+  uint8_t *encoded = JS_WriteObject(context->handle, size, compiled, JS_WRITE_OBJ_BYTECODE);
+  JS_FreeValue(context->handle, compiled);
+  if (encoded == NULL) return -1;
+  *bytes = malloc(*size);
+  if (*bytes != NULL) memcpy(*bytes, encoded, *size);
+  js_free(context->handle, encoded);
+  return *bytes == NULL ? -1 : 0;
+}
+
+int kinda_quickjs_run_bytecode(kinda_quickjs_context *context,
+                               const unsigned char *bytes, size_t size,
+                               struct kinda_quickjs_result *result) {
+  JSValue compiled = JS_ReadObject(context->handle, bytes, size, JS_READ_OBJ_BYTECODE);
+  if (JS_IsException(compiled)) return -1;
+  JSValue value = JS_EvalFunction(context->handle, compiled);
+  int status = JS_IsException(value) ? -1 : export_value(context->handle, value, result);
+  JS_FreeValue(context->handle, value);
+  return status;
+}
+
+void kinda_quickjs_free(void *pointer) { free(pointer); }
