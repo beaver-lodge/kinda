@@ -1448,7 +1448,7 @@ pub fn ResourceRef(comptime T: type) type {
         resource: ?*T = null,
 
         pub fn init(resource: *T) Self {
-            e.enif_keep_resource(resource);
+            nifApi("enif_keep_resource")(resource);
             return .{ .resource = resource };
         }
 
@@ -1459,7 +1459,7 @@ pub fn ResourceRef(comptime T: type) type {
         pub fn deinit(reference: *Self) void {
             const resource = reference.resource orelse return;
             reference.resource = null;
-            e.enif_release_resource(resource);
+            nifApi("enif_release_resource")(resource);
         }
     };
 }
