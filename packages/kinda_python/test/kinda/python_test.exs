@@ -1,5 +1,5 @@
 defmodule Kinda.PythonTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
 
   alias Kinda.Python
 

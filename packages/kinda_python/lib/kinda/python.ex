@@ -7,10 +7,16 @@ defmodule Kinda.Python do
   resources are introduced in the next package layer.
   """
 
-  alias Kinda.Python.Native
+  alias Kinda.Python.{Execution, Native}
 
   @spec open() :: Kinda.Python.Interpreter.t()
   defdelegate open(), to: Kinda.Python.Interpreter
+
+  @spec eval(Kinda.Python.Interpreter.t(), iodata()) :: Kinda.Python.Value.t()
+  defdelegate eval(interpreter, code), to: Kinda.Python.Interpreter
+
+  @spec eval_async(iodata()) :: Execution.t()
+  def eval_async(code), do: Execution.start(code)
 
   @spec version() :: String.t()
   def version, do: Native.version()

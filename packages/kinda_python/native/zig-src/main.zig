@@ -194,6 +194,48 @@ fn valueToTerm(environment: beam.env, _: c_int, args: [*c]const beam.term) !beam
     return Error.UnsupportedValue;
 }
 
+fn isolatedEval(environment: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
+    const code = try beam.get_char_slice(environment, args[0]);
+    const terminated = try beam.allocator.dupeZ(u8, code);
+    defer beam.allocator.free(terminated);
+    const main_tstate = py.PyThreadState_New(py.PyInterpreterState_Main()) orelse return Error.FailedToCreateInterpreter;
+    _ = py.PyThreadState_Swap(main_tstate);
+    var config = py.PyInterpreterConfig{ .use_main_obmalloc = 0, .allow_fork = 0, .allow_exec = 0, .allow_threads = 1, .allow_daemon_threads = 0, .check_multi_interp_extensions = 1, .gil = py.PyInterpreterConfig_OWN_GIL };
+    var tstate: ?*py.PyThreadState = null;
+    const status = py.Py_NewInterpreterFromConfig(&tstate, &config);
+    if (py.PyStatus_Exception(status) != 0 or tstate == null) {
+        _ = py.PyThreadState_Swap(main_tstate);
+        py.PyThreadState_Clear(main_tstate);
+        py.PyThreadState_DeleteCurrent();
+        return Error.FailedToCreateInterpreter;
+    }
+    const globals = py.PyDict_New();
+    const object = if (globals) |scope| py.PyRun_StringFlags(terminated.ptr, py.Py_eval_input, scope, scope, null) else null;
+    if (object == null) {
+        py.PyErr_Clear();
+        py.Py_XDECREF(globals);
+        py.Py_EndInterpreter(tstate);
+        _ = py.PyThreadState_Swap(main_tstate);
+        py.PyThreadState_Clear(main_tstate);
+        py.PyThreadState_DeleteCurrent();
+        return Error.FailedToEvaluate;
+    }
+    const term = if (py.PyLong_Check(object) != 0)
+        beam.make_i64(environment, py.PyLong_AsLongLong(object))
+    else if (py.PyUnicode_Check(object) != 0) blk: {
+        var length: py.Py_ssize_t = 0;
+        const bytes = py.PyUnicode_AsUTF8AndSize(object, &length) orelse break :blk beam.make_nil(environment);
+        break :blk beam.make_slice(environment, bytes[0..@intCast(length)]);
+    } else beam.make_nil(environment);
+    py.Py_DecRef(object);
+    py.Py_XDECREF(globals);
+    py.Py_EndInterpreter(tstate);
+    _ = py.PyThreadState_Swap(main_tstate);
+    py.PyThreadState_Clear(main_tstate);
+    py.PyThreadState_DeleteCurrent();
+    return term;
+}
+
 fn version(environment: beam.env, _: c_int, _: [*c]const beam.term) !beam.term {
     return beam.make_slice(environment, std.mem.span(py.Py_GetVersion()));
 }
@@ -213,6 +255,7 @@ const all_nifs = .{
     result.nif_with_flags("eval", 2, eval, io_bound).entry,
     result.nif_with_flags("close_value", 1, closeValue, io_bound).entry,
     result.nif_with_flags("value_to_term", 1, valueToTerm, io_bound).entry,
+    result.nif_with_flags("isolated_eval", 1, isolatedEval, io_bound).entry,
 };
 pub export var nifs: [all_nifs.len]e.ErlNifFunc = all_nifs;
 

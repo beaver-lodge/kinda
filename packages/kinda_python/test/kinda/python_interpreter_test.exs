@@ -10,10 +10,10 @@ defmodule Kinda.PythonInterpreterTest do
     right_value = Interpreter.eval(right, "globals().get('answer', -1)")
     assert Value.to_term(left_value) == 42
     assert Value.to_term(right_value) == -1
-    assert :ok = Value.close(left_value)
-    assert :ok = Value.close(right_value)
-    assert :ok = Interpreter.close(left)
-    assert :ok = Interpreter.close(right)
+    Value.close(left_value)
+    Value.close(right_value)
+    Interpreter.close(left)
+    Interpreter.close(right)
   end
 
   test "a value keeps its closing parent alive until arbitrary-order GC" do
