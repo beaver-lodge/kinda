@@ -70,3 +70,15 @@ jobs:
       - name: Run DuckDB C API tests
         working-directory: packages/kinda_duckdb
         run: mix test --force
+      - name: Install Ecto Kinda DuckDB dependencies
+        if: matrix.target == 'linux-x86_64'
+        working-directory: packages/ecto_kinda_duckdb
+        run: mix deps.get
+      - name: Verify experimental Ecto Kinda DuckDB adapter
+        if: matrix.target == 'linux-x86_64'
+        working-directory: packages/ecto_kinda_duckdb
+        run: |
+          mix format --check-formatted
+          MIX_ENV=test mix compile --force --warnings-as-errors
+          mix credo --strict
+          mix test --force

@@ -65,6 +65,12 @@ The SQLite integration can be verified independently with:
 mix kinda.sqlite.verify
 ```
 
+The DuckDB packages live under `packages/kinda_duckdb` and
+`packages/ecto_kinda_duckdb`. The former provides a columnar direct API,
+Appender ingestion, pending queries, and DBConnection; the latter is an
+explicitly experimental query/transaction Ecto adapter and does not promise
+full migration or OLTP semantics.
+
 If you want the same thing without compiling the project first, run:
 
 ```sh
