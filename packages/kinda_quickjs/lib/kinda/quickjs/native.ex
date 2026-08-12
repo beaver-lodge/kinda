@@ -23,6 +23,17 @@ defmodule Kinda.QuickJS.Native do
   def run_jobs(_runtime, _limit), do: :erlang.nif_error({:nif_not_loaded, :run_jobs})
   def close_value(_value), do: :erlang.nif_error({:nif_not_loaded, :close_value})
 
+  def register_module(_runtime, _name, _source),
+    do: :erlang.nif_error({:nif_not_loaded, :register_module})
+
+  def eval_module(_context, _source), do: :erlang.nif_error({:nif_not_loaded, :eval_module})
+
+  def compile_bytecode(_context, _source),
+    do: :erlang.nif_error({:nif_not_loaded, :compile_bytecode})
+
+  def run_bytecode(_context, _bytecode), do: :erlang.nif_error({:nif_not_loaded, :run_bytecode})
+  def close_bytecode(_bytecode), do: :erlang.nif_error({:nif_not_loaded, :close_bytecode})
+
   def load_nif do
     nif_file = ~c"#{:code.priv_dir(:kinda_quickjs)}/lib/libKindaQuickJSNIF"
     dylib = "#{nif_file}.dylib"

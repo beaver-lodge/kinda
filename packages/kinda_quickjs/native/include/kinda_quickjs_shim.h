@@ -55,5 +55,18 @@ int kinda_quickjs_promise_result(kinda_quickjs_value *value,
                                  struct kinda_quickjs_result *result);
 int kinda_quickjs_run_jobs(kinda_quickjs_runtime *runtime, size_t limit,
                            size_t *executed);
+int kinda_quickjs_register_module(kinda_quickjs_runtime *runtime,
+                                  const char *name, size_t name_length,
+                                  const char *source, size_t source_length);
+int kinda_quickjs_eval_module(kinda_quickjs_runtime *runtime,
+                              kinda_quickjs_context *context,
+                              const char *source, size_t length);
+int kinda_quickjs_compile(kinda_quickjs_context *context,
+                          const char *source, size_t length,
+                          unsigned char **bytes, size_t *size);
+int kinda_quickjs_run_bytecode(kinda_quickjs_context *context,
+                               const unsigned char *bytes, size_t size,
+                               struct kinda_quickjs_result *result);
+void kinda_quickjs_free(void *pointer);
 
 #endif

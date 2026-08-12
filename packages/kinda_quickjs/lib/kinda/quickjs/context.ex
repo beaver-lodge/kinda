@@ -1,6 +1,6 @@
 defmodule Kinda.QuickJS.Context do
   @moduledoc "A QuickJS realm owned by one runtime."
-  alias Kinda.QuickJS.{Native, Value}
+  alias Kinda.QuickJS.{Bytecode, Native, Value}
   @enforce_keys [:resource]
   defstruct [:resource]
   @opaque t :: %__MODULE__{resource: reference()}
@@ -17,5 +17,20 @@ defmodule Kinda.QuickJS.Context do
   @spec value(t(), iodata()) :: Value.t()
   def value(%__MODULE__{resource: context}, code) do
     %Value{resource: Native.create_value(context, IO.iodata_to_binary(code))}
+  end
+
+  @spec eval_module(t(), iodata()) :: :ok
+  def eval_module(%__MODULE__{resource: context}, source) do
+    Native.eval_module(context, IO.iodata_to_binary(source))
+  end
+
+  @spec compile(t(), iodata()) :: Bytecode.t()
+  def compile(%__MODULE__{resource: context}, source) do
+    %Bytecode{resource: Native.compile_bytecode(context, IO.iodata_to_binary(source))}
+  end
+
+  @spec run(t(), Bytecode.t()) :: term()
+  def run(%__MODULE__{resource: context}, %Bytecode{resource: bytecode}) do
+    Native.run_bytecode(context, bytecode)
   end
 end
