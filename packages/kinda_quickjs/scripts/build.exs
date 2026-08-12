@@ -80,7 +80,7 @@ defmodule Kinda.QuickJS.Build do
     if match?({:win32, _}, :os.type()) do
       architecture = System.get_env("VSCMD_ARG_TGT_ARCH", "x64")
       target = %{"x64" => "x86_64", "x86" => "x86", "arm64" => "aarch64", "arm" => "arm"}
-      ["-Dtarget=#{Map.fetch!(target, architecture)}-windows-msvc"]
+      ["-Dtarget=#{Map.fetch!(target, architecture)}-windows-gnu"]
     else
       []
     end
