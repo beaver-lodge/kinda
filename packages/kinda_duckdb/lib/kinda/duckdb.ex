@@ -6,7 +6,17 @@ defmodule Kinda.DuckDB do
   only when incremental access to the resource-backed native result is useful.
   """
 
-  alias Kinda.DuckDB.{Appender, BorrowedResult, Connection, Database, Native, Result}
+  alias Kinda.DuckDB.{
+    Appender,
+    BorrowedResult,
+    Connection,
+    Database,
+    Error,
+    Native,
+    Pending,
+    Prepared,
+    Result
+  }
 
   @type value :: nil | boolean() | integer() | float() | binary()
 
@@ -23,11 +33,20 @@ defmodule Kinda.DuckDB do
     %Connection{resource: Native.connect(database.resource), database: database}
   end
 
-  @spec close(Database.t() | Connection.t() | BorrowedResult.t() | Appender.t()) :: :ok
+  @spec close(
+          Database.t()
+          | Connection.t()
+          | BorrowedResult.t()
+          | Appender.t()
+          | Prepared.t()
+          | Pending.t()
+        ) :: :ok
   def close(%Database{resource: resource}), do: Native.close_database(resource)
   def close(%Connection{resource: resource}), do: Native.close_connection(resource)
   def close(%BorrowedResult{resource: resource}), do: Native.close_result(resource)
   def close(%Appender{resource: resource}), do: Native.close_appender(resource)
+  def close(%Prepared{resource: resource}), do: Native.close_prepared(resource)
+  def close(%Pending{resource: resource}), do: Native.close_pending(resource)
 
   @spec query(Connection.t(), iodata()) :: Result.t()
   def query(%Connection{} = connection, sql) do
@@ -87,6 +106,33 @@ defmodule Kinda.DuckDB do
   @spec flush(Appender.t()) :: :ok
   def flush(%Appender{resource: resource}), do: Native.flush_appender(resource)
 
+  @spec prepare(Connection.t(), iodata()) :: Prepared.t()
+  def prepare(%Connection{} = connection, sql) do
+    %Prepared{
+      resource: Native.prepare(connection.resource, IO.iodata_to_binary(sql)),
+      connection: connection
+    }
+  end
+
+  @spec pending(Prepared.t(), [value()]) :: Pending.t()
+  def pending(%Prepared{} = prepared, params \\ []) when is_list(params) do
+    encoded = Enum.map(params, &encode_appender_value/1)
+    %Pending{resource: Native.create_pending(prepared.resource, encoded), prepared: prepared}
+  end
+
+  @spec execute_pending(Pending.t()) :: BorrowedResult.t()
+  def execute_pending(%Pending{} = pending) do
+    run_pending(pending)
+
+    %BorrowedResult{
+      resource: Native.execute_pending(pending.resource),
+      connection: pending.prepared.connection
+    }
+  end
+
+  @spec interrupt(Connection.t()) :: :ok
+  def interrupt(%Connection{resource: resource}), do: Native.interrupt(resource)
+
   @spec query_int64(iodata(), Path.t()) :: integer()
   def query_int64(sql, database \\ ":memory:") do
     Native.query_int64(IO.iodata_to_binary(database), IO.iodata_to_binary(sql))
@@ -97,6 +143,15 @@ defmodule Kinda.DuckDB do
   defp encode_appender_value(value) when is_integer(value), do: {:integer, value}
   defp encode_appender_value(value) when is_float(value), do: {:float, value}
   defp encode_appender_value(value) when is_binary(value), do: {:string, value}
+
+  defp run_pending(pending) do
+    case Native.pending_task(pending.resource) do
+      :ready -> :ok
+      :not_ready -> run_pending(pending)
+      :no_tasks -> run_pending(pending)
+      :error -> raise Error, message: Native.pending_error(pending.resource), operation: :pending
+    end
+  end
 
   defp indices(0), do: []
   defp indices(count), do: 0..(count - 1)

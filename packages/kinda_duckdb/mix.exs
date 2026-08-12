@@ -23,6 +23,7 @@ defmodule Kinda.DuckDB.MixProject do
   defp deps do
     [
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:db_connection, "~> 2.10"},
       {:elixir_make, "~> 0.4", runtime: false},
       {:kinda, path: "../.."},
       {:kinda_sqlite, path: "../kinda_sqlite", only: :test}
