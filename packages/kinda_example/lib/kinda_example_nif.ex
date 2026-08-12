@@ -39,7 +39,9 @@ defmodule KindaExample.NIF.Raw do
   end
 
   def load_nif do
-    nif_file = ~c"#{:code.priv_dir(:kinda_example)}/lib/libKindaExampleNIF"
+    priv_lib = Path.join(to_string(:code.priv_dir(:kinda_example)), "lib")
+    prepare_windows_dll_path(priv_lib)
+    nif_file = ~c"#{priv_lib}/libKindaExampleNIF"
 
     dylib = "#{nif_file}.dylib"
 
@@ -58,6 +60,13 @@ defmodule KindaExample.NIF.Raw do
         raise Kinda.NIFLoadError,
           path: nif_file,
           reason: reason
+    end
+  end
+
+  defp prepare_windows_dll_path(path) do
+    case :os.type() do
+      {:win32, _} -> System.put_env("PATH", path <> ";" <> System.get_env("PATH", ""))
+      _ -> :ok
     end
   end
 end

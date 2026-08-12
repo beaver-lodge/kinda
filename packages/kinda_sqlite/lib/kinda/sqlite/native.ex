@@ -25,7 +25,9 @@ defmodule Kinda.SQLite.Native do
   end
 
   def load_nif do
-    nif_file = ~c"#{:code.priv_dir(:kinda_sqlite)}/lib/libKindaSQLiteNIF"
+    priv_lib = Path.join(to_string(:code.priv_dir(:kinda_sqlite)), "lib")
+    prepare_windows_dll_path(priv_lib)
+    nif_file = ~c"#{priv_lib}/libKindaSQLiteNIF"
 
     dylib = "#{nif_file}.dylib"
 
@@ -37,6 +39,13 @@ defmodule Kinda.SQLite.Native do
       :ok -> :ok
       {:error, {:reload, _}} -> :ok
       {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp prepare_windows_dll_path(path) do
+    case :os.type() do
+      {:win32, _} -> System.put_env("PATH", path <> ";" <> System.get_env("PATH", ""))
+      _ -> :ok
     end
   end
 end
