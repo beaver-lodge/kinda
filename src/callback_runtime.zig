@@ -12,6 +12,7 @@ const builtin = @import("builtin");
 const kinda = @import("kinda.zig");
 const beam = kinda.beam;
 const e = kinda.erl_nif;
+const nifApi = kinda.nifApi;
 const result = kinda.result;
 const windows = std.os.windows;
 
@@ -84,7 +85,7 @@ const LibraryPin = struct {
             "Kinda.CallbackRuntime.LibraryPin.{x}",
             .{@intFromPtr(&destroy)},
         ) catch @panic("failed to format callback runtime library pin name");
-        resource_type = e.enif_open_resource_type(
+        resource_type = nifApi("enif_open_resource_type")(
             environment,
             null,
             name.ptr,
@@ -96,12 +97,12 @@ const LibraryPin = struct {
     }
 
     fn acquire() Error!*anyopaque {
-        return e.enif_alloc_resource(resource_type, 1) orelse
+        return nifApi("enif_alloc_resource")(resource_type, 1) orelse
             Error.FailedToAllocateLibraryPin;
     }
 
     fn release(pin: *anyopaque) void {
-        e.enif_release_resource(pin);
+        nifApi("enif_release_resource")(pin);
     }
 };
 
@@ -302,12 +303,12 @@ pub const ReplyToken = struct {
         errdefer std.heap.smp_allocator.destroy(state);
         state.* = .{};
 
-        const memory = e.enif_alloc_resource(resource_type, @sizeOf(ReplyToken)) orelse
+        const memory = nifApi("enif_alloc_resource")(resource_type, @sizeOf(ReplyToken)) orelse
             return Error.FailedToAllocateReplyToken;
         const token: *ReplyToken = @ptrCast(@alignCast(memory));
         token.* = .{ .state = state };
-        const term = e.enif_make_resource(environment, memory);
-        e.enif_release_resource(memory);
+        const term = nifApi("enif_make_resource")(environment, memory);
+        nifApi("enif_release_resource")(memory);
         return .{ .state = state, .term = term };
     }
 
@@ -415,7 +416,7 @@ pub const ReplyToken = struct {
     /// callback.
     pub fn open(environment: beam.env) void {
         LibraryPin.open(environment);
-        resource_type = e.enif_open_resource_type(
+        resource_type = nifApi("enif_open_resource_type")(
             environment,
             null,
             resource_name,
@@ -467,8 +468,8 @@ pub fn Dispatcher(comptime callback_names: anytype) type {
         }
 
         pub fn initWithOptions(handler: beam.pid, options: Options) !*Self {
-            const environment = e.enif_alloc_env() orelse return Error.FailedToAllocateEnvironment;
-            errdefer e.enif_free_env(environment);
+            const environment = nifApi("enif_alloc_env")() orelse return Error.FailedToAllocateEnvironment;
+            errdefer nifApi("enif_free_env")(environment);
             return initWithEnvAndOptions(environment, handler, options);
         }
 
@@ -484,7 +485,7 @@ pub fn Dispatcher(comptime callback_names: anytype) type {
             self.* = .{
                 .handler = handler,
                 .env = owned_env,
-                .id = e.enif_make_unique_integer(owned_env, e.ERL_NIF_UNIQUE_POSITIVE),
+                .id = nifApi("enif_make_unique_integer")(owned_env, e.ERL_NIF_UNIQUE_POSITIVE),
                 .timeout_ms = options.timeout_ms,
                 .library_pin = library_pin,
             };
@@ -492,7 +493,7 @@ pub fn Dispatcher(comptime callback_names: anytype) type {
         }
 
         pub fn deinit(self: *Self) void {
-            e.enif_free_env(self.env);
+            nifApi("enif_free_env")(self.env);
             LibraryPin.release(self.library_pin);
             std.heap.smp_allocator.destroy(self);
         }
@@ -502,7 +503,7 @@ pub fn Dispatcher(comptime callback_names: anytype) type {
             errdefer cloned.deinit();
             inline for (callback_names, 0..) |_, index| {
                 if (self.callbacks[index]) |callback| {
-                    cloned.callbacks[index] = e.enif_make_copy(cloned.env, callback);
+                    cloned.callbacks[index] = nifApi("enif_make_copy")(cloned.env, callback);
                 }
             }
             return cloned;
@@ -510,7 +511,7 @@ pub fn Dispatcher(comptime callback_names: anytype) type {
 
         pub fn setCallback(self: *Self, comptime callback_name: []const u8, callback: ?beam.term) void {
             self.callbacks[callbackIndex(callback_name)] = if (callback) |value|
-                e.enif_make_copy(self.env, value)
+                nifApi("enif_make_copy")(self.env, value)
             else
                 null;
         }
@@ -520,7 +521,7 @@ pub fn Dispatcher(comptime callback_names: anytype) type {
         }
 
         pub fn copyId(self: *const Self, destination_env: beam.env) beam.term {
-            return e.enif_make_copy(destination_env, self.id);
+            return nifApi("enif_make_copy")(destination_env, self.id);
         }
 
         /// Sends one callback and consumes `message_env`.
@@ -530,8 +531,8 @@ pub fn Dispatcher(comptime callback_names: anytype) type {
             message_env: beam.env,
             args: anytype,
         ) !Response {
-            if (e.enif_thread_type() != e.ERL_NIF_THR_UNDEFINED) {
-                e.enif_free_env(message_env);
+            if (nifApi("enif_thread_type")() != e.ERL_NIF_THR_UNDEFINED) {
+                nifApi("enif_free_env")(message_env);
                 return Error.CallbackOnSchedulerThread;
             }
 
@@ -540,12 +541,12 @@ pub fn Dispatcher(comptime callback_names: anytype) type {
             defer self.invoke_mutex.unlock(io);
 
             const callback = self.callbacks[callbackIndex(callback_name)] orelse {
-                e.enif_free_env(message_env);
+                nifApi("enif_free_env")(message_env);
                 return .{ .success = true, .skipped = true };
             };
 
             const allocation = ReplyToken.allocate(message_env) catch |err| {
-                e.enif_free_env(message_env);
+                nifApi("enif_free_env")(message_env);
                 return err;
             };
             defer allocation.state.release();
@@ -554,18 +555,18 @@ pub fn Dispatcher(comptime callback_names: anytype) type {
             var message_terms: [4 + argument_count]beam.term = undefined;
             message_terms[0] = beam.make_atom(message_env, callback_name);
             message_terms[1] = allocation.term;
-            message_terms[2] = e.enif_make_copy(message_env, callback);
-            message_terms[3] = e.enif_make_copy(message_env, self.id);
+            message_terms[2] = nifApi("enif_make_copy")(message_env, callback);
+            message_terms[3] = nifApi("enif_make_copy")(message_env, self.id);
             inline for (args, 0..) |arg, index| {
                 message_terms[4 + index] = arg;
             }
 
             const message = beam.make_tuple(message_env, &message_terms);
             if (!beam.send_advanced(null, self.handler, message_env, message)) {
-                e.enif_free_env(message_env);
+                nifApi("enif_free_env")(message_env);
                 return Error.FailedToSendCallback;
             }
-            e.enif_free_env(message_env);
+            nifApi("enif_free_env")(message_env);
 
             const response = allocation.state.wait(self.timeout_ms);
             if (response.status == .replied) {

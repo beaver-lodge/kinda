@@ -1,11 +1,13 @@
 const beam = @import("beam.zig");
-const e = @import("kinda.zig").erl_nif;
+const kinda = @import("kinda.zig");
+const e = kinda.erl_nif;
+const nifApi = kinda.nifApi;
 const std = @import("std");
 
 pub fn is_stack_trace_enabled() bool {
     var value: [256]u8 = undefined;
     var value_size: usize = value.len;
-    return e.enif_getenv("KINDA_DUMP_STACK_TRACE", &value[0], &value_size) == 0;
+    return nifApi("enif_getenv")("KINDA_DUMP_STACK_TRACE", &value[0], &value_size) == 0;
 }
 
 pub fn nif_with_flags(comptime name: [*c]const u8, comptime arity: usize, comptime f: anytype, comptime flags: u32) type {

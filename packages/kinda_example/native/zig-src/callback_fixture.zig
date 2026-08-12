@@ -2,6 +2,7 @@ const std = @import("std");
 const kinda = @import("kinda");
 const beam = kinda.beam;
 const e = kinda.erl_nif;
+const nifApi = kinda.nifApi;
 const result = kinda.result;
 
 const public_module = "Elixir.KindaExample.NIF";
@@ -44,15 +45,15 @@ fn register(environment: beam.env, _: c_int, args: [*c]const beam.term) !beam.te
     dispatcher.setCallback("invoke", args[0]);
     dispatcher.setCallback("destruct", if (beam.is_nil2(environment, args[1])) null else args[1]);
 
-    const memory = e.enif_alloc_resource(registration_type, @sizeOf(Registration)) orelse
+    const memory = nifApi("enif_alloc_resource")(registration_type, @sizeOf(Registration)) orelse
         return error.FailedToAllocateRegistration;
     const registration: *Registration = @ptrCast(@alignCast(memory));
     registration.* = .{
         .dispatcher = dispatcher,
         .dispatch = dispatchRegistration,
     };
-    const term = e.enif_make_resource(environment, memory);
-    e.enif_release_resource(memory);
+    const term = nifApi("enif_make_resource")(environment, memory);
+    nifApi("enif_release_resource")(memory);
     _ = registrations_created.fetchAdd(1, .monotonic);
     return term;
 }
@@ -79,7 +80,7 @@ fn dispatchRegistration(
 
 fn invokeOnScheduler(environment: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
     const registration = try fetchRegistration(environment, args[0]);
-    const message_env = e.enif_alloc_env() orelse return error.FailedToAllocateEnvironment;
+    const message_env = nifApi("enif_alloc_env")() orelse return error.FailedToAllocateEnvironment;
     const callback_args = try makeArguments(message_env, try beam.get_i64(environment, args[1]));
     const response = registration.dispatcher.invoke("invoke", message_env, callback_args) catch |err| {
         return beam.make_atom(environment, @errorName(err));
@@ -95,16 +96,16 @@ const Worker = struct {
 
     fn send(self: *Worker, message: beam.term, message_env: beam.env) void {
         _ = beam.send_advanced(null, self.recipient, message_env, message);
-        e.enif_free_env(message_env);
+        nifApi("enif_free_env")(message_env);
     }
 
     fn run(self: *Worker) void {
         const registration = self.registration;
         defer std.heap.smp_allocator.destroy(self);
-        defer e.enif_release_resource(registration);
+        defer nifApi("enif_release_resource")(registration);
 
         if (self.registration.closed.load(.acquire)) {
-            const message_env = e.enif_alloc_env() orelse return;
+            const message_env = nifApi("enif_alloc_env")() orelse return;
             var terms = [_]beam.term{
                 beam.make_atom(message_env, "callback_fixture_error"),
                 beam.make_atom(message_env, "registration_closed"),
@@ -112,14 +113,14 @@ const Worker = struct {
             return self.send(beam.make_tuple(message_env, &terms), message_env);
         }
 
-        const message_env = e.enif_alloc_env() orelse return;
+        const message_env = nifApi("enif_alloc_env")() orelse return;
         const response = self.registration.dispatch(
             self.registration,
             message_env,
             self.input,
             self.destruct,
         ) catch |err| {
-            const result_env = e.enif_alloc_env() orelse return;
+            const result_env = nifApi("enif_alloc_env")() orelse return;
             var terms = [_]beam.term{
                 beam.make_atom(result_env, "callback_fixture_error"),
                 beam.make_atom(result_env, @errorName(err)),
@@ -129,7 +130,7 @@ const Worker = struct {
 
         if (self.destruct) _ = self.registration.close();
 
-        const result_env = e.enif_alloc_env() orelse return;
+        const result_env = nifApi("enif_alloc_env")() orelse return;
         var terms = [_]beam.term{
             beam.make_atom(result_env, if (self.destruct) "callback_fixture_destroyed" else "callback_fixture_done"),
             beam.make_atom(result_env, @tagName(response.status)),
@@ -150,8 +151,8 @@ fn spawnWorker(environment: beam.env, registration: *Registration, input: i64, d
         .input = input,
         .destruct = destruct,
     };
-    e.enif_keep_resource(registration);
-    errdefer e.enif_release_resource(registration);
+    nifApi("enif_keep_resource")(registration);
+    errdefer nifApi("enif_release_resource")(registration);
     const thread = try std.Thread.spawn(.{}, Worker.run, .{worker});
     thread.detach();
     return beam.make_ok(environment);
@@ -189,7 +190,7 @@ fn responseTerm(environment: beam.env, response: kinda.callback_runtime.Response
 }
 
 pub fn open(environment: beam.env) void {
-    registration_type = e.enif_open_resource_type(
+    registration_type = nifApi("enif_open_resource_type")(
         environment,
         null,
         "Kinda.CallbackRuntime.FixtureRegistration",

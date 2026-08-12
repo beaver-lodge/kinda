@@ -1,4 +1,5 @@
 pub const beam = @import("beam.zig");
+const builtin = @import("builtin");
 pub const erl_nif = @cImport({
     @cInclude("erl_nif.h");
 });
@@ -7,6 +8,26 @@ const std = @import("std");
 pub const result = @import("result.zig");
 pub const callback_runtime = @import("callback_runtime.zig");
 pub const callback_adapter = @import("callback_adapter.zig");
+
+fn nifApiType(comptime name: []const u8) type {
+    const function_type = if (builtin.os.tag == .windows)
+        @TypeOf(@field(e.WinDynNifCallbacks, name))
+    else
+        @TypeOf(@field(e, name));
+
+    return switch (@typeInfo(function_type)) {
+        .optional => |optional| optional.child,
+        else => function_type,
+    };
+}
+
+pub inline fn nifApi(comptime name: []const u8) nifApiType(name) {
+    if (builtin.os.tag == .windows) {
+        return @field(e.WinDynNifCallbacks, name).?;
+    }
+
+    return @field(e, name);
+}
 
 // a function to make a resource term from a u8 slice.
 const OpaqueMaker: type = fn (beam.env, []u8) beam.term;
@@ -186,17 +207,17 @@ pub fn ResourceKind(comptime ElementType: type, comptime module_name_: anytype) 
                 ElementType.destroy
             else
                 beam.destroy_do_nothing;
-            @This().resource.t = e.enif_open_resource_type(env, null, @This().resource.name, dtor, e.ERL_NIF_RT_CREATE | e.ERL_NIF_RT_TAKEOVER, null);
+            @This().resource.t = nifApi("enif_open_resource_type")(env, null, @This().resource.name, dtor, e.ERL_NIF_RT_CREATE | e.ERL_NIF_RT_TAKEOVER, null);
             if (@typeInfo(ElementType) == .@"struct" and @hasDecl(ElementType, "resource_type")) {
                 ElementType.resource_type = @This().resource.t;
             }
         }
         pub fn open_ptr(env: beam.env) void {
-            @This().Ptr.resource.t = e.enif_open_resource_type(env, null, @This().Ptr.resource.name, beam.destroy_do_nothing, e.ERL_NIF_RT_CREATE | e.ERL_NIF_RT_TAKEOVER, null);
+            @This().Ptr.resource.t = nifApi("enif_open_resource_type")(env, null, @This().Ptr.resource.name, beam.destroy_do_nothing, e.ERL_NIF_RT_CREATE | e.ERL_NIF_RT_TAKEOVER, null);
         }
         pub fn open_array(env: beam.env) void {
             // TODO: use a ArrayList/BoundedArray to store the array and deinit it in destroy callback
-            @This().Array.resource.t = e.enif_open_resource_type(env, null, @This().Array.resource.name, beam.destroy_do_nothing, e.ERL_NIF_RT_CREATE | e.ERL_NIF_RT_TAKEOVER, null);
+            @This().Array.resource.t = nifApi("enif_open_resource_type")(env, null, @This().Array.resource.name, beam.destroy_do_nothing, e.ERL_NIF_RT_CREATE | e.ERL_NIF_RT_TAKEOVER, null);
         }
         pub fn open_all(env: beam.env) void {
             open(env);
