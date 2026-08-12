@@ -1,9 +1,10 @@
 defmodule Kinda.SQLite.IntegrationTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
 
   alias Kinda.SQLite
   alias Kinda.SQLite.Blob
   alias Kinda.SQLite.Native, as: SqliteRaw
+  alias Kinda.Testing.{Isolated, NativeScenario}
   alias KindaExample.NIF.Raw, as: ExampleRaw
 
   test "executes a real prepared SQLite query with typed bindings" do
@@ -136,40 +137,32 @@ defmodule Kinda.SQLite.IntegrationTest do
     if match?({:win32, _}, :os.type()) do
       verify_windows_hot_upgrade(tmp_dir)
     else
-      verify_live_resource_hot_upgrade(tmp_dir)
+      steps = [
+        {:call, :database, {SqliteRaw, :open_memory, []}},
+        {:expect, :ok,
+         {SqliteRaw, :execute,
+          [{:resource, :database}, "create table values_table(value integer)"]}},
+        {:expect, :ok,
+         {SqliteRaw, :execute, [{:resource, :database}, "insert into values_table values (99)"]}},
+        {:call, :statement,
+         {SqliteRaw, :prepare, [{:resource, :database}, "select value from values_table"]}},
+        {:call, :example_scalar, {ExampleRaw, :"Elixir.KindaExample.NIF.CInt.make", [33]}},
+        {:upgrade, SqliteRaw, :kinda_sqlite, "KindaSQLiteNIF"},
+        {:purge, SqliteRaw},
+        {:expect, :row, {SqliteRaw, :step, [{:resource, :statement}]}},
+        {:expect, 99, {SqliteRaw, :column_int64, [{:resource, :statement}, 0]}},
+        {:expect, 33,
+         {ExampleRaw, :"Elixir.KindaExample.NIF.CInt.primitive", [{:resource, :example_scalar}]}},
+        {:upgrade, ExampleRaw, :kinda_example, "KindaExampleNIF"},
+        {:purge, ExampleRaw},
+        {:expect, :ok,
+         {SqliteRaw, :execute, [{:resource, :database}, "insert into values_table values (100)"]}},
+        {:expect, 33,
+         {ExampleRaw, :"Elixir.KindaExample.NIF.CInt.primitive", [{:resource, :example_scalar}]}}
+      ]
+
+      assert Isolated.run({NativeScenario, :run, [steps]}, timeout: 120_000) == :ok
     end
-  end
-
-  defp verify_live_resource_hot_upgrade(tmp_dir) do
-    database = SqliteRaw.open_memory()
-    assert :ok = SqliteRaw.execute(database, "create table values_table(value integer)")
-    assert :ok = SqliteRaw.execute(database, "insert into values_table values (99)")
-    statement = SqliteRaw.prepare(database, "select value from values_table")
-    example_scalar = ExampleRaw."Elixir.KindaExample.NIF.CInt.make"(33)
-
-    sqlite_upgrade = copy_nif!(:kinda_sqlite, "KindaSQLiteNIF", tmp_dir)
-    example_upgrade = copy_nif!(:kinda_example, "KindaExampleNIF", tmp_dir)
-
-    originals = [remember_module(SqliteRaw), remember_module(ExampleRaw)]
-
-    on_exit(fn ->
-      Enum.each(originals, &restore_module/1)
-    end)
-
-    assert {:module, SqliteRaw, _binary, _result} =
-             hot_upgrade_module(SqliteRaw, sqlite_upgrade)
-
-    :code.purge(SqliteRaw)
-    assert :row = SqliteRaw.step(statement)
-    assert 99 = SqliteRaw.column_int64(statement, 0)
-    assert 33 = ExampleRaw."Elixir.KindaExample.NIF.CInt.primitive"(example_scalar)
-
-    assert {:module, ExampleRaw, _binary, _result} =
-             hot_upgrade_module(ExampleRaw, example_upgrade)
-
-    :code.purge(ExampleRaw)
-    assert :ok = SqliteRaw.execute(database, "insert into values_table values (100)")
-    assert 33 = ExampleRaw."Elixir.KindaExample.NIF.CInt.primitive"(example_scalar)
   end
 
   defp verify_windows_hot_upgrade(tmp_dir) do

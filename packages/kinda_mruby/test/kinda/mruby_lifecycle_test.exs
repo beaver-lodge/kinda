@@ -1,5 +1,5 @@
 defmodule Kinda.MRubyLifecycleTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
   alias Kinda.MRuby.{Value, VM}
 
   test "isolates globals between VMs" do

@@ -1,8 +1,8 @@
 defmodule Kinda.QuickJSHardeningTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
 
   alias Kinda.QuickJS.{Bytecode, Context, Runtime}
-  alias Kinda.Testing.NIFUpgrade
+  alias Kinda.Testing.{Isolated, NativeScenario}
 
   test "loads only explicitly registered in-memory ES modules" do
     runtime = Kinda.QuickJS.open()
@@ -32,24 +32,19 @@ defmodule Kinda.QuickJSHardeningTest do
     assert :ok = Bytecode.close(bytecode)
   end
 
-  @tag :tmp_dir
-  test "live resources survive a NIF hot upgrade", %{tmp_dir: tmp_dir} do
-    runtime = Kinda.QuickJS.open()
-    context = Kinda.QuickJS.context(runtime)
-    value = Context.value(context, "'still-live'")
+  test "live resources survive a NIF hot upgrade" do
+    steps = [
+      {:call, :runtime, {Kinda.QuickJS, :open, []}},
+      {:call, :context, {Kinda.QuickJS, :context, [{:resource, :runtime}]}},
+      {:call, :value, {Context, :value, [{:resource, :context}, "'still-live'"]}},
+      {:upgrade, Kinda.QuickJS.Native, :kinda_quickjs, "KindaQuickJSNIF"},
+      {:expect, "still-live", {Kinda.QuickJS.Value, :to_term, [{:resource, :value}]}},
+      {:expect, :ok, {Kinda.QuickJS.Value, :close, [{:resource, :value}]}},
+      {:expect, :ok, {Context, :close, [{:resource, :context}]}},
+      {:expect, :ok, {Runtime, :close, [{:resource, :runtime}]}}
+    ]
 
-    NIFUpgrade.run!(
-      Kinda.QuickJS.Native,
-      :kinda_quickjs,
-      "KindaQuickJSNIF",
-      tmp_dir,
-      fn ->
-        assert Kinda.QuickJS.Value.to_term(value) == "still-live"
-        assert :ok = Kinda.QuickJS.Value.close(value)
-        assert :ok = Context.close(context)
-        assert :ok = Runtime.close(runtime)
-      end
-    )
+    assert Isolated.run({NativeScenario, :run, [steps]}, timeout: 120_000) == :ok
   end
 
   test "coexists with Lua, mruby, CPython, SQLite, and DuckDB" do

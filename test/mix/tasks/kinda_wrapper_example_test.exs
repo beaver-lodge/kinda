@@ -1,5 +1,5 @@
 defmodule Mix.Tasks.Kinda.Wrapper.ExampleTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
 
   import ExUnit.CaptureIO
 

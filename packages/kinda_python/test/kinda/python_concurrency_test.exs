@@ -1,5 +1,5 @@
 defmodule Kinda.PythonConcurrencyTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
   alias Kinda.Python.Execution
 
   test "runs independent OWN_GIL interpreters on concurrent dirty scheduler threads" do

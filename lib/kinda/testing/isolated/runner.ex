@@ -1,9 +1,13 @@
 defmodule Kinda.Testing.Isolated.Runner do
   @moduledoc false
+  @reply_marker "KINDA_ISOLATED_REPLY\0"
 
   def main do
+    :ok = :io.setopts(:standard_io, [:binary, encoding: :latin1])
+
     with <<size::unsigned-big-32>> <- IO.binread(:stdio, 4),
-         payload when is_binary(payload) <- IO.binread(:stdio, size) do
+         encoded when is_binary(encoded) <- IO.binread(:stdio, size),
+         {:ok, payload} <- Base.decode64(encoded) do
       payload
       |> :erlang.binary_to_term()
       |> execute()
@@ -21,6 +25,10 @@ defmodule Kinda.Testing.Isolated.Runner do
 
   defp reply(term) do
     payload = :erlang.term_to_binary(term)
-    IO.binwrite(:stdio, <<byte_size(payload)::unsigned-big-32, payload::binary>>)
+
+    IO.binwrite(
+      :stdio,
+      <<@reply_marker::binary, byte_size(payload)::unsigned-big-32, payload::binary>>
+    )
   end
 end

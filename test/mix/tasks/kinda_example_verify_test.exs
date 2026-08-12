@@ -1,5 +1,5 @@
 defmodule Mix.Tasks.Kinda.Example.VerifyTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
 
   defmodule ExampleVerifierStub do
     def verify(opts \\ []) do

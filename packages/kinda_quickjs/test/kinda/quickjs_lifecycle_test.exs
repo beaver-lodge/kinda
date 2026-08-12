@@ -1,5 +1,5 @@
 defmodule Kinda.QuickJSLifecycleTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
 
   alias Kinda.QuickJS.{Context, Runtime}
 
