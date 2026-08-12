@@ -4,6 +4,7 @@ project(kinda-example)
 
 if(WIN32)
   add_library(KindaExample STATIC lib/KindaExample.cpp)
+  target_compile_options(KindaExample PRIVATE /Zl)
 else()
   add_library(KindaExample SHARED lib/KindaExample.cpp)
 endif()
