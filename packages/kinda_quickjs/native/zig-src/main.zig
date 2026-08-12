@@ -10,6 +10,72 @@ const root_module = "Elixir.Kinda.QuickJS.Native";
 const cpu_bound: u32 = 1;
 const Error = error{ FailedToEvaluate, UnsupportedValue };
 
+fn lock(mutex: *std.atomic.Mutex) void {
+    while (!mutex.tryLock()) std.atomic.spinLoopHint();
+}
+
+const Runtime = struct {
+    pub const PtrType = *Runtime;
+    handle: ?*quickjs.kinda_quickjs_runtime,
+    mutex: std.atomic.Mutex = .unlocked,
+    contexts: std.atomic.Value(usize) = .init(0),
+    close_requested: std.atomic.Value(bool) = .init(false),
+
+    fn close(self: *Runtime) void {
+        self.close_requested.store(true, .release);
+        self.closeIfUnused();
+    }
+
+    fn closeIfUnused(self: *Runtime) void {
+        if (!self.close_requested.load(.acquire) or self.contexts.load(.acquire) != 0) return;
+        lock(&self.mutex);
+        defer self.mutex.unlock();
+        if (self.contexts.load(.acquire) != 0) return;
+        if (self.handle) |handle| quickjs.kinda_quickjs_runtime_destroy(handle);
+        self.handle = null;
+    }
+
+    fn releaseContext(self: *Runtime) void {
+        _ = self.contexts.fetchSub(1, .acq_rel);
+        self.closeIfUnused();
+    }
+
+    pub fn destroy(_: beam.env, object: ?*anyopaque) callconv(.c) void {
+        const self: *Runtime = @ptrCast(@alignCast(object orelse return));
+        self.close();
+    }
+};
+
+const Context = struct {
+    pub const PtrType = *Context;
+    handle: ?*quickjs.kinda_quickjs_context,
+    runtime: beam.ResourceRef(Runtime),
+    mutex: std.atomic.Mutex = .unlocked,
+    closed: bool = false,
+
+    fn close(self: *Context) void {
+        lock(&self.mutex);
+        defer self.mutex.unlock();
+        if (self.closed) return;
+        const runtime = self.runtime.get();
+        lock(&runtime.mutex);
+        if (self.handle) |handle| quickjs.kinda_quickjs_context_destroy(handle);
+        self.handle = null;
+        runtime.mutex.unlock();
+        self.closed = true;
+        runtime.releaseContext();
+        self.runtime.deinit();
+    }
+
+    pub fn destroy(_: beam.env, object: ?*anyopaque) callconv(.c) void {
+        const self: *Context = @ptrCast(@alignCast(object orelse return));
+        self.close();
+    }
+};
+
+const RuntimeKind = kinda.ResourceKind(Runtime, "Elixir.Kinda.QuickJS.Runtime");
+const ContextKind = kinda.ResourceKind(Context, "Elixir.Kinda.QuickJS.Context");
+
 fn makeValue(environment: beam.env, value: quickjs.struct_kinda_quickjs_result) !beam.term {
     return switch (value.type) {
         quickjs.KINDA_QUICKJS_UNDEFINED => beam.make_atom(environment, "undefined"),
@@ -30,6 +96,78 @@ fn eval(environment: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
     return makeValue(environment, value);
 }
 
+fn createRuntime(environment: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
+    const memory_limit = try beam.get_usize(environment, args[0]);
+    const stack_limit = try beam.get_usize(environment, args[1]);
+    const handle = quickjs.kinda_quickjs_runtime_create(memory_limit, stack_limit) orelse return error.OutOfMemory;
+    return RuntimeKind.resource.make(environment, .{ .handle = handle }) catch {
+        quickjs.kinda_quickjs_runtime_destroy(handle);
+        return error.OutOfMemory;
+    };
+}
+
+fn closeRuntime(environment: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
+    (try beam.fetch_resource_ptr(*Runtime, environment, RuntimeKind.resource.t, args[0])).close();
+    return beam.make_ok(environment);
+}
+
+fn runtimeStats(environment: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
+    const runtime = try beam.fetch_resource_ptr(*Runtime, environment, RuntimeKind.resource.t, args[0]);
+    lock(&runtime.mutex);
+    defer runtime.mutex.unlock();
+    const handle = runtime.handle orelse return error.ClosedRuntime;
+    var allocations: usize = 0;
+    var live_bytes: usize = 0;
+    var limit: usize = 0;
+    quickjs.kinda_quickjs_runtime_stats(handle, &allocations, &live_bytes, &limit);
+    var terms = [_]beam.term{
+        beam.make_usize(environment, allocations),
+        beam.make_usize(environment, live_bytes),
+        beam.make_usize(environment, limit),
+    };
+    return beam.make_tuple(environment, &terms);
+}
+
+fn createContext(environment: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
+    const runtime = try beam.fetch_resource_ptr(*Runtime, environment, RuntimeKind.resource.t, args[0]);
+    if (runtime.close_requested.load(.acquire)) return error.ClosedRuntime;
+    lock(&runtime.mutex);
+    defer runtime.mutex.unlock();
+    const runtime_handle = runtime.handle orelse return error.ClosedRuntime;
+    const handle = quickjs.kinda_quickjs_context_create(runtime_handle) orelse return error.OutOfMemory;
+    _ = runtime.contexts.fetchAdd(1, .acq_rel);
+    var runtime_ref = beam.ResourceRef(Runtime).init(runtime);
+    errdefer {
+        quickjs.kinda_quickjs_context_destroy(handle);
+        runtime_ref.deinit();
+        runtime.releaseContext();
+    }
+    return ContextKind.resource.make(environment, .{ .handle = handle, .runtime = runtime_ref }) catch return error.OutOfMemory;
+}
+
+fn evalContext(environment: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
+    const context = try beam.fetch_resource_ptr(*Context, environment, ContextKind.resource.t, args[0]);
+    const code = try beam.get_char_slice(environment, args[1]);
+    const interrupt_budget = try beam.get_u64(environment, args[2]);
+    lock(&context.mutex);
+    defer context.mutex.unlock();
+    if (context.closed) return error.ClosedContext;
+    const runtime = context.runtime.get();
+    lock(&runtime.mutex);
+    defer runtime.mutex.unlock();
+    const runtime_handle = runtime.handle orelse return error.ClosedRuntime;
+    const context_handle = context.handle orelse return error.ClosedContext;
+    var value: quickjs.struct_kinda_quickjs_result = std.mem.zeroes(quickjs.struct_kinda_quickjs_result);
+    if (quickjs.kinda_quickjs_context_eval(runtime_handle, context_handle, code.ptr, code.len, interrupt_budget, &value) != 0) return Error.FailedToEvaluate;
+    defer quickjs.kinda_quickjs_result_release(&value);
+    return makeValue(environment, value);
+}
+
+fn closeContext(environment: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
+    (try beam.fetch_resource_ptr(*Context, environment, ContextKind.resource.t, args[0])).close();
+    return beam.make_ok(environment);
+}
+
 fn version(environment: beam.env, _: c_int, _: [*c]const beam.term) !beam.term {
     return beam.make_slice(environment, std.mem.span(quickjs.kinda_quickjs_version()));
 }
@@ -37,10 +175,22 @@ fn version(environment: beam.env, _: c_int, _: [*c]const beam.term) !beam.term {
 const all_nifs = .{
     result.nif("version", 0, version).entry,
     result.nif_with_flags("eval", 1, eval, cpu_bound).entry,
+    result.nif_with_flags("create_runtime", 2, createRuntime, cpu_bound).entry,
+    result.nif_with_flags("close_runtime", 1, closeRuntime, cpu_bound).entry,
+    result.nif_with_flags("runtime_stats", 1, runtimeStats, cpu_bound).entry,
+    result.nif_with_flags("create_context", 1, createContext, cpu_bound).entry,
+    result.nif_with_flags("eval_context", 3, evalContext, cpu_bound).entry,
+    result.nif_with_flags("close_context", 1, closeContext, cpu_bound).entry,
 };
 pub export var nifs: [all_nifs.len]e.ErlNifFunc = all_nifs;
 
-const entry = e.ErlNifEntry{ .major = 2, .minor = 16, .name = root_module, .num_of_funcs = nifs.len, .funcs = &(nifs[0]), .load = null, .reload = null, .upgrade = null, .unload = null, .vm_variant = "beam.vanilla", .options = 1, .sizeof_ErlNifResourceTypeInit = @sizeOf(e.ErlNifResourceTypeInit), .min_erts = "erts-15.0" };
+fn nifLoad(environment: beam.env, _: [*c]?*anyopaque, _: beam.term) callconv(.c) c_int {
+    RuntimeKind.open(environment);
+    ContextKind.open(environment);
+    return if (RuntimeKind.resource.t == null or ContextKind.resource.t == null) 1 else 0;
+}
+
+const entry = e.ErlNifEntry{ .major = 2, .minor = 16, .name = root_module, .num_of_funcs = nifs.len, .funcs = &(nifs[0]), .load = nifLoad, .reload = null, .upgrade = null, .unload = null, .vm_variant = "beam.vanilla", .options = 1, .sizeof_ErlNifResourceTypeInit = @sizeOf(e.ErlNifResourceTypeInit), .min_erts = "erts-15.0" };
 const NifInit = if (builtin.os.tag == .windows) struct {
     var callbacks: e.TWinDynNifCallbacks = undefined;
     fn init(win_callbacks: *const e.TWinDynNifCallbacks) callconv(.c) *const e.ErlNifEntry { callbacks = win_callbacks.*; return &entry; }
