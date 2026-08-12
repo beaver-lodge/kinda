@@ -1,0 +1,11 @@
+.{
+    .name = .kinda_python,
+    .version = "0.0.0",
+    .fingerprint = 0x1be762df03472a33,
+    .dependencies = .{
+        .kinda = .{
+            .path = "../..",
+        },
+    },
+    .paths = .{""},
+}
