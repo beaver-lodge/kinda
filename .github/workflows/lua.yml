@@ -1,0 +1,63 @@
+name: Lua native CI
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lua-native-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native:
+    name: ${{ matrix.target }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: linux-x86_64
+            runner: ubuntu-24.04
+            quality: true
+          - target: macos-aarch64
+            runner: macos-15
+          - target: windows-x86_64
+            runner: windows-2025
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up MSVC build tools
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "27.3"
+          elixir-version: "1.20.3"
+      - name: Set up Zig
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0
+      - name: Install make on Windows
+        if: runner.os == 'Windows'
+        run: choco install make cmake --yes --no-progress
+      - name: Install dependencies
+        working-directory: packages/kinda_lua
+        run: mix deps.get
+      - name: Check formatting
+        if: matrix.quality
+        working-directory: packages/kinda_lua
+        run: mix format --check-formatted
+      - name: Reject compiler warnings
+        working-directory: packages/kinda_lua
+        env:
+          MIX_ENV: test
+        run: mix compile --force --warnings-as-errors
+      - name: Run Credo
+        if: matrix.quality
+        working-directory: packages/kinda_lua
+        run: mix credo --strict
+      - name: Run Lua embedding tests
+        working-directory: packages/kinda_lua
+        run: mix test --force --trace

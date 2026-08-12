@@ -1,0 +1,9 @@
+.{
+    .name = .kinda_lua,
+    .version = "0.0.0",
+    .fingerprint = 0xa17b6583bd0d5bc0,
+    .dependencies = .{
+        .kinda = .{ .path = "../.." },
+    },
+    .paths = .{""},
+}
