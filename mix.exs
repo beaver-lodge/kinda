@@ -5,7 +5,7 @@ defmodule Kinda.MixProject do
     [
       app: :kinda,
       version: "0.11.0-dev",
-      elixir: "~> 1.14",
+      elixir: "~> 1.20",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       description: description(),

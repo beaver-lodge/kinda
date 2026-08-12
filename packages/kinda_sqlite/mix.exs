@@ -5,7 +5,7 @@ defmodule Kinda.SQLite.MixProject do
     [
       app: :kinda_sqlite,
       version: "0.1.0-dev",
-      elixir: "~> 1.14",
+      elixir: "~> 1.20",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       name: "Kinda SQLite",
