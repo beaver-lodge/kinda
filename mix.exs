@@ -6,6 +6,7 @@ defmodule Kinda.MixProject do
       app: :kinda,
       version: "0.11.0-dev",
       elixir: "~> 1.20",
+      elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       description: description(),
@@ -30,6 +31,9 @@ defmodule Kinda.MixProject do
       {:jason, "~> 1.4"}
     ]
   end
+
+  defp elixirc_paths(:test), do: ["lib", "test/support"]
+  defp elixirc_paths(_environment), do: ["lib"]
 
   defp description() do
     "Bind a C library to BEAM with Zig."
@@ -81,6 +85,10 @@ defmodule Kinda.MixProject do
           Kinda.ExampleVerifier,
           Kinda.RootVerifier,
           Kinda.SystemCommandRunner
+        ],
+        Testing: [
+          Kinda.Testing.Isolated,
+          Kinda.Testing.Sandbox
         ],
         Precompilation: [
           Kinda.Prebuilt.Meta,
