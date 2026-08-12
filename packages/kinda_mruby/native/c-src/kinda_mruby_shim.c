@@ -25,7 +25,7 @@ static mrb_value kinda_mruby_import_value(kinda_mruby_value value) {
 #include <mruby/proc.h>
 
 const char *kinda_mruby_version(void) { return MRUBY_VERSION; }
-mrb_state *kinda_mruby_open(void) { return mrb_open(); }
+mrb_state *kinda_mruby_open_default(void) { return mrb_open(); }
 void kinda_mruby_close(mrb_state *mrb) { mrb_close(mrb); }
 int kinda_mruby_raised(mrb_state *mrb) { return mrb->exc != NULL; }
 int kinda_mruby_type(kinda_mruby_value value) { return mrb_type(kinda_mruby_import_value(value)); }

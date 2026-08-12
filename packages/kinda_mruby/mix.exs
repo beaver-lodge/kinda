@@ -22,7 +22,10 @@ defmodule Kinda.MRuby.MixProject do
     [
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:elixir_make, "~> 0.4", runtime: false},
-      {:kinda, path: "../.."}
+      {:kinda, path: "../.."},
+      {:kinda_duckdb, path: "../kinda_duckdb", only: :test},
+      {:kinda_python, path: "../kinda_python", only: :test},
+      {:kinda_sqlite, path: "../kinda_sqlite", only: :test}
     ]
   end
 end

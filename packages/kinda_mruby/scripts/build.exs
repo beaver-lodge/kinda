@@ -4,7 +4,7 @@ defmodule Kinda.MRuby.Build do
   @version "4.0.0"
   @checksum "e2ea271dbed14e9f2b33df773ae447b747dbc242ce2675022c0a57efea85a7b4"
   @url "https://github.com/mruby/mruby/archive/refs/tags/#{@version}.tar.gz"
-  @build_profile "mruby-4.0.0-pic-v4-word-boxing-int64"
+  @build_profile "mruby-4.0.0-pic-v7-word-boxing-int64-custom-allocf"
 
   def run([cache, prefix, erts_include]) do
     root = Path.expand("..", __DIR__)
@@ -58,6 +58,7 @@ defmodule Kinda.MRuby.Build do
     config = Path.join(root, "scripts/mruby_build_config.rb")
     library = Path.join([source, "build", "host", "lib", library_name()])
     marker = Path.join([source, "build", ".kinda-profile"])
+    File.cp!(Path.join(root, "native/c-src/mruby_allocf.c"), Path.join(source, "src/allocf.c"))
 
     unless File.exists?(library) and File.exists?(marker) and File.read!(marker) == @build_profile do
       File.rm_rf!(Path.join(source, "build"))

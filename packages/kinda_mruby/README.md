@@ -18,3 +18,18 @@ Independent VMs run on dirty CPU schedulers and can execute concurrently;
 calls into the same VM remain serialized. `Kinda.MRuby.Bytecode` compiles a
 source program once into mruby's RITE format and owns the copied bytes without
 retaining a compiler VM, so the program can be reused across isolated states.
+
+mruby 4 replaces the old per-state allocator callback with the global
+`mrb_basic_alloc_func` hook. This package scopes that hook to the current VM
+through thread-local entry contexts and stores the owning context in every
+allocation header. `VM.allocator_stats/1` and `:allocation_budget` provide
+per-instance accounting and deterministic OOM injection without mixing states.
+
+The supported build profile is the pinned default gembox. CI verifies mrbgem
+class isolation, live-resource coexistence during NIF upgrades, and simultaneous operation with
+the Kinda SQLite, DuckDB, and CPython packages.
+
+VMs must be closed before purging an old NIF generation: mrbgem methods contain
+C function pointers into that generation. New and old generations can coexist
+during a rolling upgrade, but unloading native code while a VM can still call
+it would leave dangling pointers.

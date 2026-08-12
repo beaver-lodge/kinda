@@ -31,6 +31,9 @@ jobs:
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: "3.4"
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
       - name: Set up MSVC build tools
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
