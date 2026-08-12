@@ -105,6 +105,61 @@ const QueryResult = struct {
     }
 };
 
+const Prepared = struct {
+    pub const PtrType = *Prepared;
+    handle: duckdb.duckdb_prepared_statement,
+    connection: beam.ResourceRef(Connection),
+    mutex: std.atomic.Mutex = .unlocked,
+    children: std.atomic.Value(usize) = .init(0),
+    close_requested: std.atomic.Value(bool) = .init(false),
+
+    fn close(self: *Prepared) void {
+        self.close_requested.store(true, .release);
+        self.closeIfUnused();
+    }
+
+    fn closeIfUnused(self: *Prepared) void {
+        if (!self.close_requested.load(.acquire) or self.children.load(.acquire) != 0) return;
+        lock(&self.mutex);
+        defer self.mutex.unlock();
+        if (self.children.load(.acquire) != 0 or self.handle == null) return;
+        duckdb.duckdb_destroy_prepare(&self.handle);
+        self.connection.get().releaseChild();
+        self.connection.deinit();
+    }
+
+    fn releaseChild(self: *Prepared) void {
+        _ = self.children.fetchSub(1, .acq_rel);
+        self.closeIfUnused();
+    }
+
+    pub fn destroy(_: beam.env, object: ?*anyopaque) callconv(.c) void {
+        const self: *Prepared = @ptrCast(@alignCast(object orelse return));
+        self.close();
+    }
+};
+
+const Pending = struct {
+    pub const PtrType = *Pending;
+    handle: duckdb.duckdb_pending_result,
+    prepared: beam.ResourceRef(Prepared),
+    mutex: std.atomic.Mutex = .unlocked,
+
+    fn close(self: *Pending) void {
+        lock(&self.mutex);
+        defer self.mutex.unlock();
+        if (self.handle == null) return;
+        duckdb.duckdb_destroy_pending(&self.handle);
+        self.prepared.get().releaseChild();
+        self.prepared.deinit();
+    }
+
+    pub fn destroy(_: beam.env, object: ?*anyopaque) callconv(.c) void {
+        const self: *Pending = @ptrCast(@alignCast(object orelse return));
+        self.close();
+    }
+};
+
 const Appender = struct {
     pub const PtrType = *Appender;
     handle: duckdb.duckdb_appender,
@@ -131,6 +186,8 @@ const DatabaseKind = kinda.ResourceKind(Database, "Elixir.Kinda.DuckDB.Database"
 const ConnectionKind = kinda.ResourceKind(Connection, "Elixir.Kinda.DuckDB.Connection");
 const ResultKind = kinda.ResourceKind(QueryResult, "Elixir.Kinda.DuckDB.BorrowedResult");
 const AppenderKind = kinda.ResourceKind(Appender, "Elixir.Kinda.DuckDB.Appender");
+const PreparedKind = kinda.ResourceKind(Prepared, "Elixir.Kinda.DuckDB.Prepared");
+const PendingKind = kinda.ResourceKind(Pending, "Elixir.Kinda.DuckDB.Pending");
 
 const Error = error{
     ClosedConnection,
@@ -144,6 +201,12 @@ const Error = error{
     FailedToFlushAppender,
     FailedToCreateResource,
     InvalidIndex,
+    ClosedPrepared,
+    ClosedPending,
+    FailedToPrepare,
+    FailedToBind,
+    FailedToCreatePending,
+    PendingNotReady,
 };
 
 fn fetchDatabase(environment: beam.env, term: beam.term) !*Database {
@@ -160,6 +223,14 @@ fn fetchResult(environment: beam.env, term: beam.term) !*QueryResult {
 
 fn fetchAppender(environment: beam.env, term: beam.term) !*Appender {
     return beam.fetch_resource_ptr(*Appender, environment, AppenderKind.resource.t, term);
+}
+
+fn fetchPrepared(environment: beam.env, term: beam.term) !*Prepared {
+    return beam.fetch_resource_ptr(*Prepared, environment, PreparedKind.resource.t, term);
+}
+
+fn fetchPending(environment: beam.env, term: beam.term) !*Pending {
+    return beam.fetch_resource_ptr(*Pending, environment, PendingKind.resource.t, term);
 }
 
 fn getTuple(environment: beam.env, term: beam.term) ![]const beam.term {
@@ -246,6 +317,155 @@ fn query(environment: beam.env, _: c_int, args: [*c]const beam.term) !beam.term 
 
 fn closeResult(environment: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
     (try fetchResult(environment, args[0])).close();
+    return beam.make_ok(environment);
+}
+
+fn prepare(environment: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
+    const connection = try fetchConnection(environment, args[0]);
+    const sql = try beam.get_char_slice(environment, args[1]);
+    const terminated = try beam.allocator.dupeZ(u8, sql);
+    defer beam.allocator.free(terminated);
+    if (connection.close_requested.load(.acquire)) return Error.ClosedConnection;
+    lock(&connection.mutex);
+    defer connection.mutex.unlock();
+    if (connection.handle == null) return Error.ClosedConnection;
+    var handle: duckdb.duckdb_prepared_statement = null;
+    if (duckdb.duckdb_prepare(connection.handle, terminated.ptr, &handle) != duckdb.DuckDBSuccess)
+        return Error.FailedToPrepare;
+    errdefer duckdb.duckdb_destroy_prepare(&handle);
+    _ = connection.children.fetchAdd(1, .acq_rel);
+    errdefer connection.releaseChild();
+    var connection_ref = beam.ResourceRef(Connection).init(connection);
+    errdefer connection_ref.deinit();
+    const resource = PreparedKind.resource.make(environment, .{
+        .handle = handle,
+        .connection = connection_ref,
+    }) catch return Error.FailedToCreateResource;
+    connection_ref.resource = null;
+    return resource;
+}
+
+fn closePrepared(environment: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
+    (try fetchPrepared(environment, args[0])).close();
+    return beam.make_ok(environment);
+}
+
+fn bindPreparedValues(environment: beam.env, prepared: *Prepared, source: beam.term) !void {
+    var values = source;
+    if (prepared.handle == null or prepared.close_requested.load(.acquire)) return Error.ClosedPrepared;
+    const count = try beam.get_list_length(environment, values);
+    if (count != duckdb.duckdb_nparams(prepared.handle)) return Error.FailedToBind;
+    if (duckdb.duckdb_clear_bindings(prepared.handle) != duckdb.DuckDBSuccess) return Error.FailedToBind;
+
+    var index: usize = 1;
+    while (try beam.get_list_length(environment, values) > 0) : (index += 1) {
+        const tagged = try getTuple(environment, try beam.get_head_and_iter(environment, &values));
+        if (tagged.len == 0) return Error.FailedToBind;
+        const tag = try beam.get_atom_slice(environment, tagged[0]);
+        defer beam.allocator.free(tag);
+
+        const status = if (std.mem.eql(u8, tag, "null"))
+            duckdb.duckdb_bind_null(prepared.handle, index)
+        else if (tagged.len == 2 and std.mem.eql(u8, tag, "boolean"))
+            duckdb.duckdb_bind_boolean(prepared.handle, index, try beam.get_bool(environment, tagged[1]))
+        else if (tagged.len == 2 and std.mem.eql(u8, tag, "integer"))
+            duckdb.duckdb_bind_int64(prepared.handle, index, try beam.get_i64(environment, tagged[1]))
+        else if (tagged.len == 2 and std.mem.eql(u8, tag, "float"))
+            duckdb.duckdb_bind_double(prepared.handle, index, try beam.get_f64(environment, tagged[1]))
+        else if (tagged.len == 2 and std.mem.eql(u8, tag, "string")) blk: {
+            const string = try beam.get_char_slice(environment, tagged[1]);
+            break :blk duckdb.duckdb_bind_varchar_length(prepared.handle, index, string.ptr, string.len);
+        } else return Error.FailedToBind;
+
+        if (status != duckdb.DuckDBSuccess) return Error.FailedToBind;
+    }
+}
+
+fn bindPrepared(environment: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
+    const prepared = try fetchPrepared(environment, args[0]);
+    lock(&prepared.mutex);
+    defer prepared.mutex.unlock();
+    try bindPreparedValues(environment, prepared, args[1]);
+    return beam.make_ok(environment);
+}
+
+fn createPending(environment: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
+    const prepared = try fetchPrepared(environment, args[0]);
+    lock(&prepared.mutex);
+    defer prepared.mutex.unlock();
+    if (prepared.handle == null or prepared.close_requested.load(.acquire)) return Error.ClosedPrepared;
+    try bindPreparedValues(environment, prepared, args[1]);
+    var handle: duckdb.duckdb_pending_result = null;
+    if (duckdb.duckdb_pending_prepared(prepared.handle, &handle) != duckdb.DuckDBSuccess)
+        return Error.FailedToCreatePending;
+    errdefer duckdb.duckdb_destroy_pending(&handle);
+    _ = prepared.children.fetchAdd(1, .acq_rel);
+    errdefer prepared.releaseChild();
+    var prepared_ref = beam.ResourceRef(Prepared).init(prepared);
+    errdefer prepared_ref.deinit();
+    const resource = PendingKind.resource.make(environment, .{
+        .handle = handle,
+        .prepared = prepared_ref,
+    }) catch return Error.FailedToCreateResource;
+    prepared_ref.resource = null;
+    return resource;
+}
+
+fn closePending(environment: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
+    (try fetchPending(environment, args[0])).close();
+    return beam.make_ok(environment);
+}
+
+fn pendingTask(environment: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
+    const pending = try fetchPending(environment, args[0]);
+    lock(&pending.mutex);
+    defer pending.mutex.unlock();
+    if (pending.handle == null) return Error.ClosedPending;
+    return switch (duckdb.duckdb_pending_execute_task(pending.handle)) {
+        duckdb.DUCKDB_PENDING_RESULT_READY => beam.make_atom(environment, "ready"),
+        duckdb.DUCKDB_PENDING_RESULT_NOT_READY => beam.make_atom(environment, "not_ready"),
+        duckdb.DUCKDB_PENDING_NO_TASKS_AVAILABLE => beam.make_atom(environment, "no_tasks"),
+        else => beam.make_atom(environment, "error"),
+    };
+}
+
+fn pendingError(environment: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
+    const pending = try fetchPending(environment, args[0]);
+    lock(&pending.mutex);
+    defer pending.mutex.unlock();
+    if (pending.handle == null) return Error.ClosedPending;
+    const message = duckdb.duckdb_pending_error(pending.handle);
+    if (message == null) return beam.make_slice(environment, "DuckDB pending query failed");
+    return beam.make_slice(environment, std.mem.span(message));
+}
+
+fn executePending(environment: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
+    const pending = try fetchPending(environment, args[0]);
+    lock(&pending.mutex);
+    defer pending.mutex.unlock();
+    if (pending.handle == null) return Error.ClosedPending;
+    var query_result: duckdb.duckdb_result = std.mem.zeroes(duckdb.duckdb_result);
+    if (duckdb.duckdb_execute_pending(pending.handle, &query_result) != duckdb.DuckDBSuccess) {
+        duckdb.duckdb_destroy_result(&query_result);
+        return Error.PendingNotReady;
+    }
+    errdefer duckdb.duckdb_destroy_result(&query_result);
+    const connection = pending.prepared.get().connection.get();
+    _ = connection.children.fetchAdd(1, .acq_rel);
+    errdefer connection.releaseChild();
+    var connection_ref = beam.ResourceRef(Connection).init(connection);
+    errdefer connection_ref.deinit();
+    const resource = ResultKind.resource.make(environment, .{
+        .value = query_result,
+        .connection = connection_ref,
+    }) catch return Error.FailedToCreateResource;
+    connection_ref.resource = null;
+    return resource;
+}
+
+fn interrupt(environment: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
+    const connection = try fetchConnection(environment, args[0]);
+    if (connection.handle != null) duckdb.duckdb_interrupt(connection.handle);
     return beam.make_ok(environment);
 }
 
@@ -482,6 +702,15 @@ const all_nifs = .{
     result.nif("close_connection", 1, closeConnection).entry,
     result.nif_with_flags("query", 2, query, io_bound).entry,
     result.nif("close_result", 1, closeResult).entry,
+    result.nif("prepare", 2, prepare).entry,
+    result.nif("close_prepared", 1, closePrepared).entry,
+    result.nif("bind_prepared", 2, bindPrepared).entry,
+    result.nif("create_pending", 2, createPending).entry,
+    result.nif("close_pending", 1, closePending).entry,
+    result.nif_with_flags("pending_task", 1, pendingTask, 1).entry,
+    result.nif("pending_error", 1, pendingError).entry,
+    result.nif("execute_pending", 1, executePending).entry,
+    result.nif("interrupt", 1, interrupt).entry,
     result.nif("result_column_count", 1, resultColumnCount).entry,
     result.nif("result_row_count", 1, resultRowCount).entry,
     result.nif("result_rows_changed", 1, resultRowsChanged).entry,
@@ -548,8 +777,11 @@ export fn nif_load(environment: beam.env, _: [*c]?*anyopaque, _: beam.term) c_in
     ConnectionKind.open(environment);
     ResultKind.open(environment);
     AppenderKind.open(environment);
+    PreparedKind.open(environment);
+    PendingKind.open(environment);
     if (DatabaseKind.resource.t == null or ConnectionKind.resource.t == null or
-        ResultKind.resource.t == null or AppenderKind.resource.t == null) return 1;
+        ResultKind.resource.t == null or AppenderKind.resource.t == null or
+        PreparedKind.resource.t == null or PendingKind.resource.t == null) return 1;
     return 0;
 }
 
