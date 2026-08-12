@@ -8,3 +8,8 @@ depend on a system Lua installation.
 Kinda.Lua.eval("return 40 + 2")
 #=> 42
 ```
+
+Persistent VMs isolate globals and serialize access to a single Lua state.
+Coroutines and full userdata retain their parent VM, while bytecode is explicitly
+bound to Lua 5.4.8. All resources support explicit close and arbitrary BEAM GC
+ordering.

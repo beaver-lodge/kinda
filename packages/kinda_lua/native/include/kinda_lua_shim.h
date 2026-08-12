@@ -44,5 +44,11 @@ int kinda_lua_coroutine_resume(lua_State *state, int reference, int *yielded, in
 void kinda_lua_coroutine_result_at(lua_State *state, int reference, int index, struct kinda_lua_result *result);
 void kinda_lua_coroutine_clear(lua_State *state, int reference);
 void kinda_lua_coroutine_release(lua_State *state, int reference);
+int kinda_lua_compile(const char *source, size_t length, unsigned char **bytes, size_t *size);
+void kinda_lua_free(void *pointer);
+int kinda_lua_run_bytecode(lua_State *state, const unsigned char *bytes, size_t size, int *count);
+int kinda_lua_userdata_create(lua_State *state, int64_t value, int *reference);
+int64_t kinda_lua_userdata_value(lua_State *state, int reference);
+void kinda_lua_userdata_release(lua_State *state, int reference);
 
 #endif
