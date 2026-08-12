@@ -52,6 +52,17 @@ pub const Internal = struct {
     pub const OpaqueStruct: type = ResourceKind(OpaqueStructType, "Kinda.Internal.OpaqueStruct");
 };
 
+/// A single ERTS resource type slot owned by a `ResourceKind`: the
+/// `resource` value, its `Ptr` wrapper, or its `Array` wrapper. Describing all
+/// three slots uniformly lets `open_all` iterate them and lets downstream NIF
+/// libraries build one name -> handle registry for cross-partition resource
+/// sharing without reopening (which would create distinct resource types).
+pub const ResourceSlot = struct {
+    name: []const u8,
+    t: *beam.resource_type,
+    dtor: e.ErlNifResourceDtor,
+};
+
 pub const numOfNIFsPerKind = 10;
 pub fn ResourceKind(comptime ElementType: type, comptime module_name_: anytype) type {
     return struct {
@@ -202,27 +213,45 @@ pub fn ResourceKind(comptime ElementType: type, comptime module_name_: anytype) 
             result.nif(module_name ++ ".make_from_opaque_ptr", 2, make_from_opaque_ptr).entry,
             result.nif(module_name ++ ".array_as_opaque", 1, @This().Array.as_opaque).entry,
         } ++ extra_nifs;
+        const primary_dtor = if (@typeInfo(ElementType) == .@"struct" and @hasDecl(ElementType, "destroy"))
+            ElementType.destroy
+        else
+            beam.destroy_do_nothing;
+
+        /// The three resource slots owned by this kind, in a stable order:
+        /// the value slot first, then its `Ptr` and `Array` wrappers. Used by
+        /// `open_all` and by downstream registries that need one handle per
+        /// slot name.
+        pub const slots = [_]ResourceSlot{
+            .{ .name = resource.name, .t = &resource.t, .dtor = primary_dtor },
+            .{ .name = Ptr.resource.name, .t = &Ptr.resource.t, .dtor = beam.destroy_do_nothing },
+            .{ .name = Array.resource.name, .t = &Array.resource.t, .dtor = beam.destroy_do_nothing },
+        };
+
+        fn openSlot(env: beam.env, slot: ResourceSlot) void {
+            slot.t.* = nifApi("enif_open_resource_type")(env, null, slot.name.ptr, slot.dtor, e.ERL_NIF_RT_CREATE | e.ERL_NIF_RT_TAKEOVER, null);
+        }
+
         pub fn open(env: beam.env) void {
-            const dtor = if (@typeInfo(ElementType) == .@"struct" and @hasDecl(ElementType, "destroy"))
-                ElementType.destroy
-            else
-                beam.destroy_do_nothing;
-            @This().resource.t = nifApi("enif_open_resource_type")(env, null, @This().resource.name, dtor, e.ERL_NIF_RT_CREATE | e.ERL_NIF_RT_TAKEOVER, null);
+            openSlot(env, slots[0]);
             if (@typeInfo(ElementType) == .@"struct" and @hasDecl(ElementType, "resource_type")) {
                 ElementType.resource_type = @This().resource.t;
             }
         }
         pub fn open_ptr(env: beam.env) void {
-            @This().Ptr.resource.t = nifApi("enif_open_resource_type")(env, null, @This().Ptr.resource.name, beam.destroy_do_nothing, e.ERL_NIF_RT_CREATE | e.ERL_NIF_RT_TAKEOVER, null);
+            openSlot(env, slots[1]);
         }
         pub fn open_array(env: beam.env) void {
             // TODO: use a ArrayList/BoundedArray to store the array and deinit it in destroy callback
-            @This().Array.resource.t = nifApi("enif_open_resource_type")(env, null, @This().Array.resource.name, beam.destroy_do_nothing, e.ERL_NIF_RT_CREATE | e.ERL_NIF_RT_TAKEOVER, null);
+            openSlot(env, slots[2]);
         }
         pub fn open_all(env: beam.env) void {
-            open(env);
-            open_ptr(env);
-            open_array(env);
+            for (slots) |slot| {
+                openSlot(env, slot);
+            }
+            if (@typeInfo(ElementType) == .@"struct" and @hasDecl(ElementType, "resource_type")) {
+                ElementType.resource_type = @This().resource.t;
+            }
         }
     };
 }
@@ -232,9 +261,11 @@ pub fn ResourceKind2(comptime ElementType: type) type {
 }
 
 pub fn aliasKind(comptime AliasKind: type, comptime Kind: type) void {
-    AliasKind.resource.t = Kind.resource.t;
-    AliasKind.Ptr.resource.t = Kind.Ptr.resource.t;
-    AliasKind.Array.resource.t = Kind.Array.resource.t;
+    // Copy every slot handle: the two kinds share one ERTS resource type per
+    // slot so terms created through either name fetch the same native data.
+    for (AliasKind.slots, Kind.slots) |alias_slot, target_slot| {
+        alias_slot.t.* = target_slot.t.*;
+    }
 }
 
 pub fn open_internal_resource_types(env: beam.env) void {
