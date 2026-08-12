@@ -21,16 +21,23 @@ jobs:
           - target: linux-x86_64
             runner: ubuntu-24.04
             quality: true
+            python: "3.14"
+          - target: linux-x86_64-free-threaded
+            runner: ubuntu-24.04
+            python: "3.14t"
+            free_threaded: true
           - target: macos-aarch64
             runner: macos-15
+            python: "3.14"
           - target: windows-x86_64
             runner: windows-2025
+            python: "3.14"
 
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v6
         with:
-          python-version: "3.14"
+          python-version: ${{ matrix.python }}
       - uses: erlef/setup-beam@v1
         with:
           otp-version: "27.3"
@@ -60,4 +67,6 @@ jobs:
         run: mix credo --strict
       - name: Run CPython embedding tests
         working-directory: packages/kinda_python
+        env:
+          KINDA_EXPECT_FREE_THREADED: ${{ matrix.free_threaded && '1' || '0' }}
         run: mix test --force

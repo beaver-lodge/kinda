@@ -10,5 +10,11 @@ defmodule Kinda.PythonTest do
 
   test "reports the regular or free-threaded build profile" do
     assert is_boolean(Python.free_threaded_build?())
+
+    case System.get_env("KINDA_EXPECT_FREE_THREADED") do
+      "1" -> assert Python.free_threaded_build?()
+      "0" -> refute Python.free_threaded_build?()
+      nil -> :ok
+    end
   end
 end
