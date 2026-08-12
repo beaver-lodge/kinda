@@ -135,6 +135,10 @@ int kinda_quickjs_context_eval(kinda_quickjs_runtime *runtime,
   terminated[length] = '\0';
   runtime->interrupt_budget = interrupt_budget;
   runtime->interrupt_limited = interrupt_budget != 0;
+  /* A BEAM dirty scheduler may execute this runtime on a different OS thread
+     than the one that created it. QuickJS caches the current thread's stack
+     top, so refresh it before entering the interpreter. */
+  JS_UpdateStackTop(runtime->handle);
   JSValue value = JS_Eval(context->handle, terminated, length, "kinda",
                           JS_EVAL_TYPE_GLOBAL);
   runtime->interrupt_limited = 0;
