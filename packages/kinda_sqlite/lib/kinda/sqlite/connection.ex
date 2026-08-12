@@ -80,9 +80,9 @@ defmodule Kinda.SQLite.Connection do
   end
 
   @impl DBConnection
-  def handle_execute(%Query{prepared: statement} = query, params, _opts, state) do
-    case SQLite.execute(statement, params) do
-      {:ok, result} -> {:ok, query, result, state}
+  def handle_execute(%Query{} = query, params, _opts, state) do
+    case localize(query, state.database) do
+      {:ok, query} -> execute_local(query, params, state)
       {:error, error} -> {:error, error, mark_failed(state)}
     end
   end
@@ -92,29 +92,53 @@ defmodule Kinda.SQLite.Connection do
     {:ok, %Result{columns: [], rows: [], num_rows: 0}, state}
   end
 
-  def handle_close(%Query{prepared: statement}, _opts, state) do
-    :ok = SQLite.close(statement)
+  def handle_close(%Query{prepared: statement}, _opts, %{database: database} = state) do
+    if local_statement?(statement, database), do: SQLite.close(statement)
+
     {:ok, %Result{columns: [], rows: [], num_rows: 0}, state}
   end
 
   @impl DBConnection
-  def handle_begin(_opts, %{transaction_status: :idle} = state) do
-    transaction_command(state, "BEGIN", :transaction)
+  def handle_begin(opts, %{transaction_status: :idle} = state) do
+    command =
+      case Keyword.get(opts, :mode, :deferred) do
+        :immediate -> "BEGIN IMMEDIATE"
+        :exclusive -> "BEGIN EXCLUSIVE"
+        _mode -> "BEGIN"
+      end
+
+    transaction_command(state, command, :transaction)
+  end
+
+  def handle_begin(opts, %{transaction_status: :transaction} = state) do
+    case Keyword.get(opts, :mode) do
+      :savepoint -> transaction_command(state, "SAVEPOINT ecto_kinda_savepoint", :transaction)
+      _mode -> {:transaction, state}
+    end
   end
 
   def handle_begin(_opts, state), do: {state.transaction_status, state}
 
   @impl DBConnection
-  def handle_commit(_opts, %{transaction_status: :transaction} = state) do
-    transaction_command(state, "COMMIT", :idle)
+  def handle_commit(opts, %{transaction_status: :transaction} = state) do
+    case Keyword.get(opts, :mode) do
+      :savepoint ->
+        transaction_command(state, "RELEASE SAVEPOINT ecto_kinda_savepoint", :transaction)
+
+      _mode ->
+        transaction_command(state, "COMMIT", :idle)
+    end
   end
 
   def handle_commit(_opts, state), do: {state.transaction_status, state}
 
   @impl DBConnection
-  def handle_rollback(_opts, %{transaction_status: status} = state)
+  def handle_rollback(opts, %{transaction_status: status} = state)
       when status in [:transaction, :error] do
-    transaction_command(state, "ROLLBACK", :idle)
+    case Keyword.get(opts, :mode) do
+      :savepoint -> rollback_savepoint(state)
+      _mode -> transaction_command(state, "ROLLBACK", :idle)
+    end
   end
 
   def handle_rollback(_opts, state), do: {state.transaction_status, state}
@@ -124,12 +148,9 @@ defmodule Kinda.SQLite.Connection do
 
   @impl DBConnection
   def handle_declare(query, params, _opts, state) do
-    case SQLite.declare(query.prepared, params) do
-      {:ok, columns} ->
-        {:ok, query, %Cursor{columns: columns, statement: query.prepared}, state}
-
-      {:error, error} ->
-        {:error, error, mark_failed(state)}
+    case localize(query, state.database) do
+      {:ok, query} -> declare_local(query, params, state)
+      {:error, error} -> {:error, error, mark_failed(state)}
     end
   end
 
@@ -168,6 +189,53 @@ defmodule Kinda.SQLite.Connection do
         SQLite.close(database)
         {:error, error}
     end
+  end
+
+  defp rollback_savepoint(state) do
+    with {:ok, _result, state} <-
+           transaction_command(state, "ROLLBACK TO SAVEPOINT ecto_kinda_savepoint", :transaction) do
+      transaction_command(state, "RELEASE SAVEPOINT ecto_kinda_savepoint", :transaction)
+    end
+  end
+
+  defp execute_local(query, params, state) do
+    case SQLite.execute(query.prepared, params) do
+      {:ok, result} -> {:ok, query, result, state}
+      {:error, error} -> {:error, error, mark_failed(state)}
+    end
+  end
+
+  defp declare_local(query, params, state) do
+    case SQLite.declare(query.prepared, params) do
+      {:ok, columns} ->
+        {:ok, query, %Cursor{columns: columns, statement: query.prepared}, state}
+
+      {:error, error} ->
+        {:error, error, mark_failed(state)}
+    end
+  end
+
+  defp localize(%Query{prepared: nil} = query, database) do
+    prepare_local(query, database)
+  end
+
+  defp localize(%Query{prepared: statement} = query, database) do
+    if local_statement?(statement, database) do
+      {:ok, query}
+    else
+      prepare_local(query, database)
+    end
+  end
+
+  defp prepare_local(query, database) do
+    case SQLite.prepare(database, query.statement) do
+      {:ok, statement} -> {:ok, %{query | prepared: statement}}
+      {:error, error} -> {:error, error}
+    end
+  end
+
+  defp local_statement?(statement, database) do
+    statement.database.resource == database.resource
   end
 
   defp mark_failed(%{transaction_status: :transaction} = state),

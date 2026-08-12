@@ -19,3 +19,7 @@ defimpl DBConnection.Query, for: Kinda.SQLite.Query do
   def encode(_query, params, _opts) when is_list(params), do: params
   def decode(_query, result, _opts), do: result
 end
+
+defimpl String.Chars, for: Kinda.SQLite.Query do
+  def to_string(query), do: query.statement
+end

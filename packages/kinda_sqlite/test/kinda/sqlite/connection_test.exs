@@ -3,6 +3,7 @@ defmodule Kinda.SQLite.ConnectionTest do
 
   import ExUnit.CaptureLog
 
+  alias Kinda.SQLite
   alias Kinda.SQLite.{Connection, Error, Query, Result}
 
   setup do
@@ -80,6 +81,26 @@ defmodule Kinda.SQLite.ConnectionTest do
     assert %{rows: [[1]]} = Connection.query!(__MODULE__, "select 1")
   end
 
+  test "savepoint callbacks preserve their outer transaction" do
+    {:ok, database} = SQLite.open_memory()
+    state = %{database: database, transaction_status: :idle}
+
+    assert {:ok, _result, state} = Connection.handle_begin([], state)
+    assert {:ok, _result} = SQLite.query(database, "create table values_table(value integer)")
+    assert {:ok, _result} = SQLite.query(database, "insert into values_table values (1)")
+
+    assert {:ok, _result, state} = Connection.handle_begin([mode: :savepoint], state)
+    assert {:ok, _result} = SQLite.query(database, "insert into values_table values (2)")
+    assert {:ok, _result, state} = Connection.handle_rollback([mode: :savepoint], state)
+    assert state.transaction_status == :transaction
+
+    assert {:ok, _result, state} = Connection.handle_commit([], state)
+    assert state.transaction_status == :idle
+    assert {:ok, %{rows: [[1]]}} = SQLite.query(database, "select value from values_table")
+
+    :ok = SQLite.close(database)
+  end
+
   @tag :tmp_dir
   test "shares a file database across pooled connections", %{tmp_dir: tmp_dir} do
     database = Path.join(tmp_dir, "pool.sqlite3")
@@ -94,6 +115,17 @@ defmodule Kinda.SQLite.ConnectionTest do
       1..8
       |> Task.async_stream(fn _ -> Connection.query!(pool, "select id from pooled_items") end)
       |> Enum.map(fn {:ok, result} -> result.rows end)
+
+    assert Enum.uniq(rows) == [[[42]]]
+
+    query = %Query{statement: "select id from pooled_items"}
+    assert {:ok, prepared} = DBConnection.prepare(pool, query)
+
+    rows =
+      for _index <- 1..8 do
+        assert {:ok, _localized, result} = DBConnection.execute(pool, prepared, [])
+        result.rows
+      end
 
     assert Enum.uniq(rows) == [[[42]]]
   end
