@@ -24,7 +24,8 @@ defmodule Kinda.DuckDB.MixProject do
     [
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:elixir_make, "~> 0.4", runtime: false},
-      {:kinda, path: "../.."}
+      {:kinda, path: "../.."},
+      {:kinda_sqlite, path: "../kinda_sqlite", only: :test}
     ]
   end
 end
