@@ -90,6 +90,7 @@ defmodule Kinda.MixProject do
         Testing: [
           Kinda.Testing.Isolated,
           Kinda.Testing.Lifecycle,
+          Kinda.Testing.NIFUpgrade,
           Kinda.Testing.Sandbox
         ],
         Precompilation: [
