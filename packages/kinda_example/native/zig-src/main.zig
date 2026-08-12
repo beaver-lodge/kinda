@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const kinda = @import("kinda");
 const beam = kinda.beam;
 const e = kinda.erl_nif;
@@ -48,6 +49,32 @@ const entry = e.ErlNifEntry{
     .min_erts = "erts-13.0",
 };
 
+const NifInit = if (builtin.os.tag == .windows) struct {
+    var callbacks: e.TWinDynNifCallbacks = undefined;
+
+    fn init(win_callbacks: *const e.TWinDynNifCallbacks) callconv(.c) *const e.ErlNifEntry {
+        callbacks = win_callbacks.*;
+        return &entry;
+    }
+
+    fn exportSymbols() void {
+        @export(&callbacks, .{ .name = "WinDynNifCallbacks" });
+        @export(&init, .{ .name = "nif_init" });
+    }
+} else struct {
+    fn init() callconv(.c) *const e.ErlNifEntry {
+        return &entry;
+    }
+
+    fn exportSymbols() void {
+        @export(&init, .{ .name = "nif_init" });
+    }
+};
+
+comptime {
+    NifInit.exportSymbols();
+}
+
 export fn nif_load(env: beam.env, _: [*c]?*anyopaque, _: beam.term) c_int {
     Kinds.open(env);
     kinda.callback_runtime.ReplyToken.open(env);
@@ -66,7 +93,3 @@ export fn nif_upgrade(
 }
 
 export fn nif_unload(_: beam.env, _: ?*anyopaque) void {}
-
-export fn nif_init() *const e.ErlNifEntry {
-    return &entry;
-}
