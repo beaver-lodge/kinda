@@ -116,6 +116,14 @@ defmodule Kinda.SQLite.IntegrationTest do
 
   @tag :tmp_dir
   test "both NIF libraries coexist while each is hot-upgraded", %{tmp_dir: tmp_dir} do
+    if match?({:win32, _}, :os.type()) do
+      verify_windows_hot_upgrade(tmp_dir)
+    else
+      verify_live_resource_hot_upgrade(tmp_dir)
+    end
+  end
+
+  defp verify_live_resource_hot_upgrade(tmp_dir) do
     database = SqliteRaw.open_memory()
     assert :ok = SqliteRaw.execute(database, "create table values_table(value integer)")
     assert :ok = SqliteRaw.execute(database, "insert into values_table values (99)")
@@ -145,6 +153,43 @@ defmodule Kinda.SQLite.IntegrationTest do
     :code.purge(ExampleRaw)
     assert :ok = SqliteRaw.execute(database, "insert into values_table values (100)")
     assert 33 = ExampleRaw."Elixir.KindaExample.NIF.CInt.primitive"(example_scalar)
+  end
+
+  defp verify_windows_hot_upgrade(tmp_dir) do
+    example_scalar = ExampleRaw."Elixir.KindaExample.NIF.CInt.make"(33)
+    assert_sqlite_query(99)
+    :erlang.garbage_collect()
+
+    sqlite_upgrade = copy_nif!(:kinda_sqlite, "KindaSQLiteNIF", tmp_dir)
+    example_upgrade = copy_nif!(:kinda_example, "KindaExampleNIF", tmp_dir)
+    originals = [remember_module(SqliteRaw), remember_module(ExampleRaw)]
+
+    on_exit(fn ->
+      Enum.each(originals, &restore_module/1)
+    end)
+
+    assert {:module, SqliteRaw, _binary, _result} =
+             hot_upgrade_module(SqliteRaw, sqlite_upgrade)
+
+    :code.purge(SqliteRaw)
+    assert_sqlite_query(100)
+    assert 33 = ExampleRaw."Elixir.KindaExample.NIF.CInt.primitive"(example_scalar)
+
+    assert {:module, ExampleRaw, _binary, _result} =
+             hot_upgrade_module(ExampleRaw, example_upgrade)
+
+    :code.purge(ExampleRaw)
+    assert_sqlite_query(101)
+    assert 33 = ExampleRaw."Elixir.KindaExample.NIF.CInt.primitive"(example_scalar)
+  end
+
+  defp assert_sqlite_query(value) do
+    database = SqliteRaw.open_memory()
+    assert :ok = SqliteRaw.execute(database, "create table values_table(value integer)")
+    assert :ok = SqliteRaw.execute(database, "insert into values_table values (#{value})")
+    statement = SqliteRaw.prepare(database, "select value from values_table")
+    assert :row = SqliteRaw.step(statement)
+    assert ^value = SqliteRaw.column_int64(statement, 0)
   end
 
   defp prepare_statement_without_database_term do

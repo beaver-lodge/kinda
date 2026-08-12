@@ -195,8 +195,9 @@ defmodule KindaExampleTest do
     registration = Raw.callback_fixture_register(fn _, _ -> {:ok, {0, 0}} end, destructor, 1_000)
 
     upgrade_nif = Path.join(tmp_dir, "libKindaExampleNIFUpgrade")
-    source_nif = "#{:code.priv_dir(:kinda_example)}/lib/libKindaExampleNIF.so"
-    File.cp!(source_nif, "#{upgrade_nif}.so")
+    nif_extension = if match?({:win32, _}, :os.type()), do: ".dll", else: ".so"
+    source_nif = "#{:code.priv_dir(:kinda_example)}/lib/libKindaExampleNIF#{nif_extension}"
+    File.cp!(source_nif, "#{upgrade_nif}#{nif_extension}")
 
     {Raw, original_beam, original_path} = :code.get_object_code(Raw)
 

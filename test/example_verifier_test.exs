@@ -80,7 +80,7 @@ defmodule Kinda.ExampleVerifierTest do
     assert error.stage == :example_verification
     assert error.command == "mix"
     assert error.args == ["test", "--force"]
-    assert error.cwd == root
+    assert error.cwd == Path.expand(root)
     assert error.status == 1
     assert error.output == "boom"
     assert Exception.message(error) =~ "kinda_example verification failed"

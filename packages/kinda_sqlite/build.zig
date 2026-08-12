@@ -6,7 +6,7 @@ pub fn build(b: *std.Build) void {
 
     const sqlite = b.addLibrary(.{
         .name = "KindaSQLite",
-        .linkage = .dynamic,
+        .linkage = if (target.result.os.tag == .windows) .static else .dynamic,
         .root_module = b.createModule(.{
             .target = target,
             .optimize = optimize,
@@ -22,6 +22,10 @@ pub fn build(b: *std.Build) void {
             "-DSQLITE_OMIT_LOAD_EXTENSION",
         },
     });
+    sqlite.root_module.addCSourceFile(.{
+        .file = b.path("native/c-src/sqlite_bridge.c"),
+        .flags = &.{"-std=c99"},
+    });
 
     const lib = b.addLibrary(.{
         .name = "KindaSQLiteNIF",
@@ -36,6 +40,7 @@ pub fn build(b: *std.Build) void {
     const kinda = b.dependencyFromBuildZig(@import("kinda"), .{});
     lib.root_module.addImport("kinda", kinda.module("kinda"));
     lib.root_module.addIncludePath(b.path("vendor/sqlite"));
+    lib.root_module.addIncludePath(b.path("native/c-src"));
     lib.root_module.linkLibrary(sqlite);
     if (target.result.os.tag == .macos) {
         lib.root_module.addRPathSpecial("@loader_path");
@@ -44,6 +49,13 @@ pub fn build(b: *std.Build) void {
     }
     lib.linker_allow_shlib_undefined = true;
 
-    b.installArtifact(sqlite);
-    b.installArtifact(lib);
+    const install_sqlite = b.addInstallArtifact(sqlite, .{
+        .dest_dir = .{ .override = .lib },
+    });
+    const install_nif = b.addInstallArtifact(lib, .{
+        .dest_dir = .{ .override = .lib },
+        .dest_sub_path = if (target.result.os.tag == .windows) "libKindaSQLiteNIF.dll" else null,
+    });
+    b.getInstallStep().dependOn(&install_sqlite.step);
+    b.getInstallStep().dependOn(&install_nif.step);
 }

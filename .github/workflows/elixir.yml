@@ -3,6 +3,9 @@ name: Elixir CI
 on:
   pull_request:
     branches: ["main"]
+  push:
+    branches: ["main"]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -25,11 +28,24 @@ jobs:
           - runs-on: "ubuntu-22.04"
             otp: "24.2"
             elixir: "1.14.0"
+            quality: false
           - runs-on: "ubuntu-22.04"
             otp: "27.3"
             elixir: "1.20.3"
+            quality: true
+          - runs-on: "macos-15"
+            otp: "27.3"
+            elixir: "1.20.3"
+            quality: false
+          - runs-on: "windows-2022"
+            otp: "27.3"
+            elixir: "1.20.3"
+            quality: false
     steps:
       - uses: actions/checkout@v4
+      - name: Set up MSVC build tools
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
       - uses: erlef/setup-beam@v1
         with:
           otp-version: ${{matrix.otp}}
@@ -60,15 +76,15 @@ jobs:
       - name: Install dependencies
         run: mix deps.get
       - name: Check formatting of Elixir
-        if: matrix.elixir == '1.20.3'
+        if: matrix.quality
         run: mix format --check-formatted
       - name: Reject compiler warnings
-        if: matrix.elixir == '1.20.3'
+        if: matrix.quality
         env:
           MIX_ENV: test
         run: mix compile --force --warnings-as-errors
       - name: Run Credo
-        if: matrix.elixir == '1.20.3'
+        if: matrix.quality
         run: mix credo --strict --ignore-checks TagTODO,AliasUsage,PredicateFunctionNames,ModuleDoc,WithSingleClause,PreferImplicitTry,AliasOrder,ParenthesesOnZeroArityDefs,Nesting,CyclomaticComplexity,Apply
       - name: Run root verifier
         env:
@@ -79,13 +95,13 @@ jobs:
         working-directory: ./packages/kinda_example
         run: mix deps.get
       - name: Reject compiler warnings (example)
-        if: matrix.elixir == '1.20.3'
+        if: matrix.quality
         working-directory: ./packages/kinda_example
         env:
           MIX_ENV: test
         run: mix compile --force --warnings-as-errors
       - name: Check formatting of Elixir
-        if: matrix.elixir == '1.20.3'
+        if: matrix.quality
         working-directory: ./packages/kinda_example
         run: mix format --check-formatted
       - name: Run Credo (example)
@@ -93,7 +109,7 @@ jobs:
         working-directory: ./packages/kinda_example
         run: mix credo --strict
       - name: Check formatting of Zig
-        if: matrix.elixir == '1.20.3'
+        if: matrix.quality
         run: |
           zig fmt --check src
           zig fmt --check packages/kinda_example/native/zig-src
@@ -103,13 +119,13 @@ jobs:
         working-directory: ./packages/kinda_sqlite
         run: mix deps.get
       - name: Reject compiler warnings (Kinda SQLite)
-        if: matrix.elixir == '1.20.3'
+        if: matrix.quality
         working-directory: ./packages/kinda_sqlite
         env:
           MIX_ENV: test
         run: mix compile --force --warnings-as-errors
       - name: Check formatting of Elixir (Kinda SQLite)
-        if: matrix.elixir == '1.20.3'
+        if: matrix.quality
         working-directory: ./packages/kinda_sqlite
         run: mix format --check-formatted
       - name: Run Credo (Kinda SQLite)
@@ -117,16 +133,19 @@ jobs:
         working-directory: ./packages/kinda_sqlite
         run: mix credo --strict
       - name: Install gdb
+        if: runner.os == 'Linux'
         run: |
           sudo apt update
           sudo apt install -y gdb
       - name: Run tests (example with gdb and stack trace)
+        if: runner.os == 'Linux'
         working-directory: ./packages/kinda_example
         run: |
           bash ../../scripts/gdb.sh test
         env:
           KINDA_DUMP_STACK_TRACE: "1"
       - name: Run tests (example with gdb)
+        if: runner.os == 'Linux'
         working-directory: ./packages/kinda_example
         run: |
           bash ../../scripts/gdb.sh test
@@ -135,6 +154,7 @@ jobs:
         run: |
           mix test --force
       - name: Run tests (example with stack trace)
+        if: runner.os == 'Linux'
         continue-on-error: true
         working-directory: ./packages/kinda_example
         run: |
@@ -142,12 +162,13 @@ jobs:
         env:
           KINDA_DUMP_STACK_TRACE: "1"
       - name: Precompile
+        if: runner.os == 'Linux'
         working-directory: ./packages/kinda_example
         env:
           MIX_ENV: prod
           ELIXIR_MAKE_CACHE_DIR: .
         run: |
-          rm -rf _build
+          elixir -e 'File.rm_rf!("_build")'
           mix elixir_make.precompile
       - name: Precompile Kinda SQLite
         if: matrix.elixir == '1.20.3'
@@ -156,15 +177,17 @@ jobs:
           MIX_ENV: prod
           ELIXIR_MAKE_CACHE_DIR: .
         run: |
-          rm -rf _build
+          elixir -e 'File.rm_rf!("_build")'
           mix elixir_make.precompile
       - name: Start mock server in the background
+        if: runner.os == 'Linux'
         working-directory: ./packages/kinda_example
         run: |
           python3 -m http.server --directory . &> /dev/null &
           sleep 3
           ps aux
       - name: Test precompiled
+        if: runner.os == 'Linux'
         working-directory: ./packages/kinda_example
         run: |
           MIX_ENV=prod mix elixir_make.checksum --all --ignore-unavailable --only-local --print

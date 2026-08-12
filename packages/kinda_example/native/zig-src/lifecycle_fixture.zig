@@ -2,6 +2,7 @@ const std = @import("std");
 const kinda = @import("kinda");
 const beam = kinda.beam;
 const e = kinda.erl_nif;
+const nifApi = kinda.nifApi;
 const result = kinda.result;
 
 var pointer_type: beam.resource_type = undefined;
@@ -76,7 +77,7 @@ fn stats(environment: beam.env, _: c_int, _: [*c]const beam.term) !beam.term {
 
 pub fn open(environment: beam.env) void {
     ValueKind.open(environment);
-    pointer_type = e.enif_open_resource_type(
+    pointer_type = nifApi("enif_open_resource_type")(
         environment,
         null,
         "Kinda.LifecycleFixture.Pointer",
@@ -84,7 +85,7 @@ pub fn open(environment: beam.env) void {
         e.ERL_NIF_RT_CREATE | e.ERL_NIF_RT_TAKEOVER,
         null,
     );
-    list_array_type = e.enif_open_resource_type(
+    list_array_type = nifApi("enif_open_resource_type")(
         environment,
         null,
         "Kinda.LifecycleFixture.ListArray",
@@ -92,7 +93,7 @@ pub fn open(environment: beam.env) void {
         e.ERL_NIF_RT_CREATE | e.ERL_NIF_RT_TAKEOVER,
         null,
     );
-    binary_array_type = e.enif_open_resource_type(
+    binary_array_type = nifApi("enif_open_resource_type")(
         environment,
         null,
         "Kinda.LifecycleFixture.BinaryArray",
