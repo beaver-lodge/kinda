@@ -46,3 +46,10 @@ kinda_mruby_value kinda_mruby_eval(mrb_state *mrb, const char *source, size_t le
   *raised = did_raise;
   return kinda_mruby_export_value(value);
 }
+
+int kinda_mruby_arena_save(mrb_state *mrb) { return mrb_gc_arena_save(mrb); }
+void kinda_mruby_arena_restore(mrb_state *mrb, int index) { mrb_gc_arena_restore(mrb, index); }
+int kinda_mruby_immediate(kinda_mruby_value value) { return mrb_immediate_p(kinda_mruby_import_value(value)); }
+void kinda_mruby_gc_register(mrb_state *mrb, kinda_mruby_value value) { mrb_gc_register(mrb, kinda_mruby_import_value(value)); }
+void kinda_mruby_gc_unregister(mrb_state *mrb, kinda_mruby_value value) { mrb_gc_unregister(mrb, kinda_mruby_import_value(value)); }
+void kinda_mruby_clear_exception(mrb_state *mrb) { mrb->exc = NULL; }

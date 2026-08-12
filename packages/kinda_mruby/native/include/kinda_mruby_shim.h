@@ -24,5 +24,11 @@ int64_t kinda_mruby_integer(kinda_mruby_value value);
 const char *kinda_mruby_string_ptr(kinda_mruby_value value);
 size_t kinda_mruby_string_len(kinda_mruby_value value);
 kinda_mruby_value kinda_mruby_eval(mrb_state *mrb, const char *source, size_t length, int *raised);
+int kinda_mruby_arena_save(mrb_state *mrb);
+void kinda_mruby_arena_restore(mrb_state *mrb, int index);
+int kinda_mruby_immediate(kinda_mruby_value value);
+void kinda_mruby_gc_register(mrb_state *mrb, kinda_mruby_value value);
+void kinda_mruby_gc_unregister(mrb_state *mrb, kinda_mruby_value value);
+void kinda_mruby_clear_exception(mrb_state *mrb);
 
 #endif
