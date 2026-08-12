@@ -119,13 +119,13 @@ jobs:
         working-directory: ./packages/kinda_sqlite
         run: mix deps.get
       - name: Reject compiler warnings (Kinda SQLite)
-        if: matrix.elixir == '1.20.3'
+        if: matrix.quality
         working-directory: ./packages/kinda_sqlite
         env:
           MIX_ENV: test
         run: mix compile --force --warnings-as-errors
       - name: Check formatting of Elixir (Kinda SQLite)
-        if: matrix.elixir == '1.20.3'
+        if: matrix.quality
         working-directory: ./packages/kinda_sqlite
         run: mix format --check-formatted
       - name: Run Credo (Kinda SQLite)
@@ -168,7 +168,7 @@ jobs:
           MIX_ENV: prod
           ELIXIR_MAKE_CACHE_DIR: .
         run: |
-          rm -rf _build
+          elixir -e 'File.rm_rf!("_build")'
           mix elixir_make.precompile
       - name: Precompile Kinda SQLite
         if: matrix.elixir == '1.20.3'
@@ -177,7 +177,7 @@ jobs:
           MIX_ENV: prod
           ELIXIR_MAKE_CACHE_DIR: .
         run: |
-          rm -rf _build
+          elixir -e 'File.rm_rf!("_build")'
           mix elixir_make.precompile
       - name: Start mock server in the background
         if: runner.os == 'Linux'

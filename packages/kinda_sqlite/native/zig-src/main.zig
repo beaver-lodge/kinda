@@ -1,10 +1,12 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const kinda = @import("kinda");
 const beam = kinda.beam;
 const e = kinda.erl_nif;
 const result = kinda.result;
 const sqlite = @cImport({
     @cInclude("sqlite3.h");
+    @cInclude("sqlite_bridge.h");
 });
 
 const root_module = "Elixir.Kinda.SQLite.Native";
@@ -131,13 +133,11 @@ fn bindText(environment: beam.env, _: c_int, args: [*c]const beam.term) !beam.te
     const statement = try fetchStatement(environment, args[0]);
     const index = try beam.get_c_int(environment, args[1]);
     const value = try beam.get_char_slice(environment, args[2]);
-    const transient: sqlite.sqlite3_destructor_type = @ptrFromInt(std.math.maxInt(usize));
-    if (sqlite.sqlite3_bind_text(
+    if (sqlite.kinda_sqlite_bind_text_transient(
         statement.handle,
         index,
         value.ptr,
         @intCast(value.len),
-        transient,
     ) != sqlite.SQLITE_OK) return Error.FailedToBindValue;
     return beam.make_ok(environment);
 }
@@ -226,6 +226,32 @@ const entry = e.ErlNifEntry{
     .min_erts = "erts-13.0",
 };
 
+const NifInit = if (builtin.os.tag == .windows) struct {
+    var callbacks: e.TWinDynNifCallbacks = undefined;
+
+    fn init(win_callbacks: *const e.TWinDynNifCallbacks) callconv(.c) *const e.ErlNifEntry {
+        callbacks = win_callbacks.*;
+        return &entry;
+    }
+
+    fn exportSymbols() void {
+        @export(&callbacks, .{ .name = "WinDynNifCallbacks" });
+        @export(&init, .{ .name = "nif_init" });
+    }
+} else struct {
+    fn init() callconv(.c) *const e.ErlNifEntry {
+        return &entry;
+    }
+
+    fn exportSymbols() void {
+        @export(&init, .{ .name = "nif_init" });
+    }
+};
+
+comptime {
+    NifInit.exportSymbols();
+}
+
 export fn nif_load(environment: beam.env, _: [*c]?*anyopaque, _: beam.term) c_int {
     DatabaseKind.open(environment);
     StatementKind.open(environment);
@@ -245,7 +271,3 @@ export fn nif_upgrade(
 }
 
 export fn nif_unload(_: beam.env, _: ?*anyopaque) void {}
-
-export fn nif_init() *const e.ErlNifEntry {
-    return &entry;
-}
