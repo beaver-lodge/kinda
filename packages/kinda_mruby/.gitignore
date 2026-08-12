@@ -1,0 +1,4 @@
+/_build/
+/deps/
+/.runtime/
+/erl_crash.dump
