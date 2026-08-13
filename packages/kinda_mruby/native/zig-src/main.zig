@@ -75,10 +75,7 @@ const Value = struct {
         self.vm.deinit();
     }
 
-    pub fn destroy(_: beam.env, object: ?*anyopaque) callconv(.c) void {
-        const self: *Value = @ptrCast(@alignCast(object orelse return));
-        self.close();
-    }
+    pub const destroy = kinda.resourceDestructor(Value, Value.close);
 };
 
 const Bytecode = struct {
@@ -95,10 +92,7 @@ const Bytecode = struct {
         self.closed = true;
     }
 
-    pub fn destroy(_: beam.env, object: ?*anyopaque) callconv(.c) void {
-        const self: *Bytecode = @ptrCast(@alignCast(object orelse return));
-        self.close();
-    }
+    pub const destroy = kinda.resourceDestructor(Bytecode, Bytecode.close);
 };
 
 comptime {

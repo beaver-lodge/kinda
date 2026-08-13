@@ -39,10 +39,7 @@ const Database = struct {
         self.closeIfUnused();
     }
 
-    pub fn destroy(_: beam.env, object: ?*anyopaque) callconv(.c) void {
-        const self: *Database = @ptrCast(@alignCast(object orelse return));
-        self.close();
-    }
+    pub const destroy = kinda.resourceDestructor(Database, Database.close);
 };
 
 const Connection = struct {
@@ -74,10 +71,7 @@ const Connection = struct {
         self.closeIfUnused();
     }
 
-    pub fn destroy(_: beam.env, object: ?*anyopaque) callconv(.c) void {
-        const self: *Connection = @ptrCast(@alignCast(object orelse return));
-        self.close();
-    }
+    pub const destroy = kinda.resourceDestructor(Connection, Connection.close);
 };
 
 const QueryResult = struct {
@@ -97,10 +91,7 @@ const QueryResult = struct {
         self.connection.deinit();
     }
 
-    pub fn destroy(_: beam.env, object: ?*anyopaque) callconv(.c) void {
-        const self: *QueryResult = @ptrCast(@alignCast(object orelse return));
-        self.close();
-    }
+    pub const destroy = kinda.resourceDestructor(QueryResult, QueryResult.close);
 };
 
 const Prepared = struct {
@@ -131,10 +122,7 @@ const Prepared = struct {
         self.closeIfUnused();
     }
 
-    pub fn destroy(_: beam.env, object: ?*anyopaque) callconv(.c) void {
-        const self: *Prepared = @ptrCast(@alignCast(object orelse return));
-        self.close();
-    }
+    pub const destroy = kinda.resourceDestructor(Prepared, Prepared.close);
 };
 
 const Pending = struct {
@@ -152,10 +140,7 @@ const Pending = struct {
         self.prepared.deinit();
     }
 
-    pub fn destroy(_: beam.env, object: ?*anyopaque) callconv(.c) void {
-        const self: *Pending = @ptrCast(@alignCast(object orelse return));
-        self.close();
-    }
+    pub const destroy = kinda.resourceDestructor(Pending, Pending.close);
 };
 
 const Appender = struct {
@@ -174,10 +159,7 @@ const Appender = struct {
         self.connection.deinit();
     }
 
-    pub fn destroy(_: beam.env, object: ?*anyopaque) callconv(.c) void {
-        const self: *Appender = @ptrCast(@alignCast(object orelse return));
-        self.close();
-    }
+    pub const destroy = kinda.resourceDestructor(Appender, Appender.close);
 };
 
 comptime {

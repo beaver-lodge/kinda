@@ -40,10 +40,7 @@ const Runtime = struct {
         self.closeIfUnused();
     }
 
-    pub fn destroy(_: beam.env, object: ?*anyopaque) callconv(.c) void {
-        const self: *Runtime = @ptrCast(@alignCast(object orelse return));
-        self.close();
-    }
+    pub const destroy = kinda.resourceDestructor(Runtime, Runtime.close);
 };
 
 const Context = struct {
@@ -80,10 +77,7 @@ const Context = struct {
         self.closeIfUnused();
     }
 
-    pub fn destroy(_: beam.env, object: ?*anyopaque) callconv(.c) void {
-        const self: *Context = @ptrCast(@alignCast(object orelse return));
-        self.close();
-    }
+    pub const destroy = kinda.resourceDestructor(Context, Context.close);
 };
 
 const Value = struct {
@@ -108,10 +102,7 @@ const Value = struct {
         self.context.deinit();
     }
 
-    pub fn destroy(_: beam.env, object: ?*anyopaque) callconv(.c) void {
-        const self: *Value = @ptrCast(@alignCast(object orelse return));
-        self.close();
-    }
+    pub const destroy = kinda.resourceDestructor(Value, Value.close);
 };
 
 const Bytecode = struct {
@@ -126,10 +117,7 @@ const Bytecode = struct {
         beam.allocator.free(self.bytes);
         self.closed = true;
     }
-    pub fn destroy(_: beam.env, object: ?*anyopaque) callconv(.c) void {
-        const self: *Bytecode = @ptrCast(@alignCast(object orelse return));
-        self.close();
-    }
+    pub const destroy = kinda.resourceDestructor(Bytecode, Bytecode.close);
 };
 
 comptime {

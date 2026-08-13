@@ -250,6 +250,24 @@ pub fn EntryExports(comptime spec: anytype) type {
 }
 
 pub const numOfNIFsPerKind = 10;
+
+/// Adapts a typed resource cleanup function to the C ABI callback expected by
+/// ERTS. Keeping the cast here lets resource implementations expose their
+/// destructor as `pub const destroy = resourceDestructor(T, T.close)` while
+/// their cleanup policy and locking remain private and backend-specific.
+pub fn resourceDestructor(comptime ElementType: type, comptime close: anytype) e.ErlNifResourceDtor {
+    const Expected = fn (*ElementType) void;
+    if (@TypeOf(close) != Expected) {
+        @compileError("resourceDestructor close must be fn(*" ++ @typeName(ElementType) ++ ") void, got " ++ @typeName(@TypeOf(close)));
+    }
+
+    return struct {
+        fn call(_: beam.env, object: ?*anyopaque) callconv(.c) void {
+            close(@ptrCast(@alignCast(object orelse return)));
+        }
+    }.call;
+}
+
 pub fn ResourceKind(comptime ElementType: type, comptime module_name_: anytype) type {
     return struct {
         pub const module_name = module_name_;
