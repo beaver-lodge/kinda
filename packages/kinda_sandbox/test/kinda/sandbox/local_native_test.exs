@@ -37,9 +37,8 @@ defmodule Kinda.Sandbox.LocalNativeTest do
     end
   end
 
-  test "allocates unique module, entry name, and owned child directory" do
-    parent = temporary_parent!()
-    on_exit(fn -> File.rm_rf!(parent) end)
+  @tag :tmp_dir
+  test "allocates unique module, entry name, and owned child directory", %{tmp_dir: parent} do
     spec = %Spec{base_module: __MODULE__, parent_directory: parent, env: %{"CC" => "zig cc"}}
 
     assert {:ok, first} = Sandbox.create(LocalNative, spec)
@@ -69,10 +68,8 @@ defmodule Kinda.Sandbox.LocalNativeTest do
     assert File.dir?(parent)
   end
 
-  test "failed builds clean partial output and remain retryable" do
-    parent = temporary_parent!()
-    on_exit(fn -> File.rm_rf!(parent) end)
-
+  @tag :tmp_dir
+  test "failed builds clean partial output and remain retryable", %{tmp_dir: parent} do
     {:ok, handle} =
       Sandbox.create(LocalNative, %Spec{base_module: __MODULE__, parent_directory: parent})
 
@@ -90,9 +87,8 @@ defmodule Kinda.Sandbox.LocalNativeTest do
     assert :ok = Sandbox.close(handle)
   end
 
-  test "rejects artifacts outside the owned child and cleans only the child" do
-    parent = temporary_parent!()
-    on_exit(fn -> File.rm_rf!(parent) end)
+  @tag :tmp_dir
+  test "rejects artifacts outside the owned child and cleans only the child", %{tmp_dir: parent} do
     outside = Path.join(parent, "outside.so")
 
     {:ok, handle} =
@@ -111,10 +107,8 @@ defmodule Kinda.Sandbox.LocalNativeTest do
     assert File.regular?(outside)
   end
 
-  test "serializes builds for one handle" do
-    parent = temporary_parent!()
-    on_exit(fn -> File.rm_rf!(parent) end)
-
+  @tag :tmp_dir
+  test "serializes builds for one handle", %{tmp_dir: parent} do
     {:ok, handle} =
       Sandbox.create(LocalNative, %Spec{base_module: __MODULE__, parent_directory: parent})
 
@@ -156,10 +150,8 @@ defmodule Kinda.Sandbox.LocalNativeTest do
     assert :ok = Sandbox.close(handle)
   end
 
-  test "rejects missing and non-regular artifacts" do
-    parent = temporary_parent!()
-    on_exit(fn -> File.rm_rf!(parent) end)
-
+  @tag :tmp_dir
+  test "rejects missing and non-regular artifacts", %{tmp_dir: parent} do
     {:ok, handle} =
       Sandbox.create(LocalNative, %Spec{base_module: __MODULE__, parent_directory: parent})
 
@@ -172,31 +164,16 @@ defmodule Kinda.Sandbox.LocalNativeTest do
     assert :ok = Sandbox.close(handle)
   end
 
-  test "failed creation does not remove or mutate the supplied parent path" do
-    path =
-      Path.join(
-        System.tmp_dir!(),
-        "kinda-parent-file-#{System.unique_integer([:positive, :monotonic])}"
-      )
+  @tag :tmp_dir
+  test "failed creation does not remove or mutate the supplied parent path", %{tmp_dir: tmp_dir} do
+    path = Path.join(tmp_dir, "caller-owned-file")
 
     File.write!(path, "owned by caller")
-    on_exit(fn -> File.rm!(path) end)
 
     assert {:error, %Error{reason: :backend_failure}} =
              Sandbox.create(LocalNative, %Spec{base_module: __MODULE__, parent_directory: path})
 
     assert File.read!(path) == "owned by caller"
-  end
-
-  defp temporary_parent! do
-    path =
-      Path.join(
-        System.tmp_dir!(),
-        "kinda-sandbox-test-#{System.unique_integer([:positive, :monotonic])}"
-      )
-
-    File.mkdir_p!(path)
-    path
   end
 
   defp server_pid(%Kinda.Sandbox.Handle{ref: ref}) do

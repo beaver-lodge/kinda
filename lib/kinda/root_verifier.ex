@@ -22,6 +22,14 @@ defmodule Kinda.RootVerifier do
 
     env = Kinda.ExampleVerifier.command_env(opts)
 
+    run_step(
+      runner,
+      "elixir",
+      ["scripts/check_test_policy.exs", "test", "packages"],
+      cd: root,
+      env: env
+    )
+
     run_step(runner, "mix", ["test"], cd: root, env: env)
     run_step(runner, "mix", ["kinda.wrapper.example", "--json"], cd: root, env: env)
     verify_example(example_verifier, opts)

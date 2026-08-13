@@ -98,9 +98,10 @@ defmodule Kinda.Sandbox.ConformanceTest do
     )
   end
 
-  test "LocalNative passes the common lifecycle contract without directory leaks" do
-    parent = temporary_parent!()
-    on_exit(fn -> File.rm_rf!(parent) end)
+  @tag :tmp_dir
+  test "LocalNative passes the common lifecycle contract without directory leaks", %{
+    tmp_dir: parent
+  } do
     test_pid = self()
 
     Conformance.verify!(
@@ -119,16 +120,5 @@ defmodule Kinda.Sandbox.ConformanceTest do
         assert File.dir?(parent)
       end
     )
-  end
-
-  defp temporary_parent! do
-    directory =
-      Path.join(
-        System.tmp_dir!(),
-        "kinda-conformance-#{System.unique_integer([:positive, :monotonic])}"
-      )
-
-    File.mkdir_p!(directory)
-    directory
   end
 end

@@ -37,6 +37,11 @@ jobs:
         with:
           otp-version: "27.3"
           elixir-version: "1.20.3"
+      - name: Check test policy
+        if: matrix.quality
+        run: >-
+          elixir scripts/check_test_policy.exs
+          packages/kinda_duckdb/test packages/ecto_kinda_duckdb/test
       - name: Set up Zig
         uses: mlugg/setup-zig@v2
         with:

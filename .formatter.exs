@@ -1,7 +1,7 @@
 # Used by "mix format"
 [
   inputs:
-    ["{mix,.formatter}.exs", "{config,lib,test}/**/*.{ex,exs}"] ++
+    ["{mix,.formatter}.exs", "{config,lib,test}/**/*.{ex,exs}", "scripts/*.exs"] ++
       [
         "packages/kinda_example/{mix,.formatter}.exs",
         "packages/kinda_example/{config,lib,test}/**/*.{ex,exs}"
