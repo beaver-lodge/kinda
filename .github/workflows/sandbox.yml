@@ -1,0 +1,54 @@
+name: Sandbox CI
+
+on:
+  pull_request:
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sandbox-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: otp27-ex1.20 / ${{ matrix.runs-on }}
+    runs-on: ${{ matrix.runs-on }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runs-on: ubuntu-24.04
+            quality: true
+          - runs-on: macos-15
+            quality: false
+          - runs-on: windows-2025
+            quality: false
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "27.3"
+          elixir-version: "1.20.3"
+      - name: Install dependencies
+        working-directory: packages/kinda_sandbox
+        run: mix deps.get
+      - name: Check formatting
+        if: matrix.quality
+        working-directory: packages/kinda_sandbox
+        run: mix format --check-formatted
+      - name: Reject compiler warnings
+        working-directory: packages/kinda_sandbox
+        env:
+          MIX_ENV: test
+        run: mix compile --force --warnings-as-errors
+      - name: Run Credo
+        if: matrix.quality
+        working-directory: packages/kinda_sandbox
+        run: mix credo --strict
+      - name: Run lifecycle suite repeatedly
+        working-directory: packages/kinda_sandbox
+        run: mix test --repeat-until-failure 5 --max-failures 1
