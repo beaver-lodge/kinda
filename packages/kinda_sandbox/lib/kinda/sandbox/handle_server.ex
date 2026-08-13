@@ -34,6 +34,12 @@ defmodule Kinda.Sandbox.HandleServer do
   @spec via(reference()) :: GenServer.name()
   def via(ref), do: {:via, Registry, {Kinda.Sandbox.Registry, ref}}
 
+  @spec native_build(reference(), Kinda.Sandbox.Capability.NativeBuild.builder_mfa()) ::
+          {:ok, binary()} | {:error, Error.t()}
+  def native_build(ref, builder_mfa) do
+    call(ref, {:native_build, builder_mfa})
+  end
+
   @impl true
   def init(options) do
     backend = Keyword.fetch!(options, :backend)
@@ -80,6 +86,16 @@ defmodule Kinda.Sandbox.HandleServer do
     {:reply, :ok, %{state | owner: nil, owner_monitor: nil}}
   end
 
+  def handle_call({:native_build, builder_mfa}, _from, state) do
+    reply =
+      case Map.fetch(state.capabilities, :native_build) do
+        {:ok, capability} -> safely_native_build(capability, state.backend_handle, builder_mfa)
+        :error -> {:error, Error.exception(reason: :unsupported_capability)}
+      end
+
+    {:reply, reply, state}
+  end
+
   def handle_call(:close, _from, state) do
     {reply, state} = close_backend(state)
     {:stop, :normal, reply, state}
@@ -103,7 +119,7 @@ defmodule Kinda.Sandbox.HandleServer do
   def terminate(_reason, _state), do: :ok
 
   defp backend_capabilities(backend) when is_atom(backend) do
-    if function_exported?(backend, :capabilities, 0) and
+    if Code.ensure_loaded?(backend) and function_exported?(backend, :capabilities, 0) and
          function_exported?(backend, :create, 2) and function_exported?(backend, :close, 1) do
       case safely(fn -> backend.capabilities() end) do
         capabilities when is_map(capabilities) -> {:ok, capabilities}
@@ -127,6 +143,34 @@ defmodule Kinda.Sandbox.HandleServer do
       other -> {:error, backend_error("backend returned an invalid create result", other)}
     end
   end
+
+  defp safely_native_build(capability, backend_handle, builder_mfa) do
+    case safely(fn -> capability.build(backend_handle, builder_mfa) end) do
+      {:ok, artifact} when is_binary(artifact) ->
+        {:ok, artifact}
+
+      {:error, %Error{} = error} ->
+        {:error, error}
+
+      other ->
+        {:error, backend_error("native build capability returned an invalid result", other)}
+    end
+  end
+
+  defp call(ref, request) do
+    case Registry.lookup(Kinda.Sandbox.Registry, ref) do
+      [{pid, _value}] -> safe_server_call(pid, request)
+      [] -> disconnected()
+    end
+  end
+
+  defp safe_server_call(pid, request) do
+    GenServer.call(pid, request)
+  catch
+    :exit, _reason -> disconnected()
+  end
+
+  defp disconnected, do: {:error, Error.exception(reason: :disconnected)}
 
   defp close_backend(%__MODULE__{closed?: true} = state), do: {:ok, state}
 
