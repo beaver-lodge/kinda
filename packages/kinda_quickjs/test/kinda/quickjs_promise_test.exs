@@ -2,6 +2,8 @@ defmodule Kinda.QuickJSPromiseTest do
   use ExUnit.Case, async: false
 
   alias Kinda.QuickJS.{Context, Runtime, Value}
+  alias Kinda.Resource.Declaration
+  alias Kinda.Testing.Lifecycle
 
   test "keeps primitive and object values rooted in their context" do
     runtime = Kinda.QuickJS.open()
@@ -38,20 +40,30 @@ defmodule Kinda.QuickJSPromiseTest do
   end
 
   test "parent, context, and value tolerate arbitrary GC order" do
-    parent = self()
+    declarations = [
+      Declaration.new(:runtime),
+      Declaration.new(:context, owner: :runtime),
+      Declaration.new(:value, owner: :context)
+    ]
 
-    spawn(fn ->
-      runtime = Kinda.QuickJS.open()
-      context = Kinda.QuickJS.context(runtime)
-      value = Context.value(context, "Promise.resolve(42)")
-      send(parent, {:resources, runtime, context, value})
-    end)
-
-    assert_receive {:resources, runtime, context, value}
-    :erlang.garbage_collect()
-    assert Value.promise_state(value) == :fulfilled
-    assert :ok = Runtime.close(runtime)
-    assert :ok = Context.close(context)
-    assert Value.promise_result(value) == 42
+    assert :ok =
+             Lifecycle.verify!(declarations,
+               setup: fn ->
+                 runtime = Kinda.QuickJS.open()
+                 context = Kinda.QuickJS.context(runtime)
+                 value = Context.value(context, "Promise.resolve(42)")
+                 %{runtime: runtime, context: context, value: value}
+               end,
+               release: &close_resource/2,
+               probe: fn remaining ->
+                 if value = remaining[:value], do: assert(Value.promise_result(value) == 42)
+                 :erlang.garbage_collect()
+                 :ok
+               end
+             )
   end
+
+  defp close_resource(%Declaration{identity: :runtime}, runtime), do: Runtime.close(runtime)
+  defp close_resource(%Declaration{identity: :context}, context), do: Context.close(context)
+  defp close_resource(%Declaration{identity: :value}, value), do: Value.close(value)
 end
