@@ -37,6 +37,7 @@ defmodule Kinda.QuickJSHardeningTest do
     runtime = Kinda.QuickJS.open()
     context = Kinda.QuickJS.context(runtime)
     value = Context.value(context, "'still-live'")
+
     NIFUpgrade.run!(
       Kinda.QuickJS.Native,
       :kinda_quickjs,
@@ -72,5 +73,4 @@ defmodule Kinda.QuickJSHardeningTest do
              %{name: "value", values: [42]}
            ]
   end
-
 end
