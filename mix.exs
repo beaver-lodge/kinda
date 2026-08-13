@@ -91,8 +91,7 @@ defmodule Kinda.MixProject do
           Kinda.Testing.Isolated,
           Kinda.Testing.Lifecycle,
           Kinda.Testing.NativeScenario,
-          Kinda.Testing.NIFUpgrade,
-          Kinda.Testing.Sandbox
+          Kinda.Testing.NIFUpgrade
         ],
         Precompilation: [
           Kinda.Prebuilt.Meta,

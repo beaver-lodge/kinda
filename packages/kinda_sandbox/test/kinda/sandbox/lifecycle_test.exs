@@ -30,7 +30,7 @@ defmodule Kinda.Sandbox.LifecycleTest do
   use ExUnit.Case, async: true
 
   alias Kinda.Sandbox
-  alias Kinda.Sandbox.{Error, FakeBackend, Handle}
+  alias Kinda.Sandbox.{Error, FakeBackend, Handle, NativeBuild}
 
   def handle_telemetry(event, measurements, metadata, test_pid) do
     send(test_pid, {:telemetry, event, measurements, metadata})
@@ -125,6 +125,11 @@ defmodule Kinda.Sandbox.LifecycleTest do
     assert :ok = Sandbox.close(handle)
     assert {:error, %Error{reason: :disconnected}} = Sandbox.capabilities(handle)
     assert {:error, %Error{reason: :disconnected}} = Sandbox.detach(handle)
+    assert {:error, %Error{reason: :disconnected}} = Sandbox.transfer_owner(handle, self())
+
+    assert {:error, %Error{reason: :disconnected}} =
+             NativeBuild.build(handle, {__MODULE__, :unused, []})
+
     refute_receive {:backend_closed, _server}
   end
 
@@ -151,13 +156,13 @@ defmodule Kinda.Sandbox.LifecycleTest do
     {:ok, handle} = Sandbox.create(FakeBackend, {:notify, self()})
 
     assert_receive {:telemetry, [:kinda, :sandbox, :create], %{duration: duration},
-                    %{result: :ok}}
+                    %{backend: FakeBackend, capabilities: [:fake], outcome: :ok}}
 
     assert is_integer(duration)
 
     :ok = Sandbox.close(handle)
 
     assert_receive {:telemetry, [:kinda, :sandbox, :close], %{duration: _duration},
-                    %{result: :ok}}
+                    %{backend: FakeBackend, capabilities: [:fake], outcome: :ok}}
   end
 end

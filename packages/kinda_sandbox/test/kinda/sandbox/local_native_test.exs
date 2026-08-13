@@ -27,6 +27,8 @@ defmodule Kinda.Sandbox.LocalNativeTest do
     path
   end
 
+  def return_path(path, _context), do: path
+
   def block_build(test_pid, gate, %Context{} = context) do
     send(test_pid, {:builder_entered, gate})
 
@@ -152,6 +154,38 @@ defmodule Kinda.Sandbox.LocalNativeTest do
              NativeBuild.build(handle, {__MODULE__, :write_artifact, [self(), "unused"]})
 
     assert :ok = Sandbox.close(handle)
+  end
+
+  test "rejects missing and non-regular artifacts" do
+    parent = temporary_parent!()
+    on_exit(fn -> File.rm_rf!(parent) end)
+
+    {:ok, handle} =
+      Sandbox.create(LocalNative, %Spec{base_module: __MODULE__, parent_directory: parent})
+
+    assert {:error, %Error{reason: :backend_failure}} =
+             NativeBuild.build(handle, {__MODULE__, :return_path, ["missing.so"]})
+
+    assert {:error, %Error{reason: :backend_failure}} =
+             NativeBuild.build(handle, {__MODULE__, :return_path, ["."]})
+
+    assert :ok = Sandbox.close(handle)
+  end
+
+  test "failed creation does not remove or mutate the supplied parent path" do
+    path =
+      Path.join(
+        System.tmp_dir!(),
+        "kinda-parent-file-#{System.unique_integer([:positive, :monotonic])}"
+      )
+
+    File.write!(path, "owned by caller")
+    on_exit(fn -> File.rm!(path) end)
+
+    assert {:error, %Error{reason: :backend_failure}} =
+             Sandbox.create(LocalNative, %Spec{base_module: __MODULE__, parent_directory: path})
+
+    assert File.read!(path) == "owned by caller"
   end
 
   defp temporary_parent! do

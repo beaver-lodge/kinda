@@ -71,6 +71,12 @@ Appender ingestion, pending queries, and DBConnection; the latter is an
 explicitly experimental query/transaction Ecto adapter and does not promise
 full migration or OLTP semantics.
 
+The backend-neutral sandbox lifecycle API lives in the independent
+`packages/kinda_sandbox` Mix project. Its first backend, `LocalNative`, provides
+isolated native build identities and directories without making the sandbox
+package depend on Kinda's Zig code generator. The old `Kinda.Testing.Sandbox`
+API has been removed rather than retained as a compatibility shim.
+
 If you want the same thing without compiling the project first, run:
 
 ```sh
