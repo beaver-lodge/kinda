@@ -178,17 +178,27 @@ pub fn ResourceRegistry(comptime registrations: anytype) type {
     };
 }
 
-fn EntryPoint(comptime initialize: anytype) type {
+fn EntryPoint(
+    comptime initialize: anytype,
+    comptime windows_callbacks_target: anytype,
+) type {
     return if (builtin.os.tag == .windows) struct {
         var callbacks: e.TWinDynNifCallbacks = undefined;
+        const target: ?*e.TWinDynNifCallbacks = windows_callbacks_target;
 
         fn init(win_callbacks: *const e.TWinDynNifCallbacks) callconv(.c) *const e.ErlNifEntry {
-            callbacks = win_callbacks.*;
+            if (target) |external_callbacks| {
+                external_callbacks.* = win_callbacks.*;
+            } else {
+                callbacks = win_callbacks.*;
+            }
             return initialize();
         }
 
         fn exportSymbols() void {
-            @export(&callbacks, .{ .name = "WinDynNifCallbacks" });
+            if (target == null) {
+                @export(&callbacks, .{ .name = "WinDynNifCallbacks" });
+            }
             @export(&init, .{ .name = "nif_init" });
         }
     } else struct {
@@ -204,7 +214,9 @@ fn EntryPoint(comptime initialize: anytype) type {
 
 /// Materializes an Erlang NIF function tuple and exports the platform-specific
 /// `nif_init` entrypoint. Load, upgrade, and unload callbacks remain explicit
-/// backend policy supplied through `spec`.
+/// backend policy supplied through `spec`. On Windows, a NIF which links a
+/// shared enif shim may pass `.windows_callbacks_target` so `nif_init` fills
+/// that shim-owned table instead of exporting a private table.
 pub fn EntryExports(comptime spec: anytype) type {
     const Spec = @TypeOf(spec);
 
@@ -249,7 +261,11 @@ pub fn EntryExports(comptime spec: anytype) type {
             return &entry;
         }
 
-        const NifInit = EntryPoint(initialize);
+        const windows_callbacks_target = if (@hasField(Spec, "windows_callbacks_target"))
+            spec.windows_callbacks_target
+        else
+            null;
+        const NifInit = EntryPoint(initialize, windows_callbacks_target);
 
         comptime {
             NifInit.exportSymbols();
@@ -260,7 +276,8 @@ pub fn EntryExports(comptime spec: anytype) type {
 /// Exports a platform-specific `nif_init` entrypoint for a NIF table assembled
 /// at runtime. The provider is called during `nif_init`, before the load
 /// callback, and must return storage whose address remains stable until the NIF
-/// is unloaded.
+/// is unloaded. On Windows, `.windows_callbacks_target` has the same shared
+/// shim semantics as `EntryExports`.
 pub fn DynamicEntryExports(comptime spec: anytype) type {
     const Spec = @TypeOf(spec);
 
@@ -304,7 +321,11 @@ pub fn DynamicEntryExports(comptime spec: anytype) type {
             return &entry;
         }
 
-        const NifInit = EntryPoint(initialize);
+        const windows_callbacks_target = if (@hasField(Spec, "windows_callbacks_target"))
+            spec.windows_callbacks_target
+        else
+            null;
+        const NifInit = EntryPoint(initialize, windows_callbacks_target);
 
         comptime {
             NifInit.exportSymbols();
