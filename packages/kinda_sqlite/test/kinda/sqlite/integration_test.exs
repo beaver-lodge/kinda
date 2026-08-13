@@ -42,77 +42,46 @@ defmodule Kinda.SQLite.IntegrationTest do
   end
 
   test "a statement retains its database when the parent term is collected first" do
-    baseline = SqliteRaw.lifecycle_stats()
-    parent = self()
+    steps = [
+      {:call, :database, {SqliteRaw, :open_memory, []}},
+      {:expect, :ok,
+       {SqliteRaw, :execute, [{:resource, :database}, "create table retained(value integer)"]}},
+      {:expect, :ok,
+       {SqliteRaw, :execute, [{:resource, :database}, "insert into retained values (7)"]}},
+      {:call, :statement,
+       {SqliteRaw, :prepare, [{:resource, :database}, "select value from retained"]}},
+      {:drop, :database},
+      :garbage_collect,
+      {:eventually_expect, {1, 0, 1, 0}, {SqliteRaw, :lifecycle_stats, []}},
+      {:expect, :row, {SqliteRaw, :step, [{:resource, :statement}]}},
+      {:expect, 7, {SqliteRaw, :column_int64, [{:resource, :statement}, 0]}},
+      {:drop, :statement},
+      :garbage_collect,
+      {:eventually_expect, {1, 1, 1, 1}, {SqliteRaw, :lifecycle_stats, []}}
+    ]
 
-    {owner, monitor} =
-      spawn_monitor(fn ->
-        statement = prepare_statement_without_database_term()
-        :erlang.garbage_collect()
-        send(parent, {:parent_term_collected, self()})
-
-        receive do
-          :step ->
-            send(parent, {:row, SqliteRaw.step(statement), SqliteRaw.column_int64(statement, 0)})
-        end
-
-        receive do
-          :release -> :ok
-        end
-      end)
-
-    assert_receive {:parent_term_collected, ^owner}
-    assert lifecycle_delta(SqliteRaw.lifecycle_stats(), baseline) == {1, 0, 1, 0}
-
-    send(owner, :step)
-    assert_receive {:row, :row, 7}
-    send(owner, :release)
-    assert_receive {:DOWN, ^monitor, :process, ^owner, :normal}
-
-    assert_eventually(fn ->
-      lifecycle_reached?(SqliteRaw.lifecycle_stats(), baseline, {1, 1, 1, 1})
-    end)
+    assert Isolated.run({NativeScenario, :run, [steps]}) == :ok
   end
 
   test "the database remains usable when a child statement is collected first" do
-    baseline = SqliteRaw.lifecycle_stats()
-    parent = self()
+    steps = [
+      {:call, :database, {SqliteRaw, :open_memory, []}},
+      {:expect, :ok,
+       {SqliteRaw, :execute, [{:resource, :database}, "create table events(id integer)"]}},
+      {:call, :statement,
+       {SqliteRaw, :prepare, [{:resource, :database}, "select count(*) from events"]}},
+      {:expect, :row, {SqliteRaw, :step, [{:resource, :statement}]}},
+      {:drop, :statement},
+      :garbage_collect,
+      {:eventually_expect, {1, 0, 1, 1}, {SqliteRaw, :lifecycle_stats, []}},
+      {:expect, :ok,
+       {SqliteRaw, :execute, [{:resource, :database}, "insert into events values (1)"]}},
+      {:drop, :database},
+      :garbage_collect,
+      {:eventually_expect, {1, 1, 1, 1}, {SqliteRaw, :lifecycle_stats, []}}
+    ]
 
-    {owner, monitor} =
-      spawn_monitor(fn ->
-        database = SqliteRaw.open_memory()
-        assert :ok = SqliteRaw.execute(database, "create table events(id integer)")
-        create_and_drop_statement(database)
-        :erlang.garbage_collect()
-        send(parent, {:child_term_collected, self()})
-
-        receive do
-          :use_database ->
-            send(
-              parent,
-              {:database_result, SqliteRaw.execute(database, "insert into events values (1)")}
-            )
-        end
-
-        receive do
-          :release -> :ok
-        end
-      end)
-
-    assert_receive {:child_term_collected, ^owner}
-
-    assert_eventually(fn ->
-      lifecycle_reached?(SqliteRaw.lifecycle_stats(), baseline, {1, 0, 1, 1})
-    end)
-
-    send(owner, :use_database)
-    assert_receive {:database_result, :ok}
-    send(owner, :release)
-    assert_receive {:DOWN, ^monitor, :process, ^owner, :normal}
-
-    assert_eventually(fn ->
-      lifecycle_reached?(SqliteRaw.lifecycle_stats(), baseline, {1, 1, 1, 1})
-    end)
+    assert Isolated.run({NativeScenario, :run, [steps]}) == :ok
   end
 
   test "resource types with identical native names stay isolated across NIF libraries" do
@@ -201,47 +170,6 @@ defmodule Kinda.SQLite.IntegrationTest do
     assert :row = SqliteRaw.step(statement)
     assert ^value = SqliteRaw.column_int64(statement, 0)
   end
-
-  defp prepare_statement_without_database_term do
-    database = SqliteRaw.open_memory()
-    assert :ok = SqliteRaw.execute(database, "create table retained(value integer)")
-    assert :ok = SqliteRaw.execute(database, "insert into retained values (7)")
-    SqliteRaw.prepare(database, "select value from retained")
-  end
-
-  defp create_and_drop_statement(database) do
-    statement = SqliteRaw.prepare(database, "select count(*) from events")
-    assert :row = SqliteRaw.step(statement)
-    :ok
-  end
-
-  defp lifecycle_delta(counts, baseline) do
-    counts
-    |> Tuple.to_list()
-    |> Enum.zip_with(Tuple.to_list(baseline), &Kernel.-/2)
-    |> List.to_tuple()
-  end
-
-  defp lifecycle_reached?(counts, baseline, increments) do
-    counts
-    |> Tuple.to_list()
-    |> Enum.zip(Tuple.to_list(baseline))
-    |> Enum.zip(Tuple.to_list(increments))
-    |> Enum.all?(fn {{count, initial}, increment} -> count >= initial + increment end)
-  end
-
-  defp assert_eventually(assertion, attempts \\ 100)
-
-  defp assert_eventually(assertion, attempts) when attempts > 0 do
-    if assertion.() do
-      :ok
-    else
-      Process.sleep(10)
-      assert_eventually(assertion, attempts - 1)
-    end
-  end
-
-  defp assert_eventually(assertion, 0), do: assert(assertion.())
 
   defp copy_nif!(application, library, tmp_dir) do
     base = "#{:code.priv_dir(application)}/lib/lib#{library}"

@@ -2,9 +2,10 @@ defmodule Kinda.Testing.NativeScenario do
   @moduledoc """
   Runs serializable native-resource scenarios inside an isolated BEAM.
 
-  Steps can bind call results, refer to earlier bindings, assert exact results,
-  hot-upgrade NIF modules, purge old code, and request garbage collection. The
-  data-only form can cross the port boundary used by `Kinda.Testing.Isolated`.
+  Steps can bind and drop call results, refer to earlier bindings, assert exact
+  or eventually-observed results, hot-upgrade NIF modules, purge old code, and
+  request garbage collection. The data-only form can cross the port boundary
+  used by `Kinda.Testing.Isolated`.
   """
 
   alias Kinda.Testing.NIFUpgrade
@@ -14,7 +15,9 @@ defmodule Kinda.Testing.NativeScenario do
   @type step ::
           {:call, atom(), native_call()}
           | {:call, native_call()}
+          | {:drop, atom()}
           | {:expect, term(), native_call()}
+          | {:eventually_expect, term(), native_call()}
           | {:upgrade, module(), atom(), String.t()}
           | {:purge, module()}
           | :garbage_collect
@@ -62,6 +65,10 @@ defmodule Kinda.Testing.NativeScenario do
     resources
   end
 
+  defp run_step({:drop, name}, resources) do
+    Map.delete(resources, name)
+  end
+
   defp run_step({:expect, expected, call}, resources) do
     actual = invoke(call, resources)
 
@@ -69,6 +76,11 @@ defmodule Kinda.Testing.NativeScenario do
       raise "native scenario expected #{inspect(expected)}, got: #{inspect(actual)}"
     end
 
+    resources
+  end
+
+  defp run_step({:eventually_expect, expected, call}, resources) do
+    eventually_expect(expected, call, resources, 100)
     resources
   end
 
@@ -88,6 +100,23 @@ defmodule Kinda.Testing.NativeScenario do
 
   defp resolve({:resource, name}, resources), do: Map.fetch!(resources, name)
   defp resolve(value, _resources), do: value
+
+  defp eventually_expect(expected, call, resources, attempts) when attempts > 0 do
+    case invoke(call, resources) do
+      ^expected ->
+        :ok
+
+      _actual ->
+        :erlang.garbage_collect()
+        Process.sleep(10)
+        eventually_expect(expected, call, resources, attempts - 1)
+    end
+  end
+
+  defp eventually_expect(expected, call, resources, 0) do
+    actual = invoke(call, resources)
+    raise "native scenario expected #{inspect(expected)}, got: #{inspect(actual)}"
+  end
 
   defp scenario_directory! do
     directory =
