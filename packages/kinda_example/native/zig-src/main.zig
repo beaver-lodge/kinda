@@ -1,8 +1,6 @@
 const std = @import("std");
-const builtin = @import("builtin");
 const kinda = @import("kinda");
 const beam = kinda.beam;
-const e = kinda.erl_nif;
 const capi = @import("prelude.zig").c;
 const callback_fixture = @import("callback_fixture.zig");
 const lifecycle_fixture = @import("lifecycle_fixture.zig");
@@ -20,63 +18,33 @@ const Kinds = struct {
         pub const maker = .{ make, 1 };
     }, public_module ++ ".StrInt");
     const All = .{ CInt, StrInt };
-    fn open(env: beam.env) void {
-        inline for (All) |k| {
-            k.open_all(env);
-        }
-    }
 };
 
 const all_nifs = .{
     kinda.NIFFunc(Kinds.All, capi, "kinda_example_add", .{}),
     kinda.NIFFunc(Kinds.All, capi, "kinda_example_sum_19", .{}),
 } ++ Kinds.CInt.nifs ++ Kinds.StrInt.nifs ++ callback_fixture.nifs ++ lifecycle_fixture.nifs;
-pub export var nifs: [all_nifs.len]e.ErlNifFunc = all_nifs;
 
-const entry = e.ErlNifEntry{
-    .major = 2,
-    .minor = 16,
+const Resources = kinda.ResourceRegistry(.{
+    kinda.ResourceRegistration{ .kind = Kinds.CInt, .open = .all },
+    kinda.ResourceRegistration{ .kind = Kinds.StrInt, .open = .all },
+});
+
+const nif_exports = kinda.EntryExports(.{
     .name = root_module,
-    .num_of_funcs = nifs.len,
-    .funcs = &(nifs[0]),
+    .nifs = all_nifs,
     .load = nif_load,
-    .reload = null,
     .upgrade = nif_upgrade,
     .unload = nif_unload,
-    .vm_variant = "beam.vanilla",
-    .options = 1,
-    .sizeof_ErlNifResourceTypeInit = @sizeOf(e.ErlNifResourceTypeInit),
     .min_erts = "erts-13.0",
-};
-
-const NifInit = if (builtin.os.tag == .windows) struct {
-    var callbacks: e.TWinDynNifCallbacks = undefined;
-
-    fn init(win_callbacks: *const e.TWinDynNifCallbacks) callconv(.c) *const e.ErlNifEntry {
-        callbacks = win_callbacks.*;
-        return &entry;
-    }
-
-    fn exportSymbols() void {
-        @export(&callbacks, .{ .name = "WinDynNifCallbacks" });
-        @export(&init, .{ .name = "nif_init" });
-    }
-} else struct {
-    fn init() callconv(.c) *const e.ErlNifEntry {
-        return &entry;
-    }
-
-    fn exportSymbols() void {
-        @export(&init, .{ .name = "nif_init" });
-    }
-};
+});
 
 comptime {
-    NifInit.exportSymbols();
+    _ = nif_exports;
 }
 
 export fn nif_load(env: beam.env, _: [*c]?*anyopaque, _: beam.term) c_int {
-    Kinds.open(env);
+    if (Resources.open(env) != 0) return 1;
     kinda.callback_runtime.ReplyToken.open(env);
     callback_fixture.open(env);
     lifecycle_fixture.open(env);

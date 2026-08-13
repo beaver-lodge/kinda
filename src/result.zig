@@ -11,6 +11,8 @@ pub fn is_stack_trace_enabled() bool {
 }
 
 pub fn nif_with_flags(comptime name: [*c]const u8, comptime arity: usize, comptime f: anytype, comptime flags: u32) type {
+    validate_nif_function(f);
+
     return struct {
         fn exported(env: beam.env, n: c_int, args: [*c]const beam.term) callconv(.c) beam.term {
             return f(env, n, args) catch |err| {
@@ -29,6 +31,33 @@ pub fn nif_with_flags(comptime name: [*c]const u8, comptime arity: usize, compti
         }
         pub const entry = e.ErlNifFunc{ .name = name, .arity = arity, .fptr = exported, .flags = flags };
     };
+}
+
+fn validate_nif_function(comptime f: anytype) void {
+    const function_info = switch (@typeInfo(@TypeOf(f))) {
+        .@"fn" => |info| info,
+        else => @compileError("Kinda.result.nif expects a function"),
+    };
+
+    if (function_info.params.len != 3 or
+        function_info.params[0].type != beam.env or
+        function_info.params[1].type != c_int or
+        function_info.params[2].type != [*c]const beam.term)
+    {
+        @compileError("Kinda.result.nif function must accept (beam.env, c_int, [*c]const beam.term)");
+    }
+
+    const Return = function_info.return_type orelse
+        @compileError("Kinda.result.nif function must return an error union containing beam.term");
+
+    switch (@typeInfo(Return)) {
+        .error_union => |error_union| {
+            if (error_union.payload != beam.term) {
+                @compileError("Kinda.result.nif function must return an error union containing beam.term");
+            }
+        },
+        else => @compileError("Kinda.result.nif function must return an error union containing beam.term"),
+    }
 }
 
 pub fn nif(comptime name: [*c]const u8, comptime arity: usize, comptime f: anytype) type {

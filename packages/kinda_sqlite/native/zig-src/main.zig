@@ -1,8 +1,6 @@
 const std = @import("std");
-const builtin = @import("builtin");
 const kinda = @import("kinda");
 const beam = kinda.beam;
-const e = kinda.erl_nif;
 const result = kinda.result;
 const sqlite = @cImport({
     @cInclude("sqlite3.h");
@@ -406,57 +404,27 @@ const all_nifs = .{
     result.nif("scalar_make", 1, scalarMake).entry,
     result.nif("scalar_value", 1, scalarValue).entry,
 };
-pub export var nifs: [all_nifs.len]e.ErlNifFunc = all_nifs;
 
-const entry = e.ErlNifEntry{
-    .major = 2,
-    .minor = 16,
+const Resources = kinda.ResourceRegistry(.{
+    kinda.ResourceRegistration{ .kind = DatabaseKind },
+    kinda.ResourceRegistration{ .kind = StatementKind },
+    kinda.ResourceRegistration{ .kind = ScalarKind },
+});
+
+const nif_exports = kinda.EntryExports(.{
     .name = root_module,
-    .num_of_funcs = nifs.len,
-    .funcs = &(nifs[0]),
+    .nifs = all_nifs,
     .load = nif_load,
-    .reload = null,
     .upgrade = nif_upgrade,
     .unload = nif_unload,
-    .vm_variant = "beam.vanilla",
-    .options = 1,
-    .sizeof_ErlNifResourceTypeInit = @sizeOf(e.ErlNifResourceTypeInit),
-    .min_erts = "erts-15.0",
-};
-
-const NifInit = if (builtin.os.tag == .windows) struct {
-    var callbacks: e.TWinDynNifCallbacks = undefined;
-
-    fn init(win_callbacks: *const e.TWinDynNifCallbacks) callconv(.c) *const e.ErlNifEntry {
-        callbacks = win_callbacks.*;
-        return &entry;
-    }
-
-    fn exportSymbols() void {
-        @export(&callbacks, .{ .name = "WinDynNifCallbacks" });
-        @export(&init, .{ .name = "nif_init" });
-    }
-} else struct {
-    fn init() callconv(.c) *const e.ErlNifEntry {
-        return &entry;
-    }
-
-    fn exportSymbols() void {
-        @export(&init, .{ .name = "nif_init" });
-    }
-};
+});
 
 comptime {
-    NifInit.exportSymbols();
+    _ = nif_exports;
 }
 
 export fn nif_load(environment: beam.env, _: [*c]?*anyopaque, _: beam.term) c_int {
-    DatabaseKind.open(environment);
-    StatementKind.open(environment);
-    ScalarKind.open(environment);
-    if (DatabaseKind.resource.t == null or StatementKind.resource.t == null or ScalarKind.resource.t == null)
-        return 1;
-    return 0;
+    return Resources.open(environment);
 }
 
 export fn nif_upgrade(

@@ -1,8 +1,6 @@
 const std = @import("std");
-const builtin = @import("builtin");
 const kinda = @import("kinda");
 const beam = kinda.beam;
-const e = kinda.erl_nif;
 const result = kinda.result;
 const py = @cImport({
     @cInclude("Python.h");
@@ -265,38 +263,27 @@ const all_nifs = .{
     result.nif_with_flags("value_to_term", 1, valueToTerm, io_bound).entry,
     result.nif_with_flags("isolated_eval", 1, isolatedEval, io_bound).entry,
 };
-pub export var nifs: [all_nifs.len]e.ErlNifFunc = all_nifs;
+
+const Resources = kinda.ResourceRegistry(.{
+    kinda.ResourceRegistration{ .kind = InterpreterKind },
+    kinda.ResourceRegistration{ .kind = ValueKind },
+});
 
 fn nifLoad(environment: beam.env, _: [*c]?*anyopaque, _: beam.term) callconv(.c) c_int {
     ensureRuntime();
-    InterpreterKind.open(environment);
-    ValueKind.open(environment);
-    return if (InterpreterKind.resource.t == null or ValueKind.resource.t == null) 1 else 0;
+    return Resources.open(environment);
 }
 fn nifUpgrade(environment: beam.env, private_data: [*c]?*anyopaque, _: [*c]?*anyopaque, load_info: beam.term) callconv(.c) c_int {
     return nifLoad(environment, private_data, load_info);
 }
 
-const entry = e.ErlNifEntry{ .major = 2, .minor = 16, .name = root_module, .num_of_funcs = nifs.len, .funcs = &(nifs[0]), .load = nifLoad, .reload = null, .upgrade = nifUpgrade, .unload = null, .vm_variant = "beam.vanilla", .options = 1, .sizeof_ErlNifResourceTypeInit = @sizeOf(e.ErlNifResourceTypeInit), .min_erts = "erts-15.0" };
+const nif_exports = kinda.EntryExports(.{
+    .name = root_module,
+    .nifs = all_nifs,
+    .load = nifLoad,
+    .upgrade = nifUpgrade,
+});
 
-const NifInit = if (builtin.os.tag == .windows) struct {
-    var callbacks: e.TWinDynNifCallbacks = undefined;
-    fn init(win_callbacks: *const e.TWinDynNifCallbacks) callconv(.c) *const e.ErlNifEntry {
-        callbacks = win_callbacks.*;
-        return &entry;
-    }
-    fn exportSymbols() void {
-        @export(&callbacks, .{ .name = "WinDynNifCallbacks" });
-        @export(&init, .{ .name = "nif_init" });
-    }
-} else struct {
-    fn init() callconv(.c) *const e.ErlNifEntry {
-        return &entry;
-    }
-    fn exportSymbols() void {
-        @export(&init, .{ .name = "nif_init" });
-    }
-};
 comptime {
-    NifInit.exportSymbols();
+    _ = nif_exports;
 }

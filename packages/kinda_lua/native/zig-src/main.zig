@@ -1,10 +1,10 @@
 const std = @import("std");
-const builtin = @import("builtin");
 const kinda = @import("kinda");
 const beam = kinda.beam;
-const e = kinda.erl_nif;
 const result = kinda.result;
-const lua = @cImport({ @cInclude("kinda_lua_shim.h"); });
+const lua = @cImport({
+    @cInclude("kinda_lua_shim.h");
+});
 
 const root_module = "Elixir.Kinda.Lua.Native";
 const cpu_bound: u32 = 1;
@@ -345,28 +345,29 @@ const all_nifs = .{
     result.nif_with_flags("userdata_value", 1, userdataValue, cpu_bound).entry,
     result.nif_with_flags("close_userdata", 1, closeUserdata, cpu_bound).entry,
 };
-pub export var nifs: [all_nifs.len]e.ErlNifFunc = all_nifs;
+
+const Resources = kinda.ResourceRegistry(.{
+    kinda.ResourceRegistration{ .kind = VMKind },
+    kinda.ResourceRegistration{ .kind = CoroutineKind },
+    kinda.ResourceRegistration{ .kind = BytecodeKind },
+    kinda.ResourceRegistration{ .kind = UserdataKind },
+});
 
 fn nifLoad(environment: beam.env, _: [*c]?*anyopaque, _: beam.term) callconv(.c) c_int {
-    VMKind.open(environment);
-    CoroutineKind.open(environment);
-    BytecodeKind.open(environment);
-    UserdataKind.open(environment);
-    return if (VMKind.resource.t == null or CoroutineKind.resource.t == null or BytecodeKind.resource.t == null or UserdataKind.resource.t == null) 1 else 0;
+    return Resources.open(environment);
 }
 
 fn nifUpgrade(environment: beam.env, private_data: [*c]?*anyopaque, _: [*c]?*anyopaque, load_info: beam.term) callconv(.c) c_int {
     return nifLoad(environment, private_data, load_info);
 }
 
-const entry = e.ErlNifEntry{ .major = 2, .minor = 16, .name = root_module, .num_of_funcs = nifs.len, .funcs = &(nifs[0]), .load = nifLoad, .reload = null, .upgrade = nifUpgrade, .unload = null, .vm_variant = "beam.vanilla", .options = 1, .sizeof_ErlNifResourceTypeInit = @sizeOf(e.ErlNifResourceTypeInit), .min_erts = "erts-15.0" };
+const nif_exports = kinda.EntryExports(.{
+    .name = root_module,
+    .nifs = all_nifs,
+    .load = nifLoad,
+    .upgrade = nifUpgrade,
+});
 
-const NifInit = if (builtin.os.tag == .windows) struct {
-    var callbacks: e.TWinDynNifCallbacks = undefined;
-    fn init(win_callbacks: *const e.TWinDynNifCallbacks) callconv(.c) *const e.ErlNifEntry { callbacks = win_callbacks.*; return &entry; }
-    fn exportSymbols() void { @export(&callbacks, .{ .name = "WinDynNifCallbacks" }); @export(&init, .{ .name = "nif_init" }); }
-} else struct {
-    fn init() callconv(.c) *const e.ErlNifEntry { return &entry; }
-    fn exportSymbols() void { @export(&init, .{ .name = "nif_init" }); }
-};
-comptime { NifInit.exportSymbols(); }
+comptime {
+    _ = nif_exports;
+}
