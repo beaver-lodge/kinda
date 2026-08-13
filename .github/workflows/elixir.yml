@@ -51,6 +51,8 @@ jobs:
         with:
           version: 0.16.0
           use-cache: false
+      - name: Verify Zig compile-time contracts
+        run: zig build test-contracts
       - uses: seanmiddleditch/gha-setup-ninja@master
       - name: Restore dependencies cache
         uses: actions/cache@v4
