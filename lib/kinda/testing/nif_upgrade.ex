@@ -4,7 +4,8 @@ defmodule Kinda.Testing.NIFUpgrade do
 
   The copied library keeps the same native entry name; the distinct path only
   gives the dynamic loader a second image to pass through the NIF `upgrade`
-  callback. Use `Kinda.Testing.Sandbox` when the entry name itself must differ.
+  callback. Use the separate `kinda_sandbox` package when the entry name itself
+  must differ.
   """
 
   defmodule Snapshot do

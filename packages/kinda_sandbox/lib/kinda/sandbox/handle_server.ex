@@ -40,6 +40,17 @@ defmodule Kinda.Sandbox.HandleServer do
     call(ref, {:native_build, builder_mfa})
   end
 
+  @spec close(reference()) ::
+          {:ok | {:error, Error.t()}, %{backend: module() | nil, capabilities: [atom()]}}
+  def close(ref) do
+    metadata = %{backend: nil, capabilities: []}
+
+    case Registry.lookup(Kinda.Sandbox.Registry, ref) do
+      [{pid, _value}] -> safe_close_call(pid, metadata)
+      [] -> {:ok, metadata}
+    end
+  end
+
   @impl true
   def init(options) do
     backend = Keyword.fetch!(options, :backend)
@@ -89,16 +100,29 @@ defmodule Kinda.Sandbox.HandleServer do
   def handle_call({:native_build, builder_mfa}, _from, state) do
     reply =
       case Map.fetch(state.capabilities, :native_build) do
-        {:ok, capability} -> safely_native_build(capability, state.backend_handle, builder_mfa)
-        :error -> {:error, Error.exception(reason: :unsupported_capability)}
+        {:ok, capability} ->
+          safely_native_build(state.backend, capability, state.backend_handle, builder_mfa)
+
+        :error ->
+          {:error,
+           Error.exception(
+             reason: :unsupported_capability,
+             backend: state.backend,
+             operation: :native_build
+           )}
       end
 
     {:reply, reply, state}
   end
 
-  def handle_call(:close, _from, state) do
+  def handle_call(:close_with_metadata, _from, state) do
+    metadata = %{
+      backend: state.backend,
+      capabilities: state.capabilities |> Map.keys() |> Enum.sort()
+    }
+
     {reply, state} = close_backend(state)
-    {:stop, :normal, reply, state}
+    {:stop, :normal, {reply, metadata}, state}
   end
 
   @impl true
@@ -119,32 +143,47 @@ defmodule Kinda.Sandbox.HandleServer do
   def terminate(_reason, _state), do: :ok
 
   defp backend_capabilities(backend) when is_atom(backend) do
-    if Code.ensure_loaded?(backend) and function_exported?(backend, :capabilities, 0) and
-         function_exported?(backend, :create, 2) and function_exported?(backend, :close, 1) do
+    if Code.ensure_loaded?(backend) do
       case safely(fn -> backend.capabilities() end) do
-        capabilities when is_map(capabilities) -> {:ok, capabilities}
-        other -> {:error, backend_error("backend returned invalid capabilities", other)}
+        capabilities when is_map(capabilities) ->
+          {:ok, capabilities}
+
+        other ->
+          {:error,
+           backend_error("backend returned invalid capabilities", other, backend, :capabilities)}
       end
     else
-      {:error, backend_error("backend does not implement Kinda.Sandbox.Backend", backend)}
+      {:error,
+       backend_error(
+         "backend does not implement Kinda.Sandbox.Backend",
+         :not_loaded,
+         backend,
+         :capabilities
+       )}
     end
   end
 
   defp backend_capabilities(backend) do
-    {:error, backend_error("backend must be a module", backend)}
+    {:error, backend_error("backend must be a module", backend, nil, :capabilities)}
   end
 
   defp backend_create(backend, spec, options) do
     backend_options = Keyword.drop(options, [:backend, :owner, :ref, :spec])
 
     case safely(fn -> backend.create(spec, backend_options) end) do
-      {:ok, backend_handle} -> {:ok, backend_handle}
-      {:error, %Error{} = error} -> {:error, error}
-      other -> {:error, backend_error("backend returned an invalid create result", other)}
+      {:ok, backend_handle} ->
+        {:ok, backend_handle}
+
+      {:error, %Error{} = error} ->
+        {:error, error}
+
+      other ->
+        {:error,
+         backend_error("backend returned an invalid create result", other, backend, :create)}
     end
   end
 
-  defp safely_native_build(capability, backend_handle, builder_mfa) do
+  defp safely_native_build(backend, capability, backend_handle, builder_mfa) do
     case safely(fn -> capability.build(backend_handle, builder_mfa) end) do
       {:ok, artifact} when is_binary(artifact) ->
         {:ok, artifact}
@@ -153,8 +192,20 @@ defmodule Kinda.Sandbox.HandleServer do
         {:error, error}
 
       other ->
-        {:error, backend_error("native build capability returned an invalid result", other)}
+        {:error,
+         backend_error(
+           "native build capability returned an invalid result",
+           other,
+           backend,
+           :native_build
+         )}
     end
+  end
+
+  defp safe_close_call(pid, metadata) do
+    GenServer.call(pid, :close_with_metadata)
+  catch
+    :exit, _reason -> {:ok, metadata}
   end
 
   defp call(ref, request) do
@@ -170,16 +221,29 @@ defmodule Kinda.Sandbox.HandleServer do
     :exit, _reason -> disconnected()
   end
 
-  defp disconnected, do: {:error, Error.exception(reason: :disconnected)}
+  defp disconnected do
+    {:error, Error.exception(reason: :disconnected, operation: :native_build)}
+  end
 
   defp close_backend(%__MODULE__{closed?: true} = state), do: {:ok, state}
 
   defp close_backend(state) do
     reply =
       case safely(fn -> state.backend.close(state.backend_handle) end) do
-        :ok -> :ok
-        {:error, %Error{} = error} -> {:error, error}
-        other -> {:error, backend_error("backend returned an invalid close result", other)}
+        :ok ->
+          :ok
+
+        {:error, %Error{} = error} ->
+          {:error, error}
+
+        other ->
+          {:error,
+           backend_error(
+             "backend returned an invalid close result",
+             other,
+             state.backend,
+             :close
+           )}
       end
 
     {reply, %{state | closed?: true}}
@@ -195,10 +259,20 @@ defmodule Kinda.Sandbox.HandleServer do
   defp demonitor(monitor), do: Process.demonitor(monitor, [:flush])
 
   defp invalid_owner_error do
-    Error.exception(reason: :invalid_spec, message: "owner must be a live pid")
+    Error.exception(
+      reason: :invalid_spec,
+      operation: :transfer_owner,
+      message: "owner must be a live pid"
+    )
   end
 
-  defp backend_error(message, details) do
-    Error.exception(reason: :backend_failure, message: message, details: details)
+  defp backend_error(message, cause, backend, operation) do
+    Error.exception(
+      reason: :backend_failure,
+      message: message,
+      backend: backend,
+      operation: operation,
+      cause: cause
+    )
   end
 end

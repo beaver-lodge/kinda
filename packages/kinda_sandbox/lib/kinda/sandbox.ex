@@ -22,33 +22,45 @@ defmodule Kinda.Sandbox do
              Kinda.Sandbox.HandleSupervisor,
              {HandleServer, child_options}
            ) do
-        {:ok, _pid} -> {:ok, Handle.new(ref)}
-        {:error, %Error{} = error} -> {:error, error}
-        {:error, reason} -> {:error, backend_error("could not start sandbox", reason)}
+        {:ok, pid} ->
+          {:ok, Handle.new(ref), capability_keys(pid)}
+
+        {:error, %Error{} = error} ->
+          {:error, error}
+
+        {:error, reason} ->
+          {:error, backend_error("could not start sandbox", reason, backend, :create)}
       end
 
-    emit(:create, started_at, %{backend: backend, result: result_tag(result)})
-    result
+    {public_result, capability_keys} = split_create_result(result)
+
+    emit(:create, started_at, %{
+      backend: backend,
+      capabilities: capability_keys,
+      outcome: result_tag(public_result)
+    })
+
+    public_result
   end
 
   @spec close(Handle.t()) :: :ok | {:error, Error.t()}
   def close(%Handle{ref: ref}) do
     started_at = System.monotonic_time()
-    result = call(ref, :close, :ok)
-    emit(:close, started_at, %{result: result_tag(result)})
+    {result, metadata} = HandleServer.close(ref)
+    emit(:close, started_at, Map.put(metadata, :outcome, result_tag(result)))
     result
   end
 
   @spec capabilities(Handle.t()) :: result([atom()])
-  def capabilities(%Handle{ref: ref}), do: call(ref, :capabilities, disconnected())
+  def capabilities(%Handle{ref: ref}), do: call(ref, :capabilities, disconnected(:capabilities))
 
   @spec transfer_owner(Handle.t(), pid()) :: :ok | {:error, Error.t()}
   def transfer_owner(%Handle{ref: ref}, owner) do
-    call(ref, {:transfer_owner, owner}, disconnected())
+    call(ref, {:transfer_owner, owner}, disconnected(:transfer_owner))
   end
 
   @spec detach(Handle.t()) :: :ok | {:error, Error.t()}
-  def detach(%Handle{ref: ref}), do: call(ref, :detach, disconnected())
+  def detach(%Handle{ref: ref}), do: call(ref, :detach, disconnected(:detach))
 
   defp call(ref, request, missing_result) do
     case Registry.lookup(Kinda.Sandbox.Registry, ref) do
@@ -63,17 +75,32 @@ defmodule Kinda.Sandbox do
     :exit, _reason -> disconnected_result
   end
 
-  defp disconnected do
-    {:error, Error.exception(reason: :disconnected)}
+  defp disconnected(operation) do
+    {:error, Error.exception(reason: :disconnected, operation: operation)}
   end
 
-  defp backend_error(message, details) do
-    Error.exception(reason: :backend_failure, message: message, details: details)
+  defp backend_error(message, cause, backend, operation) do
+    Error.exception(
+      reason: :backend_failure,
+      message: message,
+      backend: backend,
+      operation: operation,
+      cause: cause
+    )
   end
 
   defp result_tag({:ok, _value}), do: :ok
   defp result_tag(:ok), do: :ok
   defp result_tag({:error, %Error{reason: reason}}), do: {:error, reason}
+
+  defp split_create_result({:ok, handle, capability_keys}), do: {{:ok, handle}, capability_keys}
+  defp split_create_result({:error, %Error{} = error}), do: {{:error, error}, []}
+
+  defp capability_keys(pid) do
+    case GenServer.call(pid, :capabilities) do
+      {:ok, capability_keys} -> capability_keys
+    end
+  end
 
   defp emit(event, started_at, metadata) do
     :telemetry.execute(

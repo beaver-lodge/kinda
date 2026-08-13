@@ -22,6 +22,8 @@ defmodule Kinda.Sandbox.Backend.LocalNative.NativeBuild do
     error =
       Error.exception(
         reason: :invalid_spec,
+        backend: Kinda.Sandbox.Backend.LocalNative,
+        operation: :native_build,
         message: "builder must be a {module, function, arguments} tuple",
         details: builder_mfa
       )
@@ -45,6 +47,8 @@ defmodule Kinda.Sandbox.Backend.LocalNative.NativeBuild do
     {:error,
      Error.exception(
        reason: :backend_failure,
+       backend: Kinda.Sandbox.Backend.LocalNative,
+       operation: :native_build,
        message: "native builder returned an invalid result",
        details: other
      )}
@@ -58,6 +62,8 @@ defmodule Kinda.Sandbox.Backend.LocalNative.NativeBuild do
         {:error,
          Error.exception(
            reason: :backend_failure,
+           backend: Kinda.Sandbox.Backend.LocalNative,
+           operation: :native_build,
            message: "native artifact is outside the sandbox directory",
            details: artifact
          )}
@@ -66,6 +72,8 @@ defmodule Kinda.Sandbox.Backend.LocalNative.NativeBuild do
         {:error,
          Error.exception(
            reason: :backend_failure,
+           backend: Kinda.Sandbox.Backend.LocalNative,
+           operation: :native_build,
            message: "native artifact is not a regular file",
            details: artifact
          )}
@@ -89,6 +97,8 @@ defmodule Kinda.Sandbox.Backend.LocalNative.NativeBuild do
         {:error,
          Error.exception(
            reason: :backend_failure,
+           backend: Kinda.Sandbox.Backend.LocalNative,
+           operation: :native_build,
            message: "could not reset sandbox after a failed native build",
            details: %{builder: builder_mfa, cleanup: cleanup_error, build: error}
          )}

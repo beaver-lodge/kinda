@@ -2,7 +2,7 @@ defmodule Kinda.Sandbox.Error do
   @moduledoc "A normalized error returned by sandbox facades and backends."
 
   @enforce_keys [:reason]
-  defexception [:reason, :message, :details]
+  defexception [:reason, :message, :backend, :operation, :cause, :details]
 
   @type reason ::
           :invalid_spec
@@ -13,6 +13,9 @@ defmodule Kinda.Sandbox.Error do
   @type t :: %__MODULE__{
           reason: reason(),
           message: binary() | nil,
+          backend: module() | nil,
+          operation: atom() | nil,
+          cause: term(),
           details: term()
         }
 
@@ -20,8 +23,19 @@ defmodule Kinda.Sandbox.Error do
   def exception(options) do
     reason = Keyword.fetch!(options, :reason)
     message = Keyword.get(options, :message, default_message(reason))
+    backend = Keyword.get(options, :backend)
+    operation = Keyword.get(options, :operation)
+    cause = Keyword.get(options, :cause)
     details = Keyword.get(options, :details)
-    %__MODULE__{reason: reason, message: message, details: details}
+
+    %__MODULE__{
+      reason: reason,
+      message: message,
+      backend: backend,
+      operation: operation,
+      cause: cause,
+      details: details
+    }
   end
 
   defp default_message(:invalid_spec), do: "invalid sandbox specification"

@@ -88,14 +88,23 @@ defmodule Kinda.Sandbox.Backend.LocalNative do
   end
 
   defp invalid_spec(message, details) do
-    Error.exception(reason: :invalid_spec, message: message, details: details)
+    Error.exception(
+      reason: :invalid_spec,
+      backend: __MODULE__,
+      operation: :create,
+      message: message,
+      details: details
+    )
   end
 
   defp filesystem_error(message, path, reason) do
     Error.exception(
       reason: :backend_failure,
+      backend: __MODULE__,
+      operation: if(message == "could not create sandbox", do: :create, else: :close),
       message: message,
-      details: %{path: path, reason: reason}
+      cause: reason,
+      details: %{path: path}
     )
   end
 end
