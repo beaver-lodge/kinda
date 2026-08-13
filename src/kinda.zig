@@ -73,6 +73,62 @@ pub const ResourceRegistration = struct {
     open: ResourceOpenMode = .primary,
 };
 
+/// Checks the static shape shared by native resources that defer closing until
+/// their last child is released. The backend supplies its private methods
+/// explicitly so the contract does not require public lifecycle hooks or own
+/// any runtime behavior.
+pub fn validateDeferredCloseParent(comptime Parent: type, comptime contract: anytype) void {
+    const Contract = @TypeOf(contract);
+
+    comptime {
+        for (.{ "counter", "close", "close_if_unused", "release" }) |field| {
+            if (!@hasField(Contract, field)) {
+                @compileError("deferred-close contract for " ++ @typeName(Parent) ++ " is missing ." ++ field);
+            }
+        }
+
+        switch (@typeInfo(Parent)) {
+            .@"struct" => {},
+            else => @compileError("deferred-close parent must be a struct, got " ++ @typeName(Parent)),
+        }
+
+        if (!@hasField(Parent, contract.counter)) {
+            @compileError("deferred-close parent " ++ @typeName(Parent) ++ " is missing counter field " ++ contract.counter);
+        }
+
+        if (fieldType(Parent, contract.counter) != std.atomic.Value(usize)) {
+            @compileError("deferred-close counter " ++ @typeName(Parent) ++ "." ++ contract.counter ++ " must be std.atomic.Value(usize)");
+        }
+
+        if (!@hasField(Parent, "close_requested")) {
+            @compileError("deferred-close parent " ++ @typeName(Parent) ++ " is missing close_requested");
+        }
+
+        if (fieldType(Parent, "close_requested") != std.atomic.Value(bool)) {
+            @compileError("deferred-close field " ++ @typeName(Parent) ++ ".close_requested must be std.atomic.Value(bool)");
+        }
+
+        const Method = fn (*Parent) void;
+        for (.{
+            .{ "close", contract.close },
+            .{ "close_if_unused", contract.close_if_unused },
+            .{ "release", contract.release },
+        }) |method| {
+            if (@TypeOf(method[1]) != Method) {
+                @compileError("deferred-close method " ++ @typeName(Parent) ++ "." ++ method[0] ++ " must accept *" ++ @typeName(Parent) ++ " and return void");
+            }
+        }
+    }
+}
+
+fn fieldType(comptime Container: type, comptime name: []const u8) type {
+    inline for (@typeInfo(Container).@"struct".fields) |field| {
+        if (std.mem.eql(u8, field.name, name)) return field.type;
+    }
+
+    @compileError("missing field " ++ @typeName(Container) ++ "." ++ name);
+}
+
 /// Opens a fixed set of resource kinds without changing their per-NIF scope.
 ///
 /// Registrations explicitly choose whether only the primary resource type or

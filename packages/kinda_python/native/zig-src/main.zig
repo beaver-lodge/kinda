@@ -100,6 +100,15 @@ const Value = struct {
     }
 };
 
+comptime {
+    kinda.validateDeferredCloseParent(Interpreter, .{
+        .counter = "children",
+        .close = Interpreter.close,
+        .close_if_unused = Interpreter.closeIfUnused,
+        .release = Interpreter.releaseChild,
+    });
+}
+
 const InterpreterKind = kinda.ResourceKind(Interpreter, "Elixir.Kinda.Python.Interpreter");
 const ValueKind = kinda.ResourceKind(Value, "Elixir.Kinda.Python.Value");
 

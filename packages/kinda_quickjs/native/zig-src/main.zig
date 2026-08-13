@@ -132,6 +132,21 @@ const Bytecode = struct {
     }
 };
 
+comptime {
+    kinda.validateDeferredCloseParent(Runtime, .{
+        .counter = "contexts",
+        .close = Runtime.close,
+        .close_if_unused = Runtime.closeIfUnused,
+        .release = Runtime.releaseContext,
+    });
+    kinda.validateDeferredCloseParent(Context, .{
+        .counter = "values",
+        .close = Context.close,
+        .close_if_unused = Context.closeIfUnused,
+        .release = Context.releaseValue,
+    });
+}
+
 const RuntimeKind = kinda.ResourceKind(Runtime, "Elixir.Kinda.QuickJS.Runtime");
 const ContextKind = kinda.ResourceKind(Context, "Elixir.Kinda.QuickJS.Context");
 const ValueKind = kinda.ResourceKind(Value, "Elixir.Kinda.QuickJS.Value");

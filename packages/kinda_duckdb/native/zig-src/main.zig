@@ -180,6 +180,27 @@ const Appender = struct {
     }
 };
 
+comptime {
+    kinda.validateDeferredCloseParent(Database, .{
+        .counter = "children",
+        .close = Database.close,
+        .close_if_unused = Database.closeIfUnused,
+        .release = Database.releaseChild,
+    });
+    kinda.validateDeferredCloseParent(Connection, .{
+        .counter = "children",
+        .close = Connection.close,
+        .close_if_unused = Connection.closeIfUnused,
+        .release = Connection.releaseChild,
+    });
+    kinda.validateDeferredCloseParent(Prepared, .{
+        .counter = "children",
+        .close = Prepared.close,
+        .close_if_unused = Prepared.closeIfUnused,
+        .release = Prepared.releaseChild,
+    });
+}
+
 const DatabaseKind = kinda.ResourceKind(Database, "Elixir.Kinda.DuckDB.Database");
 const ConnectionKind = kinda.ResourceKind(Connection, "Elixir.Kinda.DuckDB.Connection");
 const ResultKind = kinda.ResourceKind(QueryResult, "Elixir.Kinda.DuckDB.BorrowedResult");

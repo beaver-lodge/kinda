@@ -120,6 +120,15 @@ const Userdata = struct {
     }
 };
 
+comptime {
+    kinda.validateDeferredCloseParent(VM, .{
+        .counter = "children",
+        .close = VM.close,
+        .close_if_unused = VM.closeIfUnused,
+        .release = VM.releaseChild,
+    });
+}
+
 const VMKind = kinda.ResourceKind(VM, "Elixir.Kinda.Lua.VM");
 const CoroutineKind = kinda.ResourceKind(Coroutine, "Elixir.Kinda.Lua.Coroutine");
 const BytecodeKind = kinda.ResourceKind(Bytecode, "Elixir.Kinda.Lua.Bytecode");

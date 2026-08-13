@@ -101,6 +101,15 @@ const Bytecode = struct {
     }
 };
 
+comptime {
+    kinda.validateDeferredCloseParent(VM, .{
+        .counter = "children",
+        .close = VM.close,
+        .close_if_unused = VM.closeIfUnused,
+        .release = VM.releaseChild,
+    });
+}
+
 const VMKind = kinda.ResourceKind(VM, "Elixir.Kinda.MRuby.VM");
 const ValueKind = kinda.ResourceKind(Value, "Elixir.Kinda.MRuby.Value");
 const BytecodeKind = kinda.ResourceKind(Bytecode, "Elixir.Kinda.MRuby.Bytecode");
