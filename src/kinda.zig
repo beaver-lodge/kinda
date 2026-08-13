@@ -63,6 +63,136 @@ pub const ResourceSlot = struct {
     dtor: e.ErlNifResourceDtor,
 };
 
+pub const ResourceOpenMode = enum {
+    primary,
+    all,
+};
+
+pub const ResourceRegistration = struct {
+    kind: type,
+    open: ResourceOpenMode = .primary,
+};
+
+/// Opens a fixed set of resource kinds without changing their per-NIF scope.
+///
+/// Registrations explicitly choose whether only the primary resource type or
+/// every generated wrapper slot is public. The registry deliberately owns no
+/// global state: every instantiation opens handles in the calling NIF's load
+/// environment exactly as the equivalent handwritten calls would.
+pub fn ResourceRegistry(comptime registrations: anytype) type {
+    comptime {
+        for (registrations) |registration| {
+            const Registration = @TypeOf(registration);
+
+            if (Registration != ResourceRegistration) {
+                @compileError("resource registry entries must be Kinda.ResourceRegistration values");
+            }
+
+            if (!@hasDecl(registration.kind, "open") or
+                !@hasDecl(registration.kind, "open_all") or
+                !@hasDecl(registration.kind, "slots"))
+            {
+                @compileError("resource registry kind must be created by Kinda.ResourceKind");
+            }
+        }
+    }
+
+    return struct {
+        pub fn open(env: beam.env) c_int {
+            inline for (registrations) |registration| {
+                switch (registration.open) {
+                    .primary => registration.kind.open(env),
+                    .all => registration.kind.open_all(env),
+                }
+            }
+
+            inline for (registrations) |registration| {
+                const slot_count = switch (registration.open) {
+                    .primary => 1,
+                    .all => registration.kind.slots.len,
+                };
+
+                inline for (registration.kind.slots[0..slot_count]) |slot| {
+                    if (slot.t.* == null) return 1;
+                }
+            }
+
+            return 0;
+        }
+    };
+}
+
+/// Materializes an Erlang NIF function tuple and exports the platform-specific
+/// `nif_init` entrypoint. Load, upgrade, and unload callbacks remain explicit
+/// backend policy supplied through `spec`.
+pub fn EntryExports(comptime spec: anytype) type {
+    const Spec = @TypeOf(spec);
+
+    comptime {
+        for (.{ "name", "nifs", "load" }) |field| {
+            if (!@hasField(Spec, field)) {
+                @compileError("Kinda.EntryExports spec is missing required field ." ++ field);
+            }
+        }
+
+        for (spec.nifs) |nif| {
+            if (@TypeOf(nif) != e.ErlNifFunc) {
+                @compileError("Kinda.EntryExports .nifs must contain ErlNifFunc values");
+            }
+        }
+    }
+
+    const upgrade = if (@hasField(Spec, "upgrade")) spec.upgrade else null;
+    const unload = if (@hasField(Spec, "unload")) spec.unload else null;
+    const min_erts = if (@hasField(Spec, "min_erts")) spec.min_erts else "erts-15.0";
+
+    return struct {
+        pub export var nifs: [spec.nifs.len]e.ErlNifFunc = spec.nifs;
+
+        const entry = e.ErlNifEntry{
+            .major = 2,
+            .minor = 16,
+            .name = spec.name,
+            .num_of_funcs = nifs.len,
+            .funcs = &nifs[0],
+            .load = spec.load,
+            .reload = null,
+            .upgrade = upgrade,
+            .unload = unload,
+            .vm_variant = "beam.vanilla",
+            .options = 1,
+            .sizeof_ErlNifResourceTypeInit = @sizeOf(e.ErlNifResourceTypeInit),
+            .min_erts = min_erts,
+        };
+
+        const NifInit = if (builtin.os.tag == .windows) struct {
+            var callbacks: e.TWinDynNifCallbacks = undefined;
+
+            fn init(win_callbacks: *const e.TWinDynNifCallbacks) callconv(.c) *const e.ErlNifEntry {
+                callbacks = win_callbacks.*;
+                return &entry;
+            }
+
+            fn exportSymbols() void {
+                @export(&callbacks, .{ .name = "WinDynNifCallbacks" });
+                @export(&init, .{ .name = "nif_init" });
+            }
+        } else struct {
+            fn init() callconv(.c) *const e.ErlNifEntry {
+                return &entry;
+            }
+
+            fn exportSymbols() void {
+                @export(&init, .{ .name = "nif_init" });
+            }
+        };
+
+        comptime {
+            NifInit.exportSymbols();
+        }
+    };
+}
+
 pub const numOfNIFsPerKind = 10;
 pub fn ResourceKind(comptime ElementType: type, comptime module_name_: anytype) type {
     return struct {

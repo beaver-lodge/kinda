@@ -1,8 +1,6 @@
 const std = @import("std");
-const builtin = @import("builtin");
 const kinda = @import("kinda");
 const beam = kinda.beam;
-const e = kinda.erl_nif;
 const result = kinda.result;
 const duckdb = @cImport({
     @cInclude("duckdb.h");
@@ -728,61 +726,29 @@ const all_nifs = .{
     result.nif("append_varchar", 2, appendVarchar).entry,
     result.nif("flush_appender", 1, flushAppender).entry,
 };
-pub export var nifs: [all_nifs.len]e.ErlNifFunc = all_nifs;
 
-const entry = e.ErlNifEntry{
-    .major = 2,
-    .minor = 16,
+const Resources = kinda.ResourceRegistry(.{
+    kinda.ResourceRegistration{ .kind = DatabaseKind },
+    kinda.ResourceRegistration{ .kind = ConnectionKind },
+    kinda.ResourceRegistration{ .kind = ResultKind },
+    kinda.ResourceRegistration{ .kind = AppenderKind },
+    kinda.ResourceRegistration{ .kind = PreparedKind },
+    kinda.ResourceRegistration{ .kind = PendingKind },
+});
+
+const nif_exports = kinda.EntryExports(.{
     .name = root_module,
-    .num_of_funcs = nifs.len,
-    .funcs = &(nifs[0]),
+    .nifs = all_nifs,
     .load = nif_load,
-    .reload = null,
     .upgrade = nif_upgrade,
-    .unload = null,
-    .vm_variant = "beam.vanilla",
-    .options = 1,
-    .sizeof_ErlNifResourceTypeInit = @sizeOf(e.ErlNifResourceTypeInit),
-    .min_erts = "erts-15.0",
-};
-
-const NifInit = if (builtin.os.tag == .windows) struct {
-    var callbacks: e.TWinDynNifCallbacks = undefined;
-
-    fn init(win_callbacks: *const e.TWinDynNifCallbacks) callconv(.c) *const e.ErlNifEntry {
-        callbacks = win_callbacks.*;
-        return &entry;
-    }
-
-    fn exportSymbols() void {
-        @export(&callbacks, .{ .name = "WinDynNifCallbacks" });
-        @export(&init, .{ .name = "nif_init" });
-    }
-} else struct {
-    fn init() callconv(.c) *const e.ErlNifEntry {
-        return &entry;
-    }
-
-    fn exportSymbols() void {
-        @export(&init, .{ .name = "nif_init" });
-    }
-};
+});
 
 comptime {
-    NifInit.exportSymbols();
+    _ = nif_exports;
 }
 
 export fn nif_load(environment: beam.env, _: [*c]?*anyopaque, _: beam.term) c_int {
-    DatabaseKind.open(environment);
-    ConnectionKind.open(environment);
-    ResultKind.open(environment);
-    AppenderKind.open(environment);
-    PreparedKind.open(environment);
-    PendingKind.open(environment);
-    if (DatabaseKind.resource.t == null or ConnectionKind.resource.t == null or
-        ResultKind.resource.t == null or AppenderKind.resource.t == null or
-        PreparedKind.resource.t == null or PendingKind.resource.t == null) return 1;
-    return 0;
+    return Resources.open(environment);
 }
 
 export fn nif_upgrade(environment: beam.env, private_data: [*c]?*anyopaque, _: [*c]?*anyopaque, load_info: beam.term) c_int {
