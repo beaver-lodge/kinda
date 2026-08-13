@@ -14,12 +14,16 @@ defmodule Kinda.Sandbox.MixProject do
   end
 
   def application do
-    [extra_applications: [:logger]]
+    [
+      extra_applications: [:logger],
+      mod: {Kinda.Sandbox.Application, []}
+    ]
   end
 
   defp deps do
     [
-      {:credo, "~> 1.7", only: [:dev, :test], runtime: false}
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:telemetry, "~> 1.3"}
     ]
   end
 end
