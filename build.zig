@@ -83,6 +83,10 @@ pub fn build(b: *std.Build) !void {
             .path = "test/compile_fail/resource_destructor_invalid_return.zig",
             .diagnostic = "resourceDestructor close must be fn(*",
         },
+        .{
+            .path = "test/compile_fail/raw_resource_type_invalid_destructor.zig",
+            .diagnostic = "RawResourceType destructor must be ErlNifResourceDtor",
+        },
     };
 
     inline for (fixtures) |fixture| {

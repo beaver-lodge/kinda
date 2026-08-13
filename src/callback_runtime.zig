@@ -116,6 +116,7 @@ pub const ReplyToken = struct {
 
     pub var resource_type: beam.resource_type = undefined;
     pub const resource_name = "Kinda.CallbackRuntime.ReplyToken";
+    pub const resource = kinda.RawResourceType(ReplyToken, resource_name, destroy);
 
     const Allocation = struct {
         state: *State,
@@ -303,9 +304,8 @@ pub const ReplyToken = struct {
         errdefer std.heap.smp_allocator.destroy(state);
         state.* = .{};
 
-        const memory = nifApi("enif_alloc_resource")(resource_type, @sizeOf(ReplyToken)) orelse
-            return Error.FailedToAllocateReplyToken;
-        const token: *ReplyToken = @ptrCast(@alignCast(memory));
+        const token = resource.alloc() catch return Error.FailedToAllocateReplyToken;
+        const memory: *anyopaque = token;
         token.* = .{ .state = state };
         const term = nifApi("enif_make_resource")(environment, memory);
         nifApi("enif_release_resource")(memory);
@@ -379,7 +379,7 @@ pub const ReplyToken = struct {
         code: i64,
         projection: usize,
     ) !bool {
-        const token = try beam.fetch_resource_ptr(*ReplyToken, environment, resource_type, token_term);
+        const token = try resource.fetch(environment, token_term);
         return token.state.complete(
             status,
             success,
@@ -416,15 +416,10 @@ pub const ReplyToken = struct {
     /// callback.
     pub fn open(environment: beam.env) void {
         LibraryPin.open(environment);
-        resource_type = nifApi("enif_open_resource_type")(
-            environment,
-            null,
-            resource_name,
-            destroy,
-            e.ERL_NIF_RT_CREATE | e.ERL_NIF_RT_TAKEOVER,
-            null,
-        );
-        if (resource_type == null) @panic("failed to open callback reply resource type");
+        resource.open(environment);
+        // Preserve the public slot consumed by older multi-DSO clients. New
+        // clients should register `resource.resource_type` directly.
+        resource_type = resource.resource_type;
     }
 };
 

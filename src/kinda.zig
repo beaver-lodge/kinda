@@ -331,6 +331,59 @@ pub fn resourceDestructor(comptime ElementType: type, comptime close: anytype) e
     }.call;
 }
 
+/// Owns one ERTS resource-type handle without generating the pointer, array,
+/// or NIF surface provided by `ResourceKind`. Allocation, lookup, and reference
+/// management are mechanical; initialization and destruction policy remain
+/// with the caller.
+pub fn RawResourceType(comptime ElementType: type, comptime name: anytype, comptime dtor: anytype) type {
+    if (@TypeOf(dtor) != e.ErlNifResourceDtor) {
+        @compileError("RawResourceType destructor must be ErlNifResourceDtor, got " ++ @typeName(@TypeOf(dtor)));
+    }
+
+    return struct {
+        pub const Error = error{FailedToAllocateResource};
+        pub const resource_name = name;
+        pub var resource_type: beam.resource_type = undefined;
+
+        pub fn open(environment: beam.env) void {
+            resource_type = nifApi("enif_open_resource_type")(
+                environment,
+                null,
+                resource_name,
+                dtor,
+                e.ERL_NIF_RT_CREATE | e.ERL_NIF_RT_TAKEOVER,
+                null,
+            );
+            if (resource_type == null) @panic("failed to open raw resource type");
+        }
+
+        /// Returns a caller-owned native resource reference.
+        pub fn alloc() Error!*ElementType {
+            const memory = nifApi("enif_alloc_resource")(resource_type, @sizeOf(ElementType)) orelse
+                return Error.FailedToAllocateResource;
+            return @ptrCast(@alignCast(memory));
+        }
+
+        pub fn fetch(environment: beam.env, term: beam.term) !*ElementType {
+            return beam.fetch_resource_ptr(*ElementType, environment, resource_type, term);
+        }
+
+        /// Copies `value` into a new resource and transfers its native
+        /// allocation reference to the returned BEAM term.
+        pub fn make(environment: beam.env, value: ElementType) !beam.term {
+            return beam.make_resource(environment, value, resource_type);
+        }
+
+        pub fn keep(resource: *ElementType) void {
+            nifApi("enif_keep_resource")(resource);
+        }
+
+        pub fn release(resource: *ElementType) void {
+            nifApi("enif_release_resource")(resource);
+        }
+    };
+}
+
 pub fn ResourceKind(comptime ElementType: type, comptime module_name_: anytype) type {
     return struct {
         pub const module_name = module_name_;
