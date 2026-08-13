@@ -1,5 +1,5 @@
 defmodule Kinda.PythonInterpreterTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
   alias Kinda.Python.{Interpreter, Value}
 
   test "isolates globals across interpreters" do

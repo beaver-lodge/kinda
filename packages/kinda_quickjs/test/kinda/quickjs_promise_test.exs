@@ -1,5 +1,5 @@
 defmodule Kinda.QuickJSPromiseTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
 
   alias Kinda.QuickJS.{Context, Runtime, Value}
   alias Kinda.Resource.Declaration

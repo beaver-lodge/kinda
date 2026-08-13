@@ -1,7 +1,8 @@
 defmodule Kinda.MRubyHardeningTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
   alias Kinda.MRuby.{Native, Value, VM}
   alias Kinda.Python.Execution
+  alias Kinda.Testing.{Isolated, NativeScenario}
 
   test "accounts allocations per VM and injects allocation failure" do
     left = VM.open()
@@ -37,24 +38,23 @@ defmodule Kinda.MRubyHardeningTest do
     VM.close(right)
   end
 
-  @tag :tmp_dir
-  test "live VM and bytecode resources survive a NIF hot upgrade", %{tmp_dir: tmp_dir} do
+  test "live VM and bytecode resources survive a NIF hot upgrade" do
     if match?({:win32, _}, :os.type()) do
       assert Kinda.MRuby.eval("40 + 2") == 42
     else
-      vm = VM.open()
-      bytecode = Kinda.MRuby.compile("40 + 2")
-      upgrade = copy_nif!(tmp_dir)
-      original = remember_module(Native)
-      on_exit(fn -> restore_module(original) end)
+      steps = [
+        {:call, :vm, {VM, :open, []}},
+        {:call, :bytecode, {Kinda.MRuby, :compile, ["40 + 2"]}},
+        {:upgrade, Native, :kinda_mruby, "KindaMRubyNIF"},
+        {:call, :value, {Kinda.MRuby, :run, [{:resource, :vm}, {:resource, :bytecode}]}},
+        {:expect, 42, {Value, :to_term, [{:resource, :value}]}},
+        {:expect, :ok, {Value, :close, [{:resource, :value}]}},
+        {:expect, :ok, {VM, :close, [{:resource, :vm}]}},
+        :garbage_collect,
+        {:purge, Native}
+      ]
 
-      assert {:module, Native, _binary, _result} = hot_upgrade_module(Native, upgrade)
-      value = Kinda.MRuby.run(vm, bytecode)
-      assert Value.to_term(value) == 42
-      Value.close(value)
-      VM.close(vm)
-      :erlang.garbage_collect()
-      :code.purge(Native)
+      assert Isolated.run({NativeScenario, :run, [steps]}, timeout: 120_000) == :ok
     end
   end
 
@@ -68,61 +68,5 @@ defmodule Kinda.MRubyHardeningTest do
     assert is_binary(Task.await(sqlite, 30_000))
     assert Task.await(duckdb, 30_000) == 42
     assert Execution.await(python, 30_000) == 42
-  end
-
-  defp copy_nif!(tmp_dir) do
-    base = "#{:code.priv_dir(:kinda_mruby)}/lib/libKindaMRubyNIF"
-
-    source =
-      Enum.find_value([".so", ".dylib", ".dll"], fn extension ->
-        path = base <> extension
-        if File.exists?(path), do: path
-      end) || raise "could not find mruby NIF"
-
-    destination = Path.join(tmp_dir, "libKindaMRubyNIFUpgrade")
-    File.cp!(source, destination <> Path.extname(source))
-    destination
-  end
-
-  defp remember_module(module) do
-    {module, binary, path} = :code.get_object_code(module)
-    {module, binary, path}
-  end
-
-  defp restore_module({module, binary, path}) do
-    assert {:module, ^module} = :code.load_binary(module, path, binary)
-    :code.purge(module)
-  end
-
-  defp hot_upgrade_module(module, nif_file) do
-    stubs =
-      for {name, arity} <- module.__info__(:functions), name != :load_nif do
-        args = Macro.generate_arguments(arity, __MODULE__)
-
-        quote do
-          def unquote(name)(unquote_splicing(args)),
-            do: :erlang.nif_error({:nif_not_loaded, unquote(name)})
-        end
-      end
-
-    body =
-      quote do
-        @on_load :load_nif
-
-        def load_nif do
-          :erlang.load_nif(unquote(String.to_charlist(nif_file)), 0)
-        end
-
-        unquote_splicing(stubs)
-      end
-
-    compiler_options = Code.compiler_options()
-    Code.compiler_options(ignore_module_conflict: true)
-
-    try do
-      Module.create(module, body, Macro.Env.location(__ENV__))
-    after
-      Code.compiler_options(compiler_options)
-    end
   end
 end

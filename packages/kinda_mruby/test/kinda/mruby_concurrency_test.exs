@@ -1,5 +1,5 @@
 defmodule Kinda.MRubyConcurrencyTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
   alias Kinda.MRuby.{Bytecode, Value, VM}
 
   test "runs independent VMs on concurrent dirty CPU schedulers" do

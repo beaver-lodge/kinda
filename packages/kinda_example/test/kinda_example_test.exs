@@ -1,5 +1,5 @@
 defmodule KindaExampleTest do
-  use ExUnit.Case
+  use ExUnit.Case, async: true
 
   alias KindaExample.Native
   alias KindaExample.NIF
