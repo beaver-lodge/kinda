@@ -33,6 +33,10 @@ jobs:
         with:
           otp-version: "27.3"
           elixir-version: "1.20.3"
+      - name: Check test policy
+        if: matrix.quality
+        working-directory: packages/kinda_sandbox
+        run: elixir ../../scripts/check_test_policy.exs test
       - name: Install dependencies
         working-directory: packages/kinda_sandbox
         run: mix deps.get

@@ -27,6 +27,8 @@ jobs:
       - uses: seanmiddleditch/gha-setup-ninja@master
       - name: Install dependencies
         run: mix deps.get
+      - name: Check test policy
+        run: elixir scripts/check_test_policy.exs test packages
       - name: Check formatting
         run: mix format --check-formatted
       - name: Reject compiler warnings

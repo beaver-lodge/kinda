@@ -6,8 +6,8 @@ defmodule Kinda.ExampleVerifierTest do
              Path.expand("../packages/kinda_example", __DIR__)
   end
 
-  test "syncs deps when lockfile and deps directory are present" do
-    root = make_tmp_dir()
+  @tag :tmp_dir
+  test "syncs deps when lockfile and deps directory are present", %{tmp_dir: root} do
     File.write!(Path.join(root, "mix.lock"), "%{}")
     File.mkdir_p!(Path.join(root, "deps"))
     test_process = self()
@@ -30,8 +30,8 @@ defmodule Kinda.ExampleVerifierTest do
     assert test_opts[:stderr_to_stdout]
   end
 
-  test "runs deps.get before tests when example deps are missing" do
-    root = make_tmp_dir()
+  @tag :tmp_dir
+  test "runs deps.get before tests when example deps are missing", %{tmp_dir: root} do
     test_process = self()
 
     runner = fn command, args, opts ->
@@ -58,8 +58,8 @@ defmodule Kinda.ExampleVerifierTest do
     assert String.starts_with?(path, "/tmp/zig-0.15/bin:")
   end
 
-  test "raises with command context when nested example verification fails" do
-    root = make_tmp_dir()
+  @tag :tmp_dir
+  test "raises with command context when nested example verification fails", %{tmp_dir: root} do
     File.write!(Path.join(root, "mix.lock"), "%{}")
     File.mkdir_p!(Path.join(root, "deps"))
 
@@ -84,17 +84,5 @@ defmodule Kinda.ExampleVerifierTest do
     assert error.status == 1
     assert error.output == "boom"
     assert Exception.message(error) =~ "kinda_example verification failed"
-  end
-
-  defp make_tmp_dir do
-    root =
-      Path.join(
-        System.tmp_dir!(),
-        "kinda-example-verifier-#{Base.encode16(:crypto.strong_rand_bytes(8), case: :lower)}"
-      )
-
-    File.rm_rf!(root)
-    File.mkdir_p!(root)
-    root
   end
 end

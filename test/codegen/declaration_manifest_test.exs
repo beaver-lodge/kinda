@@ -40,7 +40,8 @@ defmodule Kinda.CodeGen.DeclarationManifestTest do
     assert DeclarationManifest.from_manifest(manifest) == declaration_manifest
   end
 
-  test "loads declaration manifests from elixir sidecars" do
+  @tag :tmp_dir
+  test "loads declaration manifests from elixir sidecars", %{tmp_dir: tmp_dir} do
     manifest = %{
       "version" => 1,
       "signature_manifest_version" => 3,
@@ -49,20 +50,14 @@ defmodule Kinda.CodeGen.DeclarationManifestTest do
       "type_decls" => []
     }
 
-    path =
-      System.tmp_dir!()
-      |> Path.join("kinda-declaration-manifest-#{System.unique_integer([:positive])}.ex")
+    path = Path.join(tmp_dir, "declaration_manifest.ex")
 
     File.write!(
       path,
       inspect(manifest, pretty: true, limit: :infinity, printable_limit: :infinity)
     )
 
-    try do
-      assert DeclarationManifest.load!(path) == DeclarationManifest.from_manifest(manifest)
-    after
-      File.rm(path)
-    end
+    assert DeclarationManifest.load!(path) == DeclarationManifest.from_manifest(manifest)
   end
 
   test "build derives type declarations from the embedded signature contract" do

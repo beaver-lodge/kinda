@@ -40,8 +40,12 @@ defmodule Kinda.RootVerifierTest do
                duckdb_verifier: duckdb_verifier
              )
 
+    assert_received {:command, "elixir", ["scripts/check_test_policy.exs", "test", "packages"],
+                     policy_opts}
+
     assert_received {:command, "mix", ["test"], test_opts}
     assert_received {:command, "mix", ["kinda.wrapper.example", "--json"], wrapper_opts}
+    assert policy_opts[:stderr_to_stdout]
     assert test_opts[:stderr_to_stdout]
     assert wrapper_opts[:stderr_to_stdout]
 
