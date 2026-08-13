@@ -64,10 +64,7 @@ const Interpreter = struct {
         self.closeIfUnused();
     }
 
-    pub fn destroy(_: beam.env, object: ?*anyopaque) callconv(.c) void {
-        const self: *Interpreter = @ptrCast(@alignCast(object orelse return));
-        self.close();
-    }
+    pub const destroy = kinda.resourceDestructor(Interpreter, Interpreter.close);
 };
 
 const Value = struct {
@@ -94,10 +91,7 @@ const Value = struct {
         self.interpreter.deinit();
     }
 
-    pub fn destroy(_: beam.env, object: ?*anyopaque) callconv(.c) void {
-        const self: *Value = @ptrCast(@alignCast(object orelse return));
-        self.close();
-    }
+    pub const destroy = kinda.resourceDestructor(Value, Value.close);
 };
 
 comptime {

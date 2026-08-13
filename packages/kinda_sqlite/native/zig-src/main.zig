@@ -34,10 +34,7 @@ const Database = struct {
         _ = databases_destroyed.fetchAdd(1, .monotonic);
     }
 
-    pub fn destroy(_: beam.env, object: ?*anyopaque) callconv(.c) void {
-        const self: *Database = @ptrCast(@alignCast(object orelse return));
-        self.close();
-    }
+    pub const destroy = kinda.resourceDestructor(Database, Database.close);
 };
 
 const Statement = struct {
@@ -57,10 +54,7 @@ const Statement = struct {
         _ = statements_destroyed.fetchAdd(1, .monotonic);
     }
 
-    pub fn destroy(_: beam.env, object: ?*anyopaque) callconv(.c) void {
-        const self: *Statement = @ptrCast(@alignCast(object orelse return));
-        self.finalize();
-    }
+    pub const destroy = kinda.resourceDestructor(Statement, Statement.finalize);
 };
 
 const DatabaseKind = kinda.ResourceKind(Database, "Elixir.Kinda.SQLite.Database");

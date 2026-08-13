@@ -63,6 +63,18 @@ pub fn build(b: *std.Build) !void {
             .path = "test/compile_fail/result_invalid_nif_function.zig",
             .diagnostic = "Kinda.result.nif function must accept (beam.env, c_int, [*c]const beam.term)",
         },
+        .{
+            .path = "test/compile_fail/resource_destructor_invalid_arity.zig",
+            .diagnostic = "resourceDestructor close must be fn(*",
+        },
+        .{
+            .path = "test/compile_fail/resource_destructor_invalid_parameter.zig",
+            .diagnostic = "resourceDestructor close must be fn(*",
+        },
+        .{
+            .path = "test/compile_fail/resource_destructor_invalid_return.zig",
+            .diagnostic = "resourceDestructor close must be fn(*",
+        },
     };
 
     inline for (fixtures) |fixture| {

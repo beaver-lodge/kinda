@@ -68,10 +68,7 @@ const Coroutine = struct {
         self.vm.deinit();
     }
 
-    pub fn destroy(_: beam.env, object: ?*anyopaque) callconv(.c) void {
-        const self: *Coroutine = @ptrCast(@alignCast(object orelse return));
-        self.close();
-    }
+    pub const destroy = kinda.resourceDestructor(Coroutine, Coroutine.close);
 };
 
 const Bytecode = struct {
@@ -88,10 +85,7 @@ const Bytecode = struct {
         self.closed = true;
     }
 
-    pub fn destroy(_: beam.env, object: ?*anyopaque) callconv(.c) void {
-        const self: *Bytecode = @ptrCast(@alignCast(object orelse return));
-        self.close();
-    }
+    pub const destroy = kinda.resourceDestructor(Bytecode, Bytecode.close);
 };
 
 const Userdata = struct {
@@ -114,10 +108,7 @@ const Userdata = struct {
         self.vm.deinit();
     }
 
-    pub fn destroy(_: beam.env, object: ?*anyopaque) callconv(.c) void {
-        const self: *Userdata = @ptrCast(@alignCast(object orelse return));
-        self.close();
-    }
+    pub const destroy = kinda.resourceDestructor(Userdata, Userdata.close);
 };
 
 comptime {
