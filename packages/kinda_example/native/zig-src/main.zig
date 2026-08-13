@@ -1,5 +1,6 @@
 const std = @import("std");
 const kinda = @import("kinda");
+const e = kinda.erl_nif;
 const beam = kinda.beam;
 const capi = @import("prelude.zig").c;
 const callback_fixture = @import("callback_fixture.zig");
@@ -30,9 +31,15 @@ const Resources = kinda.ResourceRegistry(.{
     kinda.ResourceRegistration{ .kind = Kinds.StrInt, .open = .all },
 });
 
-const nif_exports = kinda.EntryExports(.{
+var dynamic_nifs: [all_nifs.len]e.ErlNifFunc = all_nifs;
+
+fn provideNifs() []e.ErlNifFunc {
+    return &dynamic_nifs;
+}
+
+const nif_exports = kinda.DynamicEntryExports(.{
     .name = root_module,
-    .nifs = all_nifs,
+    .nifs_provider = provideNifs,
     .load = nif_load,
     .upgrade = nif_upgrade,
     .unload = nif_unload,

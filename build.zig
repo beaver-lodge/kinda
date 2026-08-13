@@ -40,6 +40,14 @@ pub fn build(b: *std.Build) !void {
             .diagnostic = "Kinda.EntryExports .nifs must contain ErlNifFunc values",
         },
         .{
+            .path = "test/compile_fail/dynamic_entry_exports_missing_field.zig",
+            .diagnostic = "Kinda.DynamicEntryExports spec is missing required field .nifs_provider",
+        },
+        .{
+            .path = "test/compile_fail/dynamic_entry_exports_invalid_provider.zig",
+            .diagnostic = "Kinda.DynamicEntryExports .nifs_provider must be fn() []ErlNifFunc",
+        },
+        .{
             .path = "test/compile_fail/resource_registry_invalid_entry.zig",
             .diagnostic = "resource registry entries must be Kinda.ResourceRegistration values",
         },

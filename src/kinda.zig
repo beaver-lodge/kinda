@@ -178,6 +178,30 @@ pub fn ResourceRegistry(comptime registrations: anytype) type {
     };
 }
 
+fn EntryPoint(comptime initialize: anytype) type {
+    return if (builtin.os.tag == .windows) struct {
+        var callbacks: e.TWinDynNifCallbacks = undefined;
+
+        fn init(win_callbacks: *const e.TWinDynNifCallbacks) callconv(.c) *const e.ErlNifEntry {
+            callbacks = win_callbacks.*;
+            return initialize();
+        }
+
+        fn exportSymbols() void {
+            @export(&callbacks, .{ .name = "WinDynNifCallbacks" });
+            @export(&init, .{ .name = "nif_init" });
+        }
+    } else struct {
+        fn init() callconv(.c) *const e.ErlNifEntry {
+            return initialize();
+        }
+
+        fn exportSymbols() void {
+            @export(&init, .{ .name = "nif_init" });
+        }
+    };
+}
+
 /// Materializes an Erlang NIF function tuple and exports the platform-specific
 /// `nif_init` entrypoint. Load, upgrade, and unload callbacks remain explicit
 /// backend policy supplied through `spec`.
@@ -221,27 +245,66 @@ pub fn EntryExports(comptime spec: anytype) type {
             .min_erts = min_erts,
         };
 
-        const NifInit = if (builtin.os.tag == .windows) struct {
-            var callbacks: e.TWinDynNifCallbacks = undefined;
+        fn initialize() *const e.ErlNifEntry {
+            return &entry;
+        }
 
-            fn init(win_callbacks: *const e.TWinDynNifCallbacks) callconv(.c) *const e.ErlNifEntry {
-                callbacks = win_callbacks.*;
-                return &entry;
-            }
+        const NifInit = EntryPoint(initialize);
 
-            fn exportSymbols() void {
-                @export(&callbacks, .{ .name = "WinDynNifCallbacks" });
-                @export(&init, .{ .name = "nif_init" });
-            }
-        } else struct {
-            fn init() callconv(.c) *const e.ErlNifEntry {
-                return &entry;
-            }
+        comptime {
+            NifInit.exportSymbols();
+        }
+    };
+}
 
-            fn exportSymbols() void {
-                @export(&init, .{ .name = "nif_init" });
+/// Exports a platform-specific `nif_init` entrypoint for a NIF table assembled
+/// at runtime. The provider is called during `nif_init`, before the load
+/// callback, and must return storage whose address remains stable until the NIF
+/// is unloaded.
+pub fn DynamicEntryExports(comptime spec: anytype) type {
+    const Spec = @TypeOf(spec);
+
+    comptime {
+        for (.{ "name", "nifs_provider", "load" }) |field| {
+            if (!@hasField(Spec, field)) {
+                @compileError("Kinda.DynamicEntryExports spec is missing required field ." ++ field);
             }
-        };
+        }
+
+        const Provider = fn () []e.ErlNifFunc;
+        if (@TypeOf(spec.nifs_provider) != Provider) {
+            @compileError("Kinda.DynamicEntryExports .nifs_provider must be fn() []ErlNifFunc");
+        }
+    }
+
+    const upgrade = if (@hasField(Spec, "upgrade")) spec.upgrade else null;
+    const unload = if (@hasField(Spec, "unload")) spec.unload else null;
+    const min_erts = if (@hasField(Spec, "min_erts")) spec.min_erts else "erts-15.0";
+
+    return struct {
+        var entry: e.ErlNifEntry = undefined;
+
+        fn initialize() *const e.ErlNifEntry {
+            const nifs = spec.nifs_provider();
+            entry = .{
+                .major = 2,
+                .minor = 16,
+                .name = spec.name,
+                .num_of_funcs = @intCast(nifs.len),
+                .funcs = if (nifs.len == 0) null else nifs.ptr,
+                .load = spec.load,
+                .reload = null,
+                .upgrade = upgrade,
+                .unload = unload,
+                .vm_variant = "beam.vanilla",
+                .options = 1,
+                .sizeof_ErlNifResourceTypeInit = @sizeOf(e.ErlNifResourceTypeInit),
+                .min_erts = min_erts,
+            };
+            return &entry;
+        }
+
+        const NifInit = EntryPoint(initialize);
 
         comptime {
             NifInit.exportSymbols();
