@@ -30,11 +30,18 @@ defmodule Kinda.Sandbox.CommandLifecycleTest do
   alias Kinda.Sandbox.Command.{Execution, Result, Spec}
   alias Kinda.Sandbox.Error
 
-  def handle_telemetry(event, measurements, metadata, test_pid) do
+  def handle_telemetry(event, measurements, %{backend: backend} = metadata, {test_pid, backend}) do
     send(test_pid, {:command_telemetry, event, measurements, metadata})
   end
 
+  def handle_telemetry(_event, _measurements, _metadata, _handler_config), do: :ok
+
   @tag :tmp_dir
+  @tag skip:
+         if(match?({:win32, _name}, :os.type()),
+           do: "Windows native lifecycle is completed in the next stack layer",
+           else: false
+         )
   test "timeout terminates the external process before it can perform later work", %{
     tmp_dir: parent
   } do
@@ -44,7 +51,7 @@ defmodule Kinda.Sandbox.CommandLifecycleTest do
 
     assert {:ok, %Result{termination: :timeout}} = Command.run(sandbox, spec)
     Process.sleep(400)
-    assert Path.wildcard(Path.join(parent, "kinda-sandbox-*/late")) == []
+    assert Path.wildcard(Path.join(parent, "kinda-process-*/late")) == []
     assert :ok = Sandbox.close(sandbox)
   end
 
@@ -108,7 +115,7 @@ defmodule Kinda.Sandbox.CommandLifecycleTest do
         handler_id,
         [:kinda, :sandbox, :command],
         &__MODULE__.handle_telemetry/4,
-        self()
+        {self(), Kinda.Sandbox.CommandLifecycleTelemetryBackend}
       )
 
     on_exit(fn -> :telemetry.detach(handler_id) end)

@@ -30,7 +30,7 @@ defmodule Kinda.Sandbox.LocalProcessCommandTest do
     assert result.stdout == literal
     assert result.stderr == ""
     assert result.metadata.streams == expected_streams()
-    refute result.metadata.process_tree_termination?
+    assert result.metadata.process_tree_termination? == not windows?()
     assert :ok = Sandbox.close(sandbox)
   end
 

@@ -12,9 +12,15 @@ defmodule Kinda.Sandbox.Capability.Command do
           | {:metadata, map()}
 
   @callback stream(backend_handle :: term(), Spec.t()) ::
-              {:ok, Enumerable.t()} | {:error, Error.t()}
+              {:ok, Enumerable.t()}
+              | {:ok, Enumerable.t(), backend_execution :: term()}
+              | {:error, Error.t()}
 
-  @callback terminate(worker :: pid(), reason :: :cancelled | :timeout | :sandbox_closed) :: :ok
+  @callback terminate(
+              backend_execution :: term(),
+              reason :: :cancelled | :timeout | :sandbox_closed,
+              grace_milliseconds :: non_neg_integer()
+            ) :: :ok
 
-  @optional_callbacks terminate: 2
+  @optional_callbacks terminate: 3
 end
