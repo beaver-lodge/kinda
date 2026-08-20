@@ -68,11 +68,12 @@ shell syntax. Its interpreter is `:posix_sh`, `:bash`, `:zsh`, or an exact
 `{:path, path, arguments}` tuple. It never reads `$SHELL`, silently falls back,
 loads Bash/Zsh user startup files, or injects `set -e`/`pipefail` policy.
 
-The `LocalNative` command capability merges stderr into its bounded stdout and
-reports `streams: :merged` in result metadata. This reflects a limitation of
-its cross-platform process substrate rather than claiming separate streams.
-Unselected ambient environment values are scrubbed; callers explicitly select
-values through `inherit_env` or provide `env` overrides.
+The `LocalNative` command capability captures stdout and stderr separately on
+Unix and reports `streams: :separate`. Its Windows process substrate merges
+stderr into bounded stdout and reports `streams: :merged` rather than claiming
+separate streams it cannot provide. Unselected ambient environment values are
+scrubbed; callers explicitly select values through `inherit_env` or provide
+`env` overrides.
 
 Most importantly, `LocalNative` is lifecycle management, not containment.
 Commands run as the current OS user and can access paths outside the owned
