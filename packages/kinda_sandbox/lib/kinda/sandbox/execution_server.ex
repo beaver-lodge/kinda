@@ -98,30 +98,30 @@ defmodule Kinda.Sandbox.ExecutionServer do
   def handle_call(:await, _from, state), do: {:reply, {:ok, state.result}, state}
 
   def handle_call(:cancel, _from, %{result: nil} = state) do
-    stop_worker(state.worker)
+    stop_worker_and_wait(state.worker)
     {:reply, :ok, finish(state, :cancelled)}
   end
 
   def handle_call(:cancel, _from, state), do: {:reply, :ok, state}
 
   def handle_call(:close, _from, state) do
-    state =
-      if state.result,
-        do: state,
-        else:
-          (
-            stop_worker(state.worker)
-            finish(state, :cancelled)
-          )
+    stop_worker_and_wait(state.worker)
+    state = if state.result, do: state, else: finish(state, :cancelled)
 
     {:stop, :normal, :ok, state}
   end
 
   @impl true
-  def handle_info({:command_event, event}, %{result: nil} = state),
-    do: {:noreply, consume(event, state)}
+  def handle_info({:command_event, worker, event_ref, event}, %{result: nil} = state) do
+    state = consume(event, state)
+    send(worker, {:command_ack, event_ref})
+    {:noreply, state}
+  end
 
-  def handle_info({:command_event, _event}, state), do: {:noreply, state}
+  def handle_info({:command_event, worker, event_ref, _event}, state) do
+    send(worker, {:command_ack, event_ref})
+    {:noreply, state}
+  end
 
   def handle_info({:command_error, %Error{} = error}, %{result: nil} = state) do
     {:noreply, finish(state, :spawn_failure, %{error: error})}
@@ -133,7 +133,7 @@ defmodule Kinda.Sandbox.ExecutionServer do
   def handle_info(:command_complete, state), do: {:noreply, state}
 
   def handle_info(:timeout, %{result: nil} = state) do
-    stop_worker(state.worker)
+    stop_worker_and_wait(state.worker)
     {:noreply, finish(state, :timeout)}
   end
 
@@ -158,7 +158,7 @@ defmodule Kinda.Sandbox.ExecutionServer do
     outcome =
       safely(fn ->
         case state.capability.stream(state.backend_handle, state.spec) do
-          {:ok, enumerable} -> Enum.each(enumerable, &send(server, {:command_event, &1}))
+          {:ok, enumerable} -> Enum.each(enumerable, &send_event(server, &1))
           {:error, %Error{} = error} -> {:error, error}
           other -> {:invalid, other}
         end
@@ -184,6 +184,15 @@ defmodule Kinda.Sandbox.ExecutionServer do
     do: finish(state, {:signal, signal})
 
   defp consume(event, state), do: finish(state, :spawn_failure, %{cause: {:invalid_event, event}})
+
+  defp send_event(server, event) do
+    event_ref = make_ref()
+    send(server, {:command_event, self(), event_ref, event})
+
+    receive do
+      {:command_ack, ^event_ref} -> :ok
+    end
+  end
 
   defp append(state, stream, data) do
     data = IO.iodata_to_binary(data)
@@ -214,6 +223,7 @@ defmodule Kinda.Sandbox.ExecutionServer do
       metadata: Map.merge(state.metadata, metadata)
     }
 
+    emit(result, state.backend)
     Enum.each(state.waiters, &GenServer.reply(&1, {:ok, result}))
     %{state | result: result, waiters: [], timer: nil}
   end
@@ -238,7 +248,21 @@ defmodule Kinda.Sandbox.ExecutionServer do
     do: {:error, Error.exception(reason: :disconnected, operation: operation)}
 
   defp stop_worker(nil), do: :ok
-  defp stop_worker(pid), do: Process.exit(pid, :kill)
+  defp stop_worker(pid), do: Process.exit(pid, :shutdown)
+
+  defp stop_worker_and_wait(nil), do: :ok
+
+  defp stop_worker_and_wait(pid) do
+    monitor = Process.monitor(pid)
+    stop_worker(pid)
+
+    receive do
+      {:DOWN, ^monitor, :process, ^pid, _reason} -> :ok
+    after
+      5_000 -> Process.demonitor(monitor, [:flush])
+    end
+  end
+
   defp cancel_timer(nil), do: :ok
   defp cancel_timer(timer), do: Process.cancel_timer(timer)
 
@@ -251,4 +275,21 @@ defmodule Kinda.Sandbox.ExecutionServer do
   defp backend_failure(backend, cause) do
     Error.exception(reason: :backend_failure, backend: backend, operation: :command, cause: cause)
   end
+
+  defp emit(result, backend) do
+    :telemetry.execute(
+      [:kinda, :sandbox, :command],
+      %{duration: result.duration},
+      %{
+        backend: backend,
+        termination: termination_class(result.termination),
+        stdout_truncated?: result.stdout_truncated?,
+        stderr_truncated?: result.stderr_truncated?
+      }
+    )
+  end
+
+  defp termination_class({:exit, _status}), do: :exit
+  defp termination_class({:signal, _signal}), do: :signal
+  defp termination_class(termination), do: termination
 end
