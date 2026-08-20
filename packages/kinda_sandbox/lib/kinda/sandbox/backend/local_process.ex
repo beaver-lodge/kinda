@@ -1,43 +1,40 @@
-defmodule Kinda.Sandbox.Backend.LocalNative do
+defmodule Kinda.Sandbox.Backend.LocalProcess do
   @moduledoc """
-  Local filesystem backend for native development workflows.
+  Local process lifecycle and working-directory backend.
 
-  Each handle owns exactly one unique child directory. Closing a handle removes
-  that child and never removes the caller-provided parent directory.
-
-  This backend deliberately does not expose the command capability. Host
-  process execution belongs to `Kinda.Sandbox.Backend.LocalProcess`.
+  Each handle owns one unique child directory and every command started by the
+  handle. This is not containment: commands run as the current OS user and may
+  access the host filesystem, network, processes, and resources.
   """
 
   @behaviour Kinda.Sandbox.Backend
 
-  alias Kinda.Sandbox.Backend.LocalNative.Spec
-  alias Kinda.Sandbox.Capability.NativeBuild.Context
+  alias Kinda.Sandbox.Backend.LocalProcess.Spec
   alias Kinda.Sandbox.Error
 
   defmodule State do
     @moduledoc false
-    @enforce_keys [:context]
-    defstruct [:context]
+    @enforce_keys [:directory, :env]
+    defstruct [:directory, :env]
   end
 
   @impl true
-  def capabilities, do: %{native_build: __MODULE__.NativeBuild}
+  def capabilities, do: %{command: __MODULE__.Command}
 
   @impl true
   def create(%Spec{} = spec, _options) do
     with :ok <- validate_spec(spec),
-         {:ok, context} <- create_context(spec) do
-      {:ok, %State{context: context}}
+         {:ok, directory} <- create_directory(spec.parent_directory) do
+      {:ok, %State{directory: directory, env: spec.env}}
     end
   end
 
   def create(spec, _options) do
-    {:error, invalid_spec("expected a Kinda.Sandbox.Backend.LocalNative.Spec", spec)}
+    {:error, invalid_spec("expected a Kinda.Sandbox.Backend.LocalProcess.Spec", spec)}
   end
 
   @impl true
-  def close(%State{context: %Context{directory: directory}}) do
+  def close(%State{directory: directory}) do
     case File.rm_rf(directory) do
       {:ok, _paths} ->
         :ok
@@ -47,11 +44,8 @@ defmodule Kinda.Sandbox.Backend.LocalNative do
     end
   end
 
-  defp validate_spec(%Spec{base_module: base_module, parent_directory: parent, env: env}) do
+  defp validate_spec(%Spec{parent_directory: parent, env: env}) do
     cond do
-      not is_atom(base_module) ->
-        {:error, invalid_spec("base_module must be a module", base_module)}
-
       not (is_nil(parent) or is_binary(parent)) ->
         {:error, invalid_spec("parent_directory must be a path", parent)}
 
@@ -69,21 +63,14 @@ defmodule Kinda.Sandbox.Backend.LocalNative do
 
   defp valid_env?(_env), do: false
 
-  defp create_context(spec) do
+  defp create_directory(parent_directory) do
     id = System.unique_integer([:positive, :monotonic])
-    module = Module.concat(spec.base_module, "Sandbox#{id}")
-    parent = Path.expand(spec.parent_directory || System.tmp_dir!())
-    directory = Path.join(parent, "kinda-sandbox-#{id}")
+    parent = Path.expand(parent_directory || System.tmp_dir!())
+    directory = Path.join(parent, "kinda-process-#{id}")
 
     case File.mkdir_p(directory) do
       :ok ->
-        {:ok,
-         %Context{
-           module: module,
-           entry_name: Atom.to_string(module),
-           directory: directory,
-           env: spec.env
-         }}
+        {:ok, directory}
 
       {:error, reason} ->
         {:error, filesystem_error("could not create sandbox", directory, reason)}
