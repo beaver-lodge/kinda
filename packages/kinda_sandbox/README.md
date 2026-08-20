@@ -1,8 +1,9 @@
 # Kinda Sandbox
 
 `kinda_sandbox` defines backend-neutral lifecycle and capability contracts for
-isolated execution environments. The contracts do not depend on native details;
-individual backends may use Kinda-generated native bindings.
+isolated execution environments. The public contracts do not depend on native
+details. `LocalProcess` uses a Kinda-generated Zig NIF and native process
+resources; it does not delegate process ownership to an Elixir command library.
 
 The facade deliberately resembles the useful part of Ecto's adapter model: the
 caller holds one stable public handle while backend state remains private. It
@@ -69,11 +70,16 @@ shell syntax. Its interpreter is `:posix_sh`, `:bash`, `:zsh`, or an exact
 loads Bash/Zsh user startup files, or injects `set -e`/`pipefail` policy.
 
 The `LocalProcess` command capability captures stdout and stderr separately on
-Unix and reports `streams: :separate`. Its Windows process substrate merges
-stderr into bounded stdout and reports `streams: :merged` rather than claiming
-separate streams it cannot provide. Unselected ambient environment values are
-scrubbed; callers explicitly select values through `inherit_env` or provide
-`env` overrides.
+Linux, macOS, and Windows and reports `streams: :separate`. Unselected ambient
+environment values are omitted; callers explicitly select values through
+`inherit_env` or provide `env` overrides. POSIX children run in an owned process
+group. Windows children are assigned to a Job Object configured to terminate
+the complete tree when the resource closes.
+
+Potentially blocking reads and termination waits are declared as dirty I/O
+NIFs. The BEAM-facing execution server retains timeout, bounded capture,
+backpressure, ownership, and telemetry policy while the native resource owns
+OS handles and performs deterministic fallback cleanup.
 
 Most importantly, `LocalProcess` is lifecycle management, not containment.
 Commands run as the current OS user and can access paths outside the owned

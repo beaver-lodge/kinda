@@ -37,11 +37,6 @@ defmodule Kinda.Sandbox.CommandLifecycleTest do
   def handle_telemetry(_event, _measurements, _metadata, _handler_config), do: :ok
 
   @tag :tmp_dir
-  @tag skip:
-         if(match?({:win32, _name}, :os.type()),
-           do: "Windows native lifecycle is completed in the next stack layer",
-           else: false
-         )
   test "timeout terminates the external process before it can perform later work", %{
     tmp_dir: parent
   } do

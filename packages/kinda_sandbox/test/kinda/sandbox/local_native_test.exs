@@ -5,6 +5,8 @@ defmodule Kinda.Sandbox.LocalNativeTest do
   alias Kinda.Sandbox.Backend.LocalNative
   alias Kinda.Sandbox.Backend.LocalNative.Spec
   alias Kinda.Sandbox.Capability.NativeBuild.Context
+  alias Kinda.Sandbox.Command
+  alias Kinda.Sandbox.Command.Spec, as: CommandSpec
   alias Kinda.Sandbox.{Error, NativeBuild}
 
   def write_artifact(test_pid, contents, %Context{} = context) do
@@ -136,11 +138,22 @@ defmodule Kinda.Sandbox.LocalNativeTest do
     assert :ok = Sandbox.close(handle)
   end
 
-  test "reports unsupported capabilities and validates specs" do
+  @tag :tmp_dir
+  test "reports unsupported capabilities and validates specs", %{tmp_dir: parent} do
     assert {:error, %Error{reason: :invalid_spec}} = Sandbox.create(LocalNative, :invalid)
 
     assert {:error, %Error{reason: :invalid_spec}} =
              Sandbox.create(LocalNative, %Spec{base_module: "not a module"})
+
+    {:ok, native_handle} =
+      Sandbox.create(LocalNative, %Spec{base_module: __MODULE__, parent_directory: parent})
+
+    assert {:ok, [:native_build]} = Sandbox.capabilities(native_handle)
+
+    assert {:error, %Error{reason: :unsupported_capability, operation: :command}} =
+             Command.start(native_handle, %CommandSpec{executable: "ignored"})
+
+    assert :ok = Sandbox.close(native_handle)
 
     assert {:ok, handle} = Sandbox.create(Kinda.Sandbox.FakeBackend, {:notify, self()})
 

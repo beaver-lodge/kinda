@@ -69,6 +69,9 @@ defmodule Kinda.Sandbox.CommandContractTest do
     assert {:error, %Error{reason: :invalid_spec}} =
              Command.start(handle, %Spec{executable: "ok", args: ["bad\0arg"]})
 
+    assert {:error, %Error{reason: :invalid_spec}} =
+             Command.start(handle, %Spec{executable: "ok", terminate_after: -1})
+
     assert :ok = Sandbox.close(handle)
   end
 

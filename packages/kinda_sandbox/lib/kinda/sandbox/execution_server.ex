@@ -48,12 +48,12 @@ defmodule Kinda.Sandbox.ExecutionServer do
 
   def cancel(ref) do
     case lookup(ref) do
-      {:ok, pid} -> safe_call(pid, :cancel, 5_000)
+      {:ok, pid} -> safe_call(pid, :cancel, :infinity)
       :error -> disconnected(:command_cancel)
     end
   end
 
-  def close(pid), do: GenServer.call(pid, :close, 5_000)
+  def close(pid), do: GenServer.call(pid, :close, :infinity)
 
   @impl true
   def init(options) do
