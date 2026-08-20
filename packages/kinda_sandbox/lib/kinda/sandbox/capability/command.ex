@@ -1,0 +1,15 @@
+defmodule Kinda.Sandbox.Capability.Command do
+  @moduledoc "Backend capability contract for structured command execution."
+
+  alias Kinda.Sandbox.Command.Spec
+  alias Kinda.Sandbox.Error
+
+  @type event ::
+          {:stdout, iodata()}
+          | {:stderr, iodata()}
+          | {:exit, non_neg_integer()}
+          | {:signal, non_neg_integer()}
+
+  @callback stream(backend_handle :: term(), Spec.t()) ::
+              {:ok, Enumerable.t()} | {:error, Error.t()}
+end

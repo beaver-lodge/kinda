@@ -3,9 +3,18 @@ defmodule Kinda.Sandbox.HandleServer do
 
   use GenServer
 
-  alias Kinda.Sandbox.Error
+  alias Kinda.Sandbox.Command.{Execution, Spec}
+  alias Kinda.Sandbox.{Error, ExecutionServer}
 
-  defstruct [:backend, :backend_handle, :capabilities, :owner, :owner_monitor, closed?: false]
+  defstruct [
+    :backend,
+    :backend_handle,
+    :capabilities,
+    :owner,
+    :owner_monitor,
+    closed?: false,
+    executions: %{}
+  ]
 
   @type state :: %__MODULE__{
           backend: module(),
@@ -13,7 +22,8 @@ defmodule Kinda.Sandbox.HandleServer do
           capabilities: %{optional(atom()) => module()},
           owner: pid() | nil,
           owner_monitor: reference() | nil,
-          closed?: boolean()
+          closed?: boolean(),
+          executions: %{optional(reference()) => pid()}
         }
 
   @spec child_spec(keyword()) :: Supervisor.child_spec()
@@ -39,6 +49,9 @@ defmodule Kinda.Sandbox.HandleServer do
   def native_build(ref, builder_mfa) do
     call(ref, {:native_build, builder_mfa})
   end
+
+  @spec command(reference(), Spec.t()) :: {:ok, Execution.t()} | {:error, Error.t()}
+  def command(ref, spec), do: call(ref, {:command, spec})
 
   @spec close(reference()) ::
           {:ok | {:error, Error.t()}, %{backend: module() | nil, capabilities: [atom()]}}
@@ -115,6 +128,48 @@ defmodule Kinda.Sandbox.HandleServer do
     {:reply, reply, state}
   end
 
+  def handle_call({:command, spec}, _from, state) do
+    case Map.fetch(state.capabilities, :command) do
+      {:ok, capability} ->
+        ref = make_ref()
+
+        options = [
+          ref: ref,
+          backend: state.backend,
+          capability: capability,
+          backend_handle: state.backend_handle,
+          spec: spec
+        ]
+
+        case DynamicSupervisor.start_child(
+               Kinda.Sandbox.ExecutionSupervisor,
+               {ExecutionServer, options}
+             ) do
+          {:ok, pid} ->
+            monitor = Process.monitor(pid)
+
+            {:reply, {:ok, Execution.new(ref)},
+             %{state | executions: Map.put(state.executions, monitor, pid)}}
+
+          {:error, reason} ->
+            {:reply,
+             {:error,
+              backend_error("could not start command execution", reason, state.backend, :command)},
+             state}
+        end
+
+      :error ->
+        error =
+          Error.exception(
+            reason: :unsupported_capability,
+            backend: state.backend,
+            operation: :command
+          )
+
+        {:reply, {:error, error}, state}
+    end
+  end
+
   def handle_call(:close_with_metadata, _from, state) do
     metadata = %{
       backend: state.backend,
@@ -130,6 +185,10 @@ defmodule Kinda.Sandbox.HandleServer do
       when monitor == state.owner_monitor and owner == state.owner do
     {_reply, state} = close_backend(state)
     {:stop, :normal, state}
+  end
+
+  def handle_info({:DOWN, monitor, :process, _pid, _reason}, state) do
+    {:noreply, %{state | executions: Map.delete(state.executions, monitor)}}
   end
 
   def handle_info(_message, state), do: {:noreply, state}
@@ -222,12 +281,16 @@ defmodule Kinda.Sandbox.HandleServer do
   end
 
   defp disconnected do
-    {:error, Error.exception(reason: :disconnected, operation: :native_build)}
+    {:error, Error.exception(reason: :disconnected)}
   end
 
   defp close_backend(%__MODULE__{closed?: true} = state), do: {:ok, state}
 
   defp close_backend(state) do
+    Enum.each(state.executions, fn {_monitor, pid} ->
+      if Process.alive?(pid), do: ExecutionServer.close(pid)
+    end)
+
     reply =
       case safely(fn -> state.backend.close(state.backend_handle) end) do
         :ok ->
@@ -246,7 +309,7 @@ defmodule Kinda.Sandbox.HandleServer do
            )}
       end
 
-    {reply, %{state | closed?: true}}
+    {reply, %{state | closed?: true, executions: %{}}}
   end
 
   defp safely(callback) do
