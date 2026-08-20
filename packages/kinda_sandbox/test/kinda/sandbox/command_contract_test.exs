@@ -38,6 +38,20 @@ defmodule Kinda.Sandbox.CommandContractBackend do
   end
 end
 
+defmodule Kinda.Sandbox.CommandContractUnsupportedBackend do
+  @moduledoc false
+  @behaviour Kinda.Sandbox.Backend
+
+  @impl true
+  def capabilities, do: %{}
+
+  @impl true
+  def create(:valid, _options), do: {:ok, :unsupported}
+
+  @impl true
+  def close(:unsupported), do: :ok
+end
+
 defmodule Kinda.Sandbox.CommandContractTest do
   use ExUnit.Case, async: true
 
@@ -99,7 +113,7 @@ defmodule Kinda.Sandbox.CommandContractTest do
   end
 
   test "unsupported backends report the command capability explicitly" do
-    {:ok, handle} = Sandbox.create(Kinda.Sandbox.ConformanceFakeBackend, :valid)
+    {:ok, handle} = Sandbox.create(Kinda.Sandbox.CommandContractUnsupportedBackend, :valid)
 
     assert {:error, %Error{reason: :unsupported_capability, operation: :command}} =
              Command.start(handle, %Spec{executable: "ignored"})
