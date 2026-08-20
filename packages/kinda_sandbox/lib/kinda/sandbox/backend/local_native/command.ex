@@ -109,23 +109,28 @@ defmodule Kinda.Sandbox.Backend.LocalNative.Command do
   # ExCmd overlays the supplied environment. Empty overrides scrub ambient
   # values not selected by inherit_env without mutating global process state.
   defp environment(sandbox_env, spec) do
-    scrubbed = Map.new(System.get_env(), fn {key, _value} -> {key, ""} end)
+    ambient = normalize_environment(System.get_env())
+    scrubbed = Map.new(ambient, fn {key, _value} -> {key, ""} end)
 
     inherited =
       spec.inherit_env
-      |> Enum.flat_map(fn key ->
-        case System.fetch_env(key) do
-          {:ok, value} -> [{key, value}]
-          :error -> []
-        end
-      end)
-      |> Map.new()
+      |> Enum.map(&normalize_environment_key/1)
+      |> Map.new(fn key -> {key, Map.get(ambient, key)} end)
+      |> Map.reject(fn {_key, value} -> is_nil(value) end)
 
     scrubbed
-    |> Map.merge(sandbox_env)
+    |> Map.merge(normalize_environment(sandbox_env))
     |> Map.merge(inherited)
-    |> Map.merge(spec.env)
+    |> Map.merge(normalize_environment(spec.env))
     |> Map.to_list()
+  end
+
+  defp normalize_environment(environment) do
+    Map.new(environment, fn {key, value} -> {normalize_environment_key(key), value} end)
+  end
+
+  defp normalize_environment_key(key) do
+    if windows?(), do: String.upcase(key), else: key
   end
 
   defp input(:closed), do: []
