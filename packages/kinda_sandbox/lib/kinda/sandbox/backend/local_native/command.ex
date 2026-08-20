@@ -65,9 +65,11 @@ defmodule Kinda.Sandbox.Backend.LocalNative.Command do
 
       {events, :merged}
     else
+      exile = Module.concat(["Exile"])
+
       events =
         command
-        |> Exile.stream(exile_options(context, spec))
+        |> exile.stream(exile_options(context, spec))
         |> Stream.map(fn
           {:exit, {:status, status}} -> {:exit, status}
           {:exit, status} when is_integer(status) -> {:exit, status}
@@ -153,8 +155,9 @@ defmodule Kinda.Sandbox.Backend.LocalNative.Command do
   end
 
   defp terminate_exile(process) do
-    handle = struct(Exile.Process, pid: process)
-    if Process.alive?(process), do: Exile.Process.kill(handle, :sigkill)
+    exile_process = Module.concat(["Exile", "Process"])
+    handle = struct(exile_process, pid: process)
+    if Process.alive?(process), do: exile_process.kill(handle, :sigkill)
     :ok
   end
 
