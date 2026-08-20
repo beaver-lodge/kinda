@@ -24,6 +24,30 @@ defmodule Kinda.Sandbox.Backend.LocalNative.Command do
     end
   end
 
+  @impl true
+  def terminate(worker, _reason) do
+    case linked_ex_cmd_process(worker) do
+      nil ->
+        :ok
+
+      process ->
+        monitor = Process.monitor(process)
+
+        # ExCmd 0.18 has no public cross-process terminate call. This is the
+        # same bounded exit sequence used by ExCmd.Process.await_exit/2, sent
+        # with the actual owner so its pipes are closed before TERM/KILL.
+        GenServer.cast(process, {:prepare_exit, worker, 1_000})
+
+        receive do
+          {:DOWN, ^monitor, :process, ^process, _reason} -> :ok
+        after
+          1_500 ->
+            Process.demonitor(monitor, [:flush])
+            :ok
+        end
+    end
+  end
+
   defp build_stream(context, spec) do
     command = [spec.executable | spec.args]
     options = command_options(context, spec)
@@ -85,4 +109,22 @@ defmodule Kinda.Sandbox.Backend.LocalNative.Command do
 
   defp input(:closed), do: []
   defp input(binary), do: binary
+
+  defp linked_ex_cmd_process(worker) do
+    case Process.info(worker, :links) do
+      {:links, links} -> Enum.find(links, &ex_cmd_process?/1)
+      nil -> nil
+    end
+  end
+
+  defp ex_cmd_process?(process) do
+    case Process.info(process, :dictionary) do
+      {:dictionary, dictionary} ->
+        List.keyfind(dictionary, :"$initial_call", 0) ==
+          {:"$initial_call", {ExCmd.Process, :init, 1}}
+
+      nil ->
+        false
+    end
+  end
 end
