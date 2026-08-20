@@ -1,3 +1,25 @@
+defmodule Kinda.Sandbox.CommandLifecycleTelemetryBackend do
+  @moduledoc false
+  @behaviour Kinda.Sandbox.Backend
+
+  @impl true
+  def capabilities, do: %{command: __MODULE__.Command}
+
+  @impl true
+  def create(:telemetry, _options), do: {:ok, :telemetry}
+
+  @impl true
+  def close(:telemetry), do: :ok
+
+  defmodule Command do
+    @moduledoc false
+    @behaviour Kinda.Sandbox.Capability.Command
+
+    @impl true
+    def stream(:telemetry, _spec), do: {:ok, [{:stdout, "captured"}, {:exit, 0}]}
+  end
+end
+
 defmodule Kinda.Sandbox.CommandLifecycleTest do
   use ExUnit.Case, async: true
 
@@ -90,7 +112,7 @@ defmodule Kinda.Sandbox.CommandLifecycleTest do
       )
 
     on_exit(fn -> :telemetry.detach(handler_id) end)
-    {:ok, sandbox} = Sandbox.create(Kinda.Sandbox.CommandContractBackend, self())
+    {:ok, sandbox} = Sandbox.create(Kinda.Sandbox.CommandLifecycleTelemetryBackend, :telemetry)
 
     assert {:ok, _result} =
              Command.run(sandbox, %Spec{
@@ -106,7 +128,7 @@ defmodule Kinda.Sandbox.CommandLifecycleTest do
     assert is_integer(duration)
 
     assert metadata == %{
-             backend: Kinda.Sandbox.CommandContractBackend,
+             backend: Kinda.Sandbox.CommandLifecycleTelemetryBackend,
              termination: :exit,
              stdout_truncated?: false,
              stderr_truncated?: false
