@@ -18,21 +18,11 @@ defmodule Kinda.Sandbox.CommandLifecycleTest do
   } do
     {:ok, sandbox} = Sandbox.create(LocalNative, backend_spec(parent))
 
-    spec = %Spec{
-      executable: erl(),
-      args: [
-        "-noshell",
-        "-eval",
-        ~S|timer:sleep(300), file:write_file("late", <<"leaked">>), halt().|
-      ],
-      env: base_env(),
-      inherit_env: runtime_env(),
-      timeout: 25
-    }
+    spec = late_write_spec()
 
     assert {:ok, %Result{termination: :timeout}} = Command.run(sandbox, spec)
     Process.sleep(400)
-    refute Path.wildcard(Path.join(parent, "kinda-sandbox-*/late")) != []
+    assert Path.wildcard(Path.join(parent, "kinda-sandbox-*/late")) == []
     assert :ok = Sandbox.close(sandbox)
   end
 
@@ -41,13 +31,7 @@ defmodule Kinda.Sandbox.CommandLifecycleTest do
     {:ok, sandbox} = Sandbox.create(LocalNative, backend_spec(parent))
 
     {:ok, execution} =
-      Command.start(sandbox, %Spec{
-        executable: erl(),
-        args: ["-noshell", "-eval", "timer:sleep(infinity), halt()."],
-        env: base_env(),
-        inherit_env: runtime_env(),
-        timeout: :infinity
-      })
+      Command.start(sandbox, long_running_spec())
 
     assert :ok = Command.cancel(execution)
     assert :ok = Command.cancel(execution)
@@ -63,13 +47,7 @@ defmodule Kinda.Sandbox.CommandLifecycleTest do
     directory = command_cwd(sandbox)
 
     {:ok, %Execution{} = execution} =
-      Command.start(sandbox, %Spec{
-        executable: erl(),
-        args: ["-noshell", "-eval", "timer:sleep(infinity), halt()."],
-        env: base_env(),
-        inherit_env: runtime_env(),
-        timeout: :infinity
-      })
+      Command.start(sandbox, long_running_spec())
 
     assert :ok = Sandbox.close(sandbox)
     refute File.exists?(directory)
@@ -87,13 +65,7 @@ defmodule Kinda.Sandbox.CommandLifecycleTest do
         directory = command_cwd(sandbox)
 
         {:ok, execution} =
-          Command.start(sandbox, %Spec{
-            executable: erl(),
-            args: ["-noshell", "-eval", "timer:sleep(infinity), halt()."],
-            env: base_env(),
-            inherit_env: runtime_env(),
-            timeout: :infinity
-          })
+          Command.start(sandbox, long_running_spec())
 
         send(test_pid, {:owner_execution, execution, directory})
         receive(do: (:stop -> :ok))
@@ -161,12 +133,59 @@ defmodule Kinda.Sandbox.CommandLifecycleTest do
   end
 
   defp backend_spec(parent), do: %BackendSpec{base_module: __MODULE__, parent_directory: parent}
+
+  defp late_write_spec do
+    if windows?() do
+      %Spec{
+        executable: erl(),
+        args: [
+          "-noshell",
+          "-eval",
+          ~S|timer:sleep(300), file:write_file("late", <<"leaked">>), halt().|
+        ],
+        env: base_env(),
+        inherit_env: runtime_env(),
+        timeout: 25
+      }
+    else
+      %Spec{
+        executable: System.find_executable("sh") || raise("sh executable unavailable"),
+        args: ["-c", "sleep 0.3; printf leaked > late"],
+        env: base_env(),
+        inherit_env: runtime_env(),
+        timeout: 25
+      }
+    end
+  end
+
+  defp long_running_spec do
+    if windows?() do
+      %Spec{
+        executable: erl(),
+        args: ["-noshell", "-eval", "timer:sleep(infinity), halt()."],
+        env: base_env(),
+        inherit_env: runtime_env(),
+        timeout: :infinity
+      }
+    else
+      %Spec{
+        executable: System.find_executable("sleep") || raise("sleep executable unavailable"),
+        args: ["3600"],
+        env: base_env(),
+        inherit_env: runtime_env(),
+        timeout: :infinity
+      }
+    end
+  end
+
   defp base_env, do: %{"LANG" => "C.UTF-8"}
   defp erl, do: System.find_executable("erl") || raise("erl executable unavailable")
 
   defp runtime_env do
     ["PATH", "SYSTEMROOT", "SystemRoot", "COMSPEC", "ComSpec", "PATHEXT", "TEMP", "TMP"]
   end
+
+  defp windows?, do: match?({:win32, _name}, :os.type())
 
   defp eventually(predicate, attempts \\ 200)
   defp eventually(_predicate, 0), do: false

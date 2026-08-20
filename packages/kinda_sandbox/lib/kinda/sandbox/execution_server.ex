@@ -98,14 +98,14 @@ defmodule Kinda.Sandbox.ExecutionServer do
   def handle_call(:await, _from, state), do: {:reply, {:ok, state.result}, state}
 
   def handle_call(:cancel, _from, %{result: nil} = state) do
-    stop_worker_and_wait(state.worker)
+    stop_worker_and_wait(state, :cancelled)
     {:reply, :ok, finish(state, :cancelled)}
   end
 
   def handle_call(:cancel, _from, state), do: {:reply, :ok, state}
 
   def handle_call(:close, _from, state) do
-    stop_worker_and_wait(state.worker)
+    stop_worker_and_wait(state, :sandbox_closed)
     state = if state.result, do: state, else: finish(state, :cancelled)
 
     {:stop, :normal, :ok, state}
@@ -127,13 +127,15 @@ defmodule Kinda.Sandbox.ExecutionServer do
     {:noreply, finish(state, :spawn_failure, %{error: error})}
   end
 
+  def handle_info({:command_error, %Error{}}, state), do: {:noreply, state}
+
   def handle_info(:command_complete, %{result: nil} = state),
     do: {:noreply, finish(state, :spawn_failure, %{cause: :missing_terminal_event})}
 
   def handle_info(:command_complete, state), do: {:noreply, state}
 
   def handle_info(:timeout, %{result: nil} = state) do
-    stop_worker_and_wait(state.worker)
+    stop_worker_and_wait(state, :timeout)
     {:noreply, finish(state, :timeout)}
   end
 
@@ -250,10 +252,12 @@ defmodule Kinda.Sandbox.ExecutionServer do
   defp stop_worker(nil), do: :ok
   defp stop_worker(pid), do: Process.exit(pid, :shutdown)
 
-  defp stop_worker_and_wait(nil), do: :ok
+  defp stop_worker_and_wait(%{worker: nil}, _reason), do: :ok
 
-  defp stop_worker_and_wait(pid) do
+  defp stop_worker_and_wait(state, reason) do
+    pid = state.worker
     monitor = Process.monitor(pid)
+    terminate_command(state.capability, pid, reason)
     stop_worker(pid)
 
     receive do
@@ -261,6 +265,14 @@ defmodule Kinda.Sandbox.ExecutionServer do
     after
       5_000 -> Process.demonitor(monitor, [:flush])
     end
+  end
+
+  defp terminate_command(capability, worker, reason) do
+    if function_exported?(capability, :terminate, 2) do
+      _ = safely(fn -> capability.terminate(worker, reason) end)
+    end
+
+    :ok
   end
 
   defp cancel_timer(nil), do: :ok
