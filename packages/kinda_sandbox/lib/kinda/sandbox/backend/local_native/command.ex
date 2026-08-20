@@ -153,17 +153,9 @@ defmodule Kinda.Sandbox.Backend.LocalNative.Command do
   end
 
   defp terminate_exile(process) do
-    monitor = Process.monitor(process)
     handle = struct(Exile.Process, pid: process)
-    :ok = Exile.Process.kill(handle, :sigterm)
-
-    receive do
-      {:DOWN, ^monitor, :process, ^process, _reason} -> :ok
-    after
-      250 ->
-        if Process.alive?(process), do: Exile.Process.kill(handle, :sigkill)
-        await_down(monitor, process, 1_000)
-    end
+    if Process.alive?(process), do: Exile.Process.kill(handle, :sigkill)
+    :ok
   end
 
   defp terminate_ex_cmd(process, worker) do
