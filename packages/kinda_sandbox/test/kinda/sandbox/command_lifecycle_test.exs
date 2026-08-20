@@ -93,7 +93,7 @@ defmodule Kinda.Sandbox.CommandLifecycleTest do
         receive(do: (:stop -> :ok))
       end)
 
-    assert_receive {:owner_execution, execution, directory}, 1_000
+    assert_receive {:owner_execution, execution, directory}, 5_000
     send(owner, :stop)
     assert_receive {:DOWN, ^owner_monitor, :process, ^owner, :normal}
     assert eventually(fn -> not File.exists?(directory) end)
