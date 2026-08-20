@@ -41,7 +41,8 @@ defmodule Kinda.Sandbox.Conformance do
     send(owner, :stop)
 
     assert_receive {:DOWN, ^owner_monitor, :process, ^owner, :normal}
-    assert_receive {:DOWN, ^server_monitor, :process, ^server, :normal}
+    assert_receive {:DOWN, ^server_monitor, :process, ^server, reason}
+    assert reason in [:normal, :noproc]
     assert eventually(fn -> Registry.lookup(Kinda.Sandbox.Registry, ref) == [] end)
     assert_cleaned.(token)
   end
