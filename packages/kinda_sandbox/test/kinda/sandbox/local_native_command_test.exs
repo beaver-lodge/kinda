@@ -14,9 +14,15 @@ defmodule Kinda.Sandbox.LocalNativeCommandTest do
 
     assert {:ok, result} =
              Command.run(sandbox, %Spec{
-               executable: elixir(),
-               args: ["-e", "IO.write(hd(System.argv()))", "--", literal],
-               inherit_env: ["PATH"],
+               executable: erl(),
+               args: [
+                 "-noshell",
+                 "-eval",
+                 "[Arg] = init:get_plain_arguments(), io:put_chars(Arg), halt().",
+                 "-extra",
+                 literal
+               ],
+               inherit_env: runtime_env(),
                env: %{"LANG" => "C.UTF-8"}
              })
 
@@ -37,17 +43,19 @@ defmodule Kinda.Sandbox.LocalNativeCommandTest do
         env: %{"SANDBOX_BASE" => "base"}
       })
 
-    code =
-      ~S"""
-      IO.write(Enum.join([Path.basename(File.cwd!()), System.get_env("SANDBOX_BASE"), System.get_env("COMMAND_VALUE"), System.get_env("HOME")], "|"))
-      """
+    code = ~S'''
+    Value = fun(Name) -> case os:getenv(Name) of false -> ""; V -> V end end,
+    {ok, Cwd} = file:get_cwd(),
+    io:format("~s|~s|~s|~s", [filename:basename(Cwd), Value("SANDBOX_BASE"), Value("COMMAND_VALUE"), Value("HOME")]),
+    halt().
+    '''
 
     assert {:ok, result} =
              Command.run(sandbox, %Spec{
-               executable: elixir(),
-               args: ["-e", code],
+               executable: erl(),
+               args: ["-noshell", "-eval", code],
                env: %{"COMMAND_VALUE" => "command", "LANG" => "C.UTF-8"},
-               inherit_env: ["PATH"]
+               inherit_env: runtime_env()
              })
 
     [directory, "base", "command", ""] = String.split(result.stdout, "|")
@@ -61,10 +69,14 @@ defmodule Kinda.Sandbox.LocalNativeCommandTest do
 
     assert {:ok, result} =
              Command.run(sandbox, %Spec{
-               executable: elixir(),
-               args: ["-e", "IO.binwrite(IO.binread(:stdio, :eof))"],
+               executable: erl(),
+               args: [
+                 "-noshell",
+                 "-eval",
+                 ~S|io:setopts(standard_io, [binary, {encoding, latin1}]), Data = io:get_chars(standard_io, "", 4), io:put_chars(Data), halt().|
+               ],
                stdin: <<0, 1, 2, 255>>,
-               inherit_env: ["PATH"],
+               inherit_env: runtime_env(),
                env: %{"LANG" => "C.UTF-8"}
              })
 
@@ -84,9 +96,13 @@ defmodule Kinda.Sandbox.LocalNativeCommandTest do
 
     assert {:ok, result} =
              Command.run(sandbox, %Spec{
-               executable: elixir(),
-               args: ["-e", ~S|IO.write(:stdio, "out"); IO.write(:stderr, "err")|],
-               inherit_env: ["PATH"],
+               executable: erl(),
+               args: [
+                 "-noshell",
+                 "-eval",
+                 ~S|io:put_chars(standard_io, "out"), io:put_chars(standard_error, "err"), halt().|
+               ],
+               inherit_env: runtime_env(),
                env: %{"LANG" => "C.UTF-8"}
              })
 
@@ -101,5 +117,9 @@ defmodule Kinda.Sandbox.LocalNativeCommandTest do
     %BackendSpec{base_module: __MODULE__, parent_directory: parent}
   end
 
-  defp elixir, do: System.find_executable("elixir") || raise("elixir executable unavailable")
+  defp erl, do: System.find_executable("erl") || raise("erl executable unavailable")
+
+  defp runtime_env do
+    ["PATH", "SYSTEMROOT", "SystemRoot", "COMSPEC", "ComSpec", "PATHEXT", "TEMP", "TMP"]
+  end
 end
