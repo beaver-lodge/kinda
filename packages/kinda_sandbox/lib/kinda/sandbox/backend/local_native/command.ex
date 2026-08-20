@@ -168,11 +168,29 @@ defmodule Kinda.Sandbox.Backend.LocalNative.Command do
 
   defp terminate_ex_cmd(process, worker) do
     monitor = Process.monitor(process)
+    _ = kill_windows_process_tree(process)
 
     # ExCmd 0.18 has no public cross-process terminate call. This is its
     # bounded exit sequence, sent with the actual owner to close its pipes.
     GenServer.cast(process, {:prepare_exit, worker, 1_000})
     await_down(monitor, process, 1_500)
+  end
+
+  defp kill_windows_process_tree(process) do
+    handle = struct(ExCmd.Process, pid: process)
+
+    with {:ok, os_pid} <- ExCmd.Process.os_pid(handle),
+         executable when is_binary(executable) <- System.find_executable("taskkill"),
+         {_output, 0} <-
+           System.cmd(
+             executable,
+             ["/PID", Integer.to_string(os_pid), "/T", "/F"],
+             stderr_to_stdout: true
+           ) do
+      :ok
+    else
+      _error -> :not_available
+    end
   end
 
   defp await_down(monitor, process, timeout) do
