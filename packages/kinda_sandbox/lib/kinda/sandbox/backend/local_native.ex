@@ -1,9 +1,13 @@
 defmodule Kinda.Sandbox.Backend.LocalNative do
   @moduledoc """
-  Local filesystem backend for isolated native builds.
+  Local filesystem and process backend for native development workflows.
 
   Each handle owns exactly one unique child directory. Closing a handle removes
   that child and never removes the caller-provided parent directory.
+
+  This backend is not a security boundary for untrusted code. Commands run as
+  the current OS user and may access the network, paths outside the owned
+  directory, other permitted processes, and unrestricted host resources.
   """
 
   @behaviour Kinda.Sandbox.Backend
@@ -19,7 +23,7 @@ defmodule Kinda.Sandbox.Backend.LocalNative do
   end
 
   @impl true
-  def capabilities, do: %{native_build: __MODULE__.NativeBuild}
+  def capabilities, do: %{command: __MODULE__.Command, native_build: __MODULE__.NativeBuild}
 
   @impl true
   def create(%Spec{} = spec, _options) do

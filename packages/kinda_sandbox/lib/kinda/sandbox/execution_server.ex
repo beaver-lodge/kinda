@@ -20,6 +20,7 @@ defmodule Kinda.Sandbox.ExecutionServer do
     stderr: "",
     stdout_truncated?: false,
     stderr_truncated?: false,
+    metadata: %{},
     waiters: [],
     result: nil
   ]
@@ -154,29 +155,27 @@ defmodule Kinda.Sandbox.ExecutionServer do
   end
 
   defp run_stream(server, state) do
-    case safely(fn -> state.capability.stream(state.backend_handle, state.spec) end) do
-      {:ok, enumerable} ->
-        Enum.each(enumerable, &send(server, {:command_event, &1}))
-        send(server, :command_complete)
+    outcome =
+      safely(fn ->
+        case state.capability.stream(state.backend_handle, state.spec) do
+          {:ok, enumerable} -> Enum.each(enumerable, &send(server, {:command_event, &1}))
+          {:error, %Error{} = error} -> {:error, error}
+          other -> {:invalid, other}
+        end
+      end)
 
-      {:error, %Error{} = error} ->
-        send(server, {:command_error, error})
-
-      other ->
-        error =
-          Error.exception(
-            reason: :backend_failure,
-            backend: state.backend,
-            operation: :command,
-            cause: other
-          )
-
-        send(server, {:command_error, error})
+    case outcome do
+      :ok -> send(server, :command_complete)
+      {:error, %Error{} = error} -> send(server, {:command_error, error})
+      other -> send(server, {:command_error, backend_failure(state.backend, other)})
     end
   end
 
   defp consume({:stdout, data}, state), do: append(state, :stdout, data)
   defp consume({:stderr, data}, state), do: append(state, :stderr, data)
+
+  defp consume({:metadata, metadata}, state) when is_map(metadata),
+    do: %{state | metadata: Map.merge(state.metadata, metadata)}
 
   defp consume({:exit, status}, state) when is_integer(status) and status >= 0,
     do: finish(state, {:exit, status})
@@ -212,7 +211,7 @@ defmodule Kinda.Sandbox.ExecutionServer do
       duration: duration,
       stdout_truncated?: state.stdout_truncated?,
       stderr_truncated?: state.stderr_truncated?,
-      metadata: metadata
+      metadata: Map.merge(state.metadata, metadata)
     }
 
     Enum.each(state.waiters, &GenServer.reply(&1, {:ok, result}))
@@ -247,5 +246,9 @@ defmodule Kinda.Sandbox.ExecutionServer do
     callback.()
   catch
     kind, reason -> {:caught, kind, reason, __STACKTRACE__}
+  end
+
+  defp backend_failure(backend, cause) do
+    Error.exception(reason: :backend_failure, backend: backend, operation: :command, cause: cause)
   end
 end

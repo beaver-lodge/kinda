@@ -23,6 +23,7 @@ defmodule Kinda.Sandbox.MixProject do
   defp deps do
     [
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:ex_cmd, "~> 0.18"},
       {:telemetry, "~> 1.3"}
     ]
   end
