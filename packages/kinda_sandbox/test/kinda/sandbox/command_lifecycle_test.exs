@@ -19,10 +19,14 @@ defmodule Kinda.Sandbox.CommandLifecycleTest do
     {:ok, sandbox} = Sandbox.create(LocalNative, backend_spec(parent))
 
     spec = %Spec{
-      executable: elixir(),
-      args: ["-e", ~S|Process.sleep(300); File.write!("late", "leaked")|],
+      executable: erl(),
+      args: [
+        "-noshell",
+        "-eval",
+        ~S|timer:sleep(300), file:write_file("late", <<"leaked">>), halt().|
+      ],
       env: base_env(),
-      inherit_env: ["PATH"],
+      inherit_env: runtime_env(),
       timeout: 25
     }
 
@@ -38,10 +42,10 @@ defmodule Kinda.Sandbox.CommandLifecycleTest do
 
     {:ok, execution} =
       Command.start(sandbox, %Spec{
-        executable: elixir(),
-        args: ["-e", "Process.sleep(:infinity)"],
+        executable: erl(),
+        args: ["-noshell", "-eval", "timer:sleep(infinity), halt()."],
         env: base_env(),
-        inherit_env: ["PATH"],
+        inherit_env: runtime_env(),
         timeout: :infinity
       })
 
@@ -60,10 +64,10 @@ defmodule Kinda.Sandbox.CommandLifecycleTest do
 
     {:ok, %Execution{} = execution} =
       Command.start(sandbox, %Spec{
-        executable: elixir(),
-        args: ["-e", "Process.sleep(:infinity)"],
+        executable: erl(),
+        args: ["-noshell", "-eval", "timer:sleep(infinity), halt()."],
         env: base_env(),
-        inherit_env: ["PATH"],
+        inherit_env: runtime_env(),
         timeout: :infinity
       })
 
@@ -84,10 +88,10 @@ defmodule Kinda.Sandbox.CommandLifecycleTest do
 
         {:ok, execution} =
           Command.start(sandbox, %Spec{
-            executable: elixir(),
-            args: ["-e", "Process.sleep(:infinity)"],
+            executable: erl(),
+            args: ["-noshell", "-eval", "timer:sleep(infinity), halt()."],
             env: base_env(),
-            inherit_env: ["PATH"],
+            inherit_env: runtime_env(),
             timeout: :infinity
           })
 
@@ -143,10 +147,14 @@ defmodule Kinda.Sandbox.CommandLifecycleTest do
   defp command_cwd(sandbox) do
     {:ok, result} =
       Command.run(sandbox, %Spec{
-        executable: elixir(),
-        args: ["-e", "IO.write(File.cwd!())"],
+        executable: erl(),
+        args: [
+          "-noshell",
+          "-eval",
+          ~S|{ok, Cwd} = file:get_cwd(), io:put_chars(Cwd), halt().|
+        ],
         env: base_env(),
-        inherit_env: ["PATH"]
+        inherit_env: runtime_env()
       })
 
     result.stdout
@@ -154,7 +162,11 @@ defmodule Kinda.Sandbox.CommandLifecycleTest do
 
   defp backend_spec(parent), do: %BackendSpec{base_module: __MODULE__, parent_directory: parent}
   defp base_env, do: %{"LANG" => "C.UTF-8"}
-  defp elixir, do: System.find_executable("elixir") || raise("elixir executable unavailable")
+  defp erl, do: System.find_executable("erl") || raise("erl executable unavailable")
+
+  defp runtime_env do
+    ["PATH", "SYSTEMROOT", "SystemRoot", "COMSPEC", "ComSpec", "PATHEXT", "TEMP", "TMP"]
+  end
 
   defp eventually(predicate, attempts \\ 200)
   defp eventually(_predicate, 0), do: false
