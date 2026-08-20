@@ -56,5 +56,27 @@ a normalized `:unsupported_capability` error. An untrappable forced kill cannot
 promise generic cleanup: afterward `close/1` remains `:ok`, while other calls
 return `:disconnected`.
 
-Future command, filesystem, container, and remote-provider features should be
-introduced as typed capabilities only when a concrete backend requires them.
+## Commands and shells
+
+`Kinda.Sandbox.Command` is the portable process primitive. It always receives
+an executable and argv separately; shell metacharacters in an argument remain
+literal. Output capture is bounded and each execution has a ref-only handle
+supporting `await/2` and `cancel/1`.
+
+`Kinda.Sandbox.Shell` is an explicit adapter for callers that genuinely need
+shell syntax. Its interpreter is `:posix_sh`, `:bash`, `:zsh`, or an exact
+`{:path, path, arguments}` tuple. It never reads `$SHELL`, silently falls back,
+loads Bash/Zsh user startup files, or injects `set -e`/`pipefail` policy.
+
+The `LocalNative` command capability captures stdout and stderr separately on
+Unix and reports `streams: :separate`. Its Windows process substrate merges
+stderr into bounded stdout and reports `streams: :merged` rather than claiming
+separate streams it cannot provide. Unselected ambient environment values are
+scrubbed; callers explicitly select values through `inherit_env` or provide
+`env` overrides.
+
+Most importantly, `LocalNative` is lifecycle management, not containment.
+Commands run as the current OS user and can access paths outside the owned
+directory, the network, other permitted processes, and unrestricted host
+resources. Untrusted-code isolation requires a future container, namespace, or
+remote-provider backend with explicit filesystem, network, and resource policy.
