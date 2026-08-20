@@ -21,10 +21,17 @@ defmodule Kinda.Sandbox.MixProject do
   end
 
   defp deps do
+    platform_deps =
+      if match?({:win32, _name}, :os.type()) do
+        []
+      else
+        [{:exile, "~> 0.14"}]
+      end
+
     [
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:ex_cmd, "~> 0.18"},
       {:telemetry, "~> 1.3"}
-    ]
+    ] ++ platform_deps
   end
 end

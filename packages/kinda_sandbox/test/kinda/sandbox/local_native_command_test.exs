@@ -29,7 +29,7 @@ defmodule Kinda.Sandbox.LocalNativeCommandTest do
     assert result.termination == {:exit, 0}
     assert result.stdout == literal
     assert result.stderr == ""
-    assert result.metadata.streams == :merged
+    assert result.metadata.streams == expected_streams()
     refute result.metadata.process_tree_termination?
     assert :ok = Sandbox.close(sandbox)
   end
@@ -106,10 +106,16 @@ defmodule Kinda.Sandbox.LocalNativeCommandTest do
                env: %{"LANG" => "C.UTF-8"}
              })
 
-    assert result.stdout =~ "out"
-    assert result.stdout =~ "err"
-    assert result.stderr == ""
-    assert result.metadata.streams == :merged
+    if windows?() do
+      assert result.stdout =~ "out"
+      assert result.stdout =~ "err"
+      assert result.stderr == ""
+    else
+      assert result.stdout == "out"
+      assert result.stderr == "err"
+    end
+
+    assert result.metadata.streams == expected_streams()
     assert :ok = Sandbox.close(sandbox)
   end
 
@@ -122,4 +128,7 @@ defmodule Kinda.Sandbox.LocalNativeCommandTest do
   defp runtime_env do
     ["PATH", "SYSTEMROOT", "SystemRoot", "COMSPEC", "ComSpec", "PATHEXT", "TEMP", "TMP"]
   end
+
+  defp expected_streams, do: if(windows?(), do: :merged, else: :separate)
+  defp windows?, do: match?({:win32, _name}, :os.type())
 end
