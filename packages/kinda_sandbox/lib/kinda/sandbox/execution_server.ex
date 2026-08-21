@@ -15,6 +15,7 @@ defmodule Kinda.Sandbox.ExecutionServer do
     :started_at,
     :worker,
     :worker_monitor,
+    :backend_execution,
     :timer,
     stdout: "",
     stderr: "",
@@ -118,6 +119,30 @@ defmodule Kinda.Sandbox.ExecutionServer do
     {:noreply, state}
   end
 
+  def handle_info(
+        {:backend_execution, worker, registration_ref, backend_execution},
+        %{result: nil} = state
+      ) do
+    send(worker, {:backend_execution_ack, registration_ref})
+    {:noreply, %{state | backend_execution: backend_execution}}
+  end
+
+  def handle_info(
+        {:backend_execution, worker, registration_ref, backend_execution},
+        %{result: %Result{termination: termination}} = state
+      ) do
+    send(worker, {:backend_execution_ack, registration_ref})
+
+    terminate_command(
+      state.capability,
+      backend_execution,
+      termination,
+      state.spec.terminate_after
+    )
+
+    {:noreply, state}
+  end
+
   def handle_info({:command_event, worker, event_ref, _event}, state) do
     send(worker, {:command_ack, event_ref})
     {:noreply, state}
@@ -160,9 +185,18 @@ defmodule Kinda.Sandbox.ExecutionServer do
     outcome =
       safely(fn ->
         case state.capability.stream(state.backend_handle, state.spec) do
-          {:ok, enumerable} -> Enum.each(enumerable, &send_event(server, &1))
-          {:error, %Error{} = error} -> {:error, error}
-          other -> {:invalid, other}
+          {:ok, enumerable} ->
+            Enum.each(enumerable, &send_event(server, &1))
+
+          {:ok, enumerable, backend_execution} ->
+            register_backend_execution(server, backend_execution)
+            Enum.each(enumerable, &send_event(server, &1))
+
+          {:error, %Error{} = error} ->
+            {:error, error}
+
+          other ->
+            {:invalid, other}
         end
       end)
 
@@ -193,6 +227,15 @@ defmodule Kinda.Sandbox.ExecutionServer do
 
     receive do
       {:command_ack, ^event_ref} -> :ok
+    end
+  end
+
+  defp register_backend_execution(server, backend_execution) do
+    registration_ref = make_ref()
+    send(server, {:backend_execution, self(), registration_ref, backend_execution})
+
+    receive do
+      {:backend_execution_ack, ^registration_ref} -> :ok
     end
   end
 
@@ -257,7 +300,14 @@ defmodule Kinda.Sandbox.ExecutionServer do
   defp stop_worker_and_wait(state, reason) do
     pid = state.worker
     monitor = Process.monitor(pid)
-    terminate_command(state.capability, pid, reason)
+
+    terminate_command(
+      state.capability,
+      state.backend_execution,
+      reason,
+      state.spec.terminate_after
+    )
+
     stop_worker(pid)
 
     receive do
@@ -267,9 +317,9 @@ defmodule Kinda.Sandbox.ExecutionServer do
     end
   end
 
-  defp terminate_command(capability, worker, reason) do
-    if function_exported?(capability, :terminate, 2) do
-      _ = safely(fn -> capability.terminate(worker, reason) end)
+  defp terminate_command(capability, backend_execution, reason, grace_milliseconds) do
+    if backend_execution != nil and function_exported?(capability, :terminate, 3) do
+      _ = safely(fn -> capability.terminate(backend_execution, reason, grace_milliseconds) end)
     end
 
     :ok

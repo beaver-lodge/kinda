@@ -9,7 +9,10 @@ defmodule Kinda.Sandbox.MixProject do
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       name: "Kinda Sandbox",
-      description: "Backend-neutral lifecycle and capability contracts for Kinda sandboxes"
+      description: "Backend-neutral lifecycle and capability contracts for Kinda sandboxes",
+      compilers: [:elixir_make] ++ Mix.compilers(),
+      make_precompiler: {:nif, Kinda.Precompiler},
+      make_precompiler_url: "http://127.0.0.1:8000/@{artefact_filename}"
     ]
   end
 
@@ -21,17 +24,12 @@ defmodule Kinda.Sandbox.MixProject do
   end
 
   defp deps do
-    platform_deps =
-      if match?({:win32, _name}, :os.type()) do
-        []
-      else
-        [{:exile, "~> 0.14"}]
-      end
-
     [
+      {:kinda, path: "../.."},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:elixir_make, "~> 0.4", runtime: false},
       {:ex_cmd, "~> 0.18"},
       {:telemetry, "~> 1.3"}
-    ] ++ platform_deps
+    ]
   end
 end

@@ -12,6 +12,9 @@ defmodule Kinda.Sandbox.Backend.LocalProcess do
   alias Kinda.Sandbox.Backend.LocalProcess.Spec
   alias Kinda.Sandbox.Error
 
+  @remove_retry_attempts 40
+  @remove_retry_delay 25
+
   defmodule State do
     @moduledoc false
     @enforce_keys [:directory, :env]
@@ -34,10 +37,16 @@ defmodule Kinda.Sandbox.Backend.LocalProcess do
   end
 
   @impl true
-  def close(%State{directory: directory}) do
+  def close(%State{directory: directory}), do: remove_directory(directory, @remove_retry_attempts)
+
+  defp remove_directory(directory, attempts) do
     case File.rm_rf(directory) do
       {:ok, _paths} ->
         :ok
+
+      {:error, _path, reason} when attempts > 0 and reason in [:eacces, :eperm] ->
+        Process.sleep(@remove_retry_delay)
+        remove_directory(directory, attempts - 1)
 
       {:error, path, reason} ->
         {:error, filesystem_error("could not remove sandbox", path, reason)}
