@@ -1,46 +1,41 @@
-defmodule Kinda.Sandbox.Backend.LocalNative.Command do
+defmodule Kinda.Sandbox.Backend.LocalProcess.Command do
   @moduledoc false
 
   @behaviour Kinda.Sandbox.Capability.Command
 
-  alias Kinda.Sandbox.Backend.LocalNative.State
-  alias Kinda.Sandbox.Capability.NativeBuild.Context
+  alias Kinda.Sandbox.Backend.LocalProcess
+  alias Kinda.Sandbox.Backend.LocalProcess.State
   alias Kinda.Sandbox.Command.Spec
   alias Kinda.Sandbox.Error
 
   @impl true
-  def stream(%State{context: %Context{} = context}, %Spec{} = spec) do
+  def stream(%State{} = state, %Spec{} = spec) do
     if absolute_missing?(spec.executable) do
       {:error,
        Error.exception(
          reason: :backend_failure,
-         backend: Kinda.Sandbox.Backend.LocalNative,
+         backend: LocalProcess,
          operation: :command,
          message: "command executable does not exist",
          details: %{executable: spec.executable}
        )}
     else
-      build_stream(context, spec)
+      build_stream(state, spec)
     end
   end
 
   @impl true
   def terminate(worker, _reason) do
     case linked_command_process(worker) do
-      nil ->
-        :ok
-
-      {:exile, process} ->
-        terminate_exile(process)
-
-      {:ex_cmd, process} ->
-        terminate_ex_cmd(process, worker)
+      nil -> :ok
+      {:exile, process} -> terminate_exile(process)
+      {:ex_cmd, process} -> terminate_ex_cmd(process, worker)
     end
   end
 
-  defp build_stream(context, spec) do
+  defp build_stream(state, spec) do
     command = [spec.executable | spec.args]
-    {events, streams} = process_stream(command, context, spec)
+    {events, streams} = process_stream(command, state, spec)
 
     metadata = %{
       streams: streams,
@@ -52,11 +47,11 @@ defmodule Kinda.Sandbox.Backend.LocalNative.Command do
     {:ok, Stream.concat([{:metadata, metadata}], events)}
   end
 
-  defp process_stream(command, context, spec) do
+  defp process_stream(command, state, spec) do
     if windows?() do
       events =
         command
-        |> ExCmd.stream(ex_cmd_options(context, spec))
+        |> ExCmd.stream(ex_cmd_options(state, spec))
         |> Stream.map(fn
           {:exit, {:status, status}} -> {:exit, status}
           {:exit, :epipe} -> {:signal, 0}
@@ -69,7 +64,7 @@ defmodule Kinda.Sandbox.Backend.LocalNative.Command do
 
       events =
         command
-        |> exile.stream(exile_options(context, spec))
+        |> exile.stream(exile_options(state, spec))
         |> Stream.map(fn
           {:exit, {:status, status}} -> {:exit, status}
           {:exit, status} when is_integer(status) -> {:exit, status}
@@ -86,28 +81,26 @@ defmodule Kinda.Sandbox.Backend.LocalNative.Command do
     Path.type(executable) == :absolute and not File.regular?(executable)
   end
 
-  defp ex_cmd_options(context, spec) do
+  defp ex_cmd_options(state, spec) do
     [
-      cd: Path.join(context.directory, spec.cwd),
-      env: environment(context.env, spec),
+      cd: Path.join(state.directory, spec.cwd),
+      env: environment(state.env, spec),
       input: input(spec.stdin),
       stderr: :redirect_to_stdout,
       max_chunk_size: 64 * 1024 - 5
     ]
   end
 
-  defp exile_options(context, spec) do
+  defp exile_options(state, spec) do
     [
-      cd: Path.join(context.directory, spec.cwd),
-      env: environment(context.env, spec),
+      cd: Path.join(state.directory, spec.cwd),
+      env: environment(state.env, spec),
       input: exile_input(spec.stdin),
       stderr: :consume,
       max_chunk_size: 65_535
     ]
   end
 
-  # ExCmd overlays the supplied environment. Empty overrides scrub ambient
-  # values not selected by inherit_env without mutating global process state.
   defp environment(sandbox_env, spec) do
     ambient = normalize_environment(System.get_env())
     scrubbed = Map.new(ambient, fn {key, _value} -> {key, ""} end)
@@ -169,9 +162,6 @@ defmodule Kinda.Sandbox.Backend.LocalNative.Command do
   defp terminate_ex_cmd(process, worker) do
     monitor = Process.monitor(process)
     _ = kill_windows_process_tree(process)
-
-    # ExCmd 0.18 has no public cross-process terminate call. This is its
-    # bounded exit sequence, sent with the actual owner to close its pipes.
     GenServer.cast(process, {:prepare_exit, worker, 1_000})
     await_down(monitor, process, 1_500)
   end
@@ -182,9 +172,7 @@ defmodule Kinda.Sandbox.Backend.LocalNative.Command do
     with {:ok, os_pid} <- ExCmd.Process.os_pid(handle),
          executable when is_binary(executable) <- System.find_executable("taskkill"),
          {_output, 0} <-
-           System.cmd(
-             executable,
-             ["/PID", Integer.to_string(os_pid), "/T", "/F"],
+           System.cmd(executable, ["/PID", Integer.to_string(os_pid), "/T", "/F"],
              stderr_to_stdout: true
            ) do
       :ok

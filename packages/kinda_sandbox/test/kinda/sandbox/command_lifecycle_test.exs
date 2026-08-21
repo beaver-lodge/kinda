@@ -24,8 +24,8 @@ defmodule Kinda.Sandbox.CommandLifecycleTest do
   use ExUnit.Case, async: true
 
   alias Kinda.Sandbox
-  alias Kinda.Sandbox.Backend.LocalNative
-  alias Kinda.Sandbox.Backend.LocalNative.Spec, as: BackendSpec
+  alias Kinda.Sandbox.Backend.LocalProcess
+  alias Kinda.Sandbox.Backend.LocalProcess.Spec, as: BackendSpec
   alias Kinda.Sandbox.Command
   alias Kinda.Sandbox.Command.{Execution, Result, Spec}
   alias Kinda.Sandbox.Error
@@ -38,7 +38,7 @@ defmodule Kinda.Sandbox.CommandLifecycleTest do
   test "timeout terminates the external process before it can perform later work", %{
     tmp_dir: parent
   } do
-    {:ok, sandbox} = Sandbox.create(LocalNative, backend_spec(parent))
+    {:ok, sandbox} = Sandbox.create(LocalProcess, backend_spec(parent))
 
     spec = late_write_spec()
 
@@ -50,7 +50,7 @@ defmodule Kinda.Sandbox.CommandLifecycleTest do
 
   @tag :tmp_dir
   test "cancel is idempotent and leaves a stable terminal result", %{tmp_dir: parent} do
-    {:ok, sandbox} = Sandbox.create(LocalNative, backend_spec(parent))
+    {:ok, sandbox} = Sandbox.create(LocalProcess, backend_spec(parent))
 
     {:ok, execution} =
       Command.start(sandbox, long_running_spec())
@@ -65,7 +65,7 @@ defmodule Kinda.Sandbox.CommandLifecycleTest do
   test "sandbox close stops live executions and removes their handles and directory", %{
     tmp_dir: parent
   } do
-    {:ok, sandbox} = Sandbox.create(LocalNative, backend_spec(parent))
+    {:ok, sandbox} = Sandbox.create(LocalProcess, backend_spec(parent))
     directory = command_cwd(sandbox)
 
     {:ok, %Execution{} = execution} =
@@ -83,7 +83,7 @@ defmodule Kinda.Sandbox.CommandLifecycleTest do
 
     {owner, owner_monitor} =
       spawn_monitor(fn ->
-        {:ok, sandbox} = Sandbox.create(LocalNative, backend_spec(parent))
+        {:ok, sandbox} = Sandbox.create(LocalProcess, backend_spec(parent))
         directory = command_cwd(sandbox)
 
         {:ok, execution} =
@@ -154,7 +154,7 @@ defmodule Kinda.Sandbox.CommandLifecycleTest do
     result.stdout
   end
 
-  defp backend_spec(parent), do: %BackendSpec{base_module: __MODULE__, parent_directory: parent}
+  defp backend_spec(parent), do: %BackendSpec{parent_directory: parent}
 
   defp late_write_spec do
     if windows?() do

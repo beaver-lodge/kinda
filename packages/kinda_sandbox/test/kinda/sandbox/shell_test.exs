@@ -2,14 +2,14 @@ defmodule Kinda.Sandbox.ShellTest do
   use ExUnit.Case, async: true
 
   alias Kinda.Sandbox
-  alias Kinda.Sandbox.Backend.LocalNative
-  alias Kinda.Sandbox.Backend.LocalNative.Spec, as: BackendSpec
+  alias Kinda.Sandbox.Backend.LocalProcess
+  alias Kinda.Sandbox.Backend.LocalProcess.Spec, as: BackendSpec
   alias Kinda.Sandbox.Command.Result
   alias Kinda.Sandbox.{Error, Shell}
 
   @tag :tmp_dir
   test "POSIX profile is explicit and does not inject error policy", %{tmp_dir: parent} do
-    {:ok, sandbox} = Sandbox.create(LocalNative, backend_spec(parent))
+    {:ok, sandbox} = Sandbox.create(LocalProcess, backend_spec(parent))
 
     if System.find_executable("sh") do
       assert {:ok, %Result{} = result} =
@@ -32,7 +32,7 @@ defmodule Kinda.Sandbox.ShellTest do
 
   @tag :tmp_dir
   test "exact-path profile preserves caller arguments and script as one argv", %{tmp_dir: parent} do
-    {:ok, sandbox} = Sandbox.create(LocalNative, backend_spec(parent))
+    {:ok, sandbox} = Sandbox.create(LocalProcess, backend_spec(parent))
 
     if sh = System.find_executable("sh") do
       script = ~S|printf '%s' 'literal;$(shell-text)'|
@@ -55,7 +55,7 @@ defmodule Kinda.Sandbox.ShellTest do
   test "Bash and Zsh profiles are exact, conditional, and skip user startup files", %{
     tmp_dir: parent
   } do
-    {:ok, sandbox} = Sandbox.create(LocalNative, backend_spec(parent))
+    {:ok, sandbox} = Sandbox.create(LocalProcess, backend_spec(parent))
 
     for {profile, startup_file} <- [bash: ".bashrc", zsh: ".zshrc"],
         executable = System.find_executable(Atom.to_string(profile)),
@@ -81,7 +81,7 @@ defmodule Kinda.Sandbox.ShellTest do
 
   @tag :tmp_dir
   test "does not fall back when an interpreter or option is invalid", %{tmp_dir: parent} do
-    {:ok, sandbox} = Sandbox.create(LocalNative, backend_spec(parent))
+    {:ok, sandbox} = Sandbox.create(LocalProcess, backend_spec(parent))
 
     assert {:error, %Error{reason: :invalid_spec, operation: :shell}} =
              Shell.run(sandbox, "echo ignored", interpreter: :fish)
@@ -92,6 +92,6 @@ defmodule Kinda.Sandbox.ShellTest do
     assert :ok = Sandbox.close(sandbox)
   end
 
-  defp backend_spec(parent), do: %BackendSpec{base_module: __MODULE__, parent_directory: parent}
+  defp backend_spec(parent), do: %BackendSpec{parent_directory: parent}
   defp base_env, do: %{"LANG" => "C.UTF-8"}
 end

@@ -1,15 +1,15 @@
-defmodule Kinda.Sandbox.LocalNativeCommandTest do
+defmodule Kinda.Sandbox.LocalProcessCommandTest do
   use ExUnit.Case, async: true
 
   alias Kinda.Sandbox
-  alias Kinda.Sandbox.Backend.LocalNative
-  alias Kinda.Sandbox.Backend.LocalNative.Spec, as: BackendSpec
+  alias Kinda.Sandbox.Backend.LocalProcess
+  alias Kinda.Sandbox.Backend.LocalProcess.Spec, as: BackendSpec
   alias Kinda.Sandbox.Command
   alias Kinda.Sandbox.Command.Spec
 
   @tag :tmp_dir
   test "executes an exact executable and argv without shell interpretation", %{tmp_dir: parent} do
-    {:ok, sandbox} = Sandbox.create(LocalNative, backend_spec(parent))
+    {:ok, sandbox} = Sandbox.create(LocalProcess, backend_spec(parent))
     literal = "$(echo expanded); *.ex"
 
     assert {:ok, result} =
@@ -37,8 +37,7 @@ defmodule Kinda.Sandbox.LocalNativeCommandTest do
   @tag :tmp_dir
   test "uses the owned cwd and explicit environment without ambient values", %{tmp_dir: parent} do
     {:ok, sandbox} =
-      Sandbox.create(LocalNative, %BackendSpec{
-        base_module: __MODULE__,
+      Sandbox.create(LocalProcess, %BackendSpec{
         parent_directory: parent,
         env: %{"SANDBOX_BASE" => "base"}
       })
@@ -59,13 +58,13 @@ defmodule Kinda.Sandbox.LocalNativeCommandTest do
              })
 
     [directory, "base", "command", ""] = String.split(result.stdout, "|")
-    assert String.starts_with?(directory, "kinda-sandbox-")
+    assert String.starts_with?(directory, "kinda-process-")
     assert :ok = Sandbox.close(sandbox)
   end
 
   @tag :tmp_dir
   test "writes binary stdin and reports spawn failures", %{tmp_dir: parent} do
-    {:ok, sandbox} = Sandbox.create(LocalNative, backend_spec(parent))
+    {:ok, sandbox} = Sandbox.create(LocalProcess, backend_spec(parent))
 
     assert {:ok, result} =
              Command.run(sandbox, %Spec{
@@ -92,7 +91,7 @@ defmodule Kinda.Sandbox.LocalNativeCommandTest do
 
   @tag :tmp_dir
   test "captures stderr in an explicitly reported merged stream", %{tmp_dir: parent} do
-    {:ok, sandbox} = Sandbox.create(LocalNative, backend_spec(parent))
+    {:ok, sandbox} = Sandbox.create(LocalProcess, backend_spec(parent))
 
     assert {:ok, result} =
              Command.run(sandbox, %Spec{
@@ -120,7 +119,7 @@ defmodule Kinda.Sandbox.LocalNativeCommandTest do
   end
 
   defp backend_spec(parent) do
-    %BackendSpec{base_module: __MODULE__, parent_directory: parent}
+    %BackendSpec{parent_directory: parent}
   end
 
   defp erl, do: System.find_executable("erl") || raise("erl executable unavailable")
