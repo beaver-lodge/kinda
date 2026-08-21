@@ -28,7 +28,6 @@ defmodule Kinda.Sandbox.MixProject do
       {:kinda, path: "../.."},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:elixir_make, "~> 0.4", runtime: false},
-      {:ex_cmd, "~> 0.18"},
       {:telemetry, "~> 1.3"}
     ]
   end

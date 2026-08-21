@@ -30,7 +30,7 @@ defmodule Kinda.Sandbox.LocalProcessCommandTest do
     assert result.stdout == literal
     assert result.stderr == ""
     assert result.metadata.streams == expected_streams()
-    assert result.metadata.process_tree_termination? == not windows?()
+    assert result.metadata.process_tree_termination?
     assert :ok = Sandbox.close(sandbox)
   end
 
@@ -90,6 +90,39 @@ defmodule Kinda.Sandbox.LocalProcessCommandTest do
   end
 
   @tag :tmp_dir
+  test "pumps bounded large stdin while independently draining both output pipes", %{
+    tmp_dir: parent
+  } do
+    {:ok, sandbox} = Sandbox.create(LocalProcess, backend_spec(parent))
+    input = :binary.copy(<<0, 1, 2, 255>>, 128 * 1024)
+
+    code = ~S'''
+    io:setopts(standard_io, [binary, {encoding, latin1}]),
+    Data = io:get_chars(standard_io, "", 524288),
+    io:put_chars(standard_io, Data),
+    io:put_chars(standard_error, binary:copy(<<"e">>, 131072)),
+    halt().
+    '''
+
+    assert {:ok, result} =
+             Command.run(sandbox, %Spec{
+               executable: erl(),
+               args: ["-noshell", "-eval", code],
+               stdin: input,
+               inherit_env: runtime_env(),
+               env: %{"LANG" => "C.UTF-8"},
+               max_output_bytes: byte_size(input)
+             })
+
+    assert result.termination == {:exit, 0}
+    assert result.stdout == input
+    assert byte_size(result.stderr) == 128 * 1024
+    refute result.stdout_truncated?
+    refute result.stderr_truncated?
+    assert :ok = Sandbox.close(sandbox)
+  end
+
+  @tag :tmp_dir
   test "captures stderr in an explicitly reported merged stream", %{tmp_dir: parent} do
     {:ok, sandbox} = Sandbox.create(LocalProcess, backend_spec(parent))
 
@@ -105,14 +138,8 @@ defmodule Kinda.Sandbox.LocalProcessCommandTest do
                env: %{"LANG" => "C.UTF-8"}
              })
 
-    if windows?() do
-      assert result.stdout =~ "out"
-      assert result.stdout =~ "err"
-      assert result.stderr == ""
-    else
-      assert result.stdout == "out"
-      assert result.stderr == "err"
-    end
+    assert result.stdout == "out"
+    assert result.stderr == "err"
 
     assert result.metadata.streams == expected_streams()
     assert :ok = Sandbox.close(sandbox)
@@ -128,6 +155,5 @@ defmodule Kinda.Sandbox.LocalProcessCommandTest do
     ["PATH", "SYSTEMROOT", "SystemRoot", "COMSPEC", "ComSpec", "PATHEXT", "TEMP", "TMP"]
   end
 
-  defp expected_streams, do: if(windows?(), do: :merged, else: :separate)
-  defp windows?, do: match?({:win32, _name}, :os.type())
+  defp expected_streams, do: :separate
 end

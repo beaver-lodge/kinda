@@ -74,6 +74,9 @@ pub fn spawn(environment: beam.env, args: [*c]const beam.term) !Process {
     try makePipe(&status_pipe);
     errdefer closePair(&status_pipe);
     if (c.fcntl(error_pipe[1], c.F_SETFD, c.FD_CLOEXEC) == -1) return error.SetCloseOnExecFailed;
+    try setNonBlocking(stdin_pipe[1]);
+    try setNonBlocking(stdout_pipe[0]);
+    try setNonBlocking(stderr_pipe[0]);
 
     const monitor_pid = c.fork();
     if (monitor_pid == -1) return error.ForkFailed;
@@ -90,6 +93,7 @@ pub fn spawn(environment: beam.env, args: [*c]const beam.term) !Process {
     if (c.read(status_pipe[0], &pid, @sizeOf(c.pid_t)) != @sizeOf(c.pid_t) or pid <= 0) {
         return error.MonitorFailed;
     }
+    errdefer _ = c.kill(-pid, c.SIGKILL);
 
     var child_errno: c_int = 0;
     const error_bytes = c.read(error_pipe[0], &child_errno, @sizeOf(c_int));
@@ -102,9 +106,6 @@ pub fn spawn(environment: beam.env, args: [*c]const beam.term) !Process {
         return error.ExecFailed;
     }
 
-    try setNonBlocking(stdin_pipe[1]);
-    try setNonBlocking(stdout_pipe[0]);
-    try setNonBlocking(stderr_pipe[0]);
     try setNonBlocking(status_pipe[0]);
 
     if (input.len == 0) closeFd(&stdin_pipe[1]);
@@ -160,14 +161,14 @@ pub fn terminate(process: *Process, grace_milliseconds: u32) void {
     defer process.mutex.unlock();
 
     observeTermination(process);
-    if (process.term != null) return;
+    if (process.term != null and !groupAlive(process.pid)) return;
 
     _ = c.kill(-process.pid, c.SIGTERM);
     const iterations = @max(grace_milliseconds / 10, 1);
     var index: u32 = 0;
     while (index < iterations) : (index += 1) {
         observeTermination(process);
-        if (process.term != null) return;
+        if (!groupAlive(process.pid)) return;
         _ = c.usleep(10 * 1000);
     }
 
@@ -229,7 +230,11 @@ fn monitorExec(
 ) noreturn {
     closeFd(&status_pipe[0]);
     const target_pid = c.fork();
-    if (target_pid == -1) childFail(status_pipe[1]);
+    if (target_pid == -1) {
+        const failed_pid: c.pid_t = -1;
+        _ = c.write(status_pipe[1], &failed_pid, @sizeOf(c.pid_t));
+        c._exit(127);
+    }
 
     if (target_pid == 0) {
         closeFd(&status_pipe[1]);
@@ -377,6 +382,11 @@ fn errnoValue() c_int {
         .macos, .ios, .tvos, .watchos, .visionos => c.__error().*,
         else => c.__errno_location().*,
     };
+}
+
+fn groupAlive(pid: c.pid_t) bool {
+    if (c.kill(-pid, 0) == 0) return true;
+    return errnoValue() == c.EPERM;
 }
 
 fn lock(mutex: *std.atomic.Mutex) void {

@@ -4,7 +4,7 @@ const beam = kinda.beam;
 const e = kinda.erl_nif;
 const result = kinda.result;
 
-const platform = if (builtin.os.tag == .windows) @import("unsupported.zig") else @import("posix.zig");
+const platform = if (builtin.os.tag == .windows) @import("windows.zig") else @import("posix.zig");
 const ProcessResource = kinda.RawResourceType(platform.Process, "Kinda.Sandbox.Native.Process", platform.destroy);
 
 fn spawn(environment: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
