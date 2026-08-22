@@ -6,6 +6,8 @@ defmodule Kinda.Sandbox.Conformance do
   alias Kinda.Sandbox
   alias Kinda.Sandbox.Handle
 
+  @owner_start_timeout 5_000
+
   def verify!(backend, spec_factory, observe, assert_cleaned) do
     verify_explicit_close!(backend, spec_factory, observe, assert_cleaned)
     verify_owner_exit!(backend, spec_factory, observe, assert_cleaned)
@@ -30,11 +32,11 @@ defmodule Kinda.Sandbox.Conformance do
     {owner, owner_monitor} =
       spawn_monitor(fn ->
         {:ok, handle} = Sandbox.create(backend, spec_factory.())
-        send(test_pid, {:conformance_handle, handle})
+        send(test_pid, {:conformance_handle, self(), handle})
         receive(do: (:stop -> :ok))
       end)
 
-    assert_receive {:conformance_handle, %Handle{ref: ref} = handle}
+    %Handle{ref: ref} = handle = await_owner_handle!(owner, owner_monitor)
     token = observe.(handle)
     [{server, _value}] = Registry.lookup(Kinda.Sandbox.Registry, ref)
     server_monitor = Process.monitor(server)
@@ -45,6 +47,24 @@ defmodule Kinda.Sandbox.Conformance do
     assert reason in [:normal, :noproc]
     assert eventually(fn -> Registry.lookup(Kinda.Sandbox.Registry, ref) == [] end)
     assert_cleaned.(token)
+  end
+
+  defp await_owner_handle!(owner, owner_monitor) do
+    receive do
+      {:conformance_handle, ^owner, %Handle{} = handle} ->
+        handle
+
+      {:DOWN, ^owner_monitor, :process, ^owner, reason} ->
+        flunk("sandbox owner exited before publishing its handle: #{inspect(reason)}")
+    after
+      @owner_start_timeout ->
+        Process.exit(owner, :kill)
+
+        assert_receive {:DOWN, ^owner_monitor, :process, ^owner, :killed},
+                       @owner_start_timeout
+
+        flunk("sandbox owner did not publish its handle within #{@owner_start_timeout}ms")
+    end
   end
 
   defp eventually(predicate, attempts \\ 100)
