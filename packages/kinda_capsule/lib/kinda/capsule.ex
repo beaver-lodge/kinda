@@ -1,8 +1,71 @@
 defmodule Kinda.Capsule do
   @moduledoc """
   Owner-scoped typed episode orchestration built on `Kinda.Sandbox`.
-
-  The lifecycle facade is implemented in the next stack layer. This module
-  owns the public namespace and its static contracts.
   """
+
+  alias Kinda.Capsule.{Error, Handle, Observation, Server, Spec}
+
+  @type result(value) :: {:ok, value} | {:error, Error.t()}
+
+  @spec create(Spec.t()) :: result(Handle.t())
+  def create(%Spec{} = spec) do
+    with :ok <- Spec.validate(spec) do
+      ref = make_ref()
+
+      case DynamicSupervisor.start_child(
+             Kinda.Capsule.ServerSupervisor,
+             {Server, ref: ref, owner: self(), spec: spec}
+           ) do
+        {:ok, _pid} -> {:ok, Handle.new(ref)}
+        {:error, reason} -> {:error, error(:create, :start_failure, reason)}
+      end
+    end
+  end
+
+  def create(spec), do: Spec.validate(spec)
+
+  @spec reset(Handle.t(), keyword()) :: result(Observation.t())
+  def reset(%Handle{ref: ref}, options) when is_list(options) do
+    case Keyword.fetch(options, :seed) do
+      {:ok, seed} -> call(ref, {:reset, seed}, :reset)
+      :error -> {:error, error(:reset, :invalid_options, nil, "seed is required")}
+    end
+  end
+
+  def reset(%Handle{}, _options),
+    do: {:error, error(:reset, :invalid_options, nil, "options must be a keyword list")}
+
+  @spec observe(Handle.t()) :: result(Observation.t())
+  def observe(%Handle{ref: ref}), do: call(ref, :observe, :observe)
+
+  @spec close(Handle.t()) :: :ok | {:error, Error.t()}
+  def close(%Handle{ref: ref}) do
+    case Registry.lookup(Kinda.Capsule.Registry, ref) do
+      [{pid, _value}] ->
+        case safe_call(pid, :close, :close) do
+          {:error, %Error{reason: :disconnected}} -> :ok
+          result -> result
+        end
+
+      [] ->
+        :ok
+    end
+  end
+
+  defp call(ref, request, phase) do
+    case Registry.lookup(Kinda.Capsule.Registry, ref) do
+      [{pid, _value}] -> safe_call(pid, request, phase)
+      [] -> {:error, error(phase, :disconnected)}
+    end
+  end
+
+  defp safe_call(pid, request, phase) do
+    GenServer.call(pid, request, :infinity)
+  catch
+    :exit, _reason -> {:error, error(phase, :disconnected)}
+  end
+
+  defp error(phase, reason, cause \\ nil, message \\ "capsule operation failed") do
+    Error.exception(phase: phase, reason: reason, cause: cause, message: message)
+  end
 end
