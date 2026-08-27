@@ -92,6 +92,31 @@ defmodule Kinda.Capsule.CommandTest do
     assert :ok = Capsule.close(capsule)
   end
 
+  @tag :tmp_dir
+  test "owner exit cancels an active process before it can write", %{tmp_dir: parent} do
+    test = self()
+
+    {owner, monitor} =
+      spawn_monitor(fn ->
+        {:ok, capsule} = Capsule.create(spec(parent))
+        {:ok, _observation} = Capsule.reset(capsule, seed: 1)
+        {:ok, execution} = Capsule.start(capsule, late_write_command())
+        send(test, {:active_execution, execution})
+        receive(do: (:stop -> :ok))
+      end)
+
+    assert_receive {:active_execution, execution}
+    send(owner, :stop)
+    assert_receive {:DOWN, ^monitor, :process, ^owner, :normal}
+
+    assert_eventually(fn ->
+      match?({:error, %Error{reason: :disconnected}}, Capsule.await(execution))
+    end)
+
+    Process.sleep(400)
+    assert Path.wildcard(Path.join([parent, "**", "late"])) == []
+  end
+
   defp spec(parent, options \\ []) do
     %Spec{
       task: Task,
@@ -137,6 +162,22 @@ defmodule Kinda.Capsule.CommandTest do
 
   defp runtime_env do
     ["PATH", "SYSTEMROOT", "SystemRoot", "COMSPEC", "ComSpec", "PATHEXT", "TEMP", "TMP"]
+  end
+
+  defp late_write_command do
+    %Command{
+      spec: %Sandbox.Command.Spec{
+        executable: erl(),
+        args: [
+          "-noshell",
+          "-eval",
+          ~S|timer:sleep(250), file:write_file("late", <<"leaked">>), halt().|
+        ],
+        env: %{"LANG" => "C.UTF-8"},
+        inherit_env: runtime_env(),
+        timeout: :infinity
+      }
+    }
   end
 
   defp assert_eventually(assertion, attempts \\ 100)
