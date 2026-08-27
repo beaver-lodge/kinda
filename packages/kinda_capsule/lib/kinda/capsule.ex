@@ -3,7 +3,9 @@ defmodule Kinda.Capsule do
   Owner-scoped typed episode orchestration built on `Kinda.Sandbox`.
   """
 
-  alias Kinda.Capsule.{Error, Handle, Observation, Server, Spec}
+  alias Kinda.Capsule.Action.Command
+  alias Kinda.Capsule.{Error, Execution, ExecutionServer, Handle}
+  alias Kinda.Capsule.{Observation, Server, Spec, Trace}
 
   @type result(value) :: {:ok, value} | {:error, Error.t()}
 
@@ -37,6 +39,31 @@ defmodule Kinda.Capsule do
 
   @spec observe(Handle.t()) :: result(Observation.t())
   def observe(%Handle{ref: ref}), do: call(ref, :observe, :observe)
+
+  @spec start(Handle.t(), Command.t()) :: result(Execution.t())
+  def start(%Handle{ref: ref}, %Command{} = action),
+    do: call(ref, {:start, action}, :execute)
+
+  def start(%Handle{}, _action),
+    do: {:error, error(:execute, :invalid_action, nil, "expected a command action")}
+
+  @spec execute(Handle.t(), Command.t(), timeout()) ::
+          result(Kinda.Sandbox.Command.Result.t())
+  def execute(handle, action, await_timeout \\ :infinity) do
+    with {:ok, execution} <- start(handle, action) do
+      await(execution, await_timeout)
+    end
+  end
+
+  @spec await(Execution.t(), timeout()) :: result(Kinda.Sandbox.Command.Result.t())
+  def await(%Execution{ref: ref}, timeout \\ :infinity),
+    do: ExecutionServer.await(ref, timeout)
+
+  @spec cancel(Execution.t()) :: :ok | {:error, Error.t()}
+  def cancel(%Execution{ref: ref}), do: ExecutionServer.cancel(ref)
+
+  @spec trace(Handle.t()) :: result(Trace.t())
+  def trace(%Handle{ref: ref}), do: call(ref, :trace, :trace)
 
   @spec close(Handle.t()) :: :ok | {:error, Error.t()}
   def close(%Handle{ref: ref}) do
