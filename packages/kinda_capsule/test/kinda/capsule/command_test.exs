@@ -1,0 +1,153 @@
+defmodule Kinda.Capsule.CommandTest do
+  use ExUnit.Case, async: true
+
+  alias Kinda.Capsule
+  alias Kinda.Capsule.Action.Command
+  alias Kinda.Capsule.{Error, Observation, SandboxSpec, Score, Spec}
+  alias Kinda.Sandbox
+
+  defmodule Task do
+    @behaviour Kinda.Capsule.Task
+
+    @impl true
+    def reset(_context, seed, _options), do: {:ok, seed, %Observation{value: seed}}
+
+    @impl true
+    def observe(_context, seed), do: {:ok, %Observation{value: seed}}
+
+    @impl true
+    def close(_context, _state), do: :ok
+  end
+
+  defmodule Verifier do
+    @behaviour Kinda.Capsule.Verifier
+
+    @impl true
+    def grade(_verification, _options), do: {:ok, %Score{value: 1}}
+  end
+
+  @tag :tmp_dir
+  test "commands produce ordered safe trace projections", %{tmp_dir: parent} do
+    {:ok, capsule} = Capsule.create(spec(parent, max_steps: 2))
+    {:ok, _observation} = Capsule.reset(capsule, seed: 7)
+    secret = "capsule-secret-#{System.unique_integer([:positive])}"
+
+    action =
+      command(output_command(),
+        env: %{"CAPSULE_SECRET" => secret},
+        stdin: secret,
+        metadata: %{label: "first"}
+      )
+
+    assert {:ok, %{termination: {:exit, 0}, stdout: "first", stderr: "err"}} =
+             Capsule.execute(capsule, action)
+
+    assert {:ok, %{termination: {:exit, 0}}} =
+             Capsule.execute(capsule, command(success_command()))
+
+    assert {:error, %Error{reason: :step_limit}} =
+             Capsule.start(capsule, command(success_command()))
+
+    assert {:ok, trace} = Capsule.trace(capsule)
+    assert Enum.map(trace.steps, & &1.sequence) == [0, 1]
+    assert [first | _rest] = trace.steps
+    assert first.action.env_keys == ["CAPSULE_SECRET"]
+    assert first.action.stdin_bytes == byte_size(secret)
+    assert first.metadata == %{label: "first"}
+    refute inspect(trace) =~ secret
+    assert :ok = Capsule.close(capsule)
+  end
+
+  @tag :tmp_dir
+  test "only one action runs and cancellation is idempotent", %{tmp_dir: parent} do
+    {:ok, capsule} = Capsule.create(spec(parent))
+    {:ok, _observation} = Capsule.reset(capsule, seed: 1)
+    {:ok, execution} = Capsule.start(capsule, command(sleep_command()))
+
+    assert {:error, %Error{reason: :busy}} = Capsule.start(capsule, command(success_command()))
+    assert {:error, %Error{reason: :busy}} = Capsule.observe(capsule)
+    assert :ok = Capsule.cancel(execution)
+    assert :ok = Capsule.cancel(execution)
+    assert {:ok, %{termination: :cancelled}} = Capsule.await(execution)
+
+    assert_eventually(fn ->
+      match?({:ok, %{steps: [%{termination: :cancelled}]}}, Capsule.trace(capsule))
+    end)
+
+    assert :ok = Capsule.close(capsule)
+  end
+
+  @tag :tmp_dir
+  test "reset clears trace and disconnects old executions", %{tmp_dir: parent} do
+    {:ok, capsule} = Capsule.create(spec(parent))
+    {:ok, _observation} = Capsule.reset(capsule, seed: :first)
+    {:ok, execution} = Capsule.start(capsule, command(success_command()))
+    assert {:ok, _result} = Capsule.await(execution)
+    assert_eventually(fn -> match?({:ok, %{steps: [_step]}}, Capsule.trace(capsule)) end)
+
+    {:ok, _observation} = Capsule.reset(capsule, seed: :second)
+    assert {:ok, %{seed: :second, steps: []}} = Capsule.trace(capsule)
+    assert {:error, %Error{reason: :disconnected}} = Capsule.await(execution)
+    assert :ok = Capsule.cancel(execution)
+    assert :ok = Capsule.close(capsule)
+  end
+
+  defp spec(parent, options \\ []) do
+    %Spec{
+      task: Task,
+      task_version: "task@1",
+      verifier: Verifier,
+      verifier_version: "verifier@1",
+      sandbox: %SandboxSpec{
+        backend: Kinda.Sandbox.Backend.LocalProcess,
+        backend_spec: %Kinda.Sandbox.Backend.LocalProcess.Spec{parent_directory: parent}
+      },
+      max_steps: Keyword.get(options, :max_steps, 10)
+    }
+  end
+
+  defp command({executable, args}, options \\ []) do
+    metadata = Keyword.get(options, :metadata, %{})
+
+    %Command{
+      spec: %Sandbox.Command.Spec{
+        executable: executable,
+        args: args,
+        env: Keyword.get(options, :env, %{}),
+        inherit_env: runtime_env(),
+        stdin: Keyword.get(options, :stdin, :closed)
+      },
+      metadata: metadata
+    }
+  end
+
+  defp output_command do
+    {erl(),
+     [
+       "-noshell",
+       "-eval",
+       ~S|io:put_chars(standard_io, "first"), io:put_chars(standard_error, "err"), halt().|
+     ]}
+  end
+
+  defp success_command, do: {erl(), ["-noshell", "-eval", "halt()."]}
+  defp sleep_command, do: {erl(), ["-noshell", "-eval", "timer:sleep(infinity), halt()."]}
+
+  defp erl, do: System.find_executable("erl") || raise("erl executable unavailable")
+
+  defp runtime_env do
+    ["PATH", "SYSTEMROOT", "SystemRoot", "COMSPEC", "ComSpec", "PATHEXT", "TEMP", "TMP"]
+  end
+
+  defp assert_eventually(assertion, attempts \\ 100)
+  defp assert_eventually(assertion, 0), do: assert(assertion.())
+
+  defp assert_eventually(assertion, attempts) do
+    if assertion.() do
+      :ok
+    else
+      Process.sleep(10)
+      assert_eventually(assertion, attempts - 1)
+    end
+  end
+end
