@@ -12,15 +12,19 @@ defmodule Kinda.Capsule.LifecycleTest do
     def capabilities, do: %{command: __MODULE__.Command}
 
     @impl true
-    def create(%{test: test, id: id}, _options) do
+    def create(%{test: test, id: id} = spec, _options) do
       send(test, {:sandbox_created, id, self()})
-      {:ok, %{test: test, id: id}}
+      {:ok, %{test: test, id: id, close_mode: Map.get(spec, :close_mode, :ok)}}
     end
 
     @impl true
-    def close(%{test: test, id: id}) do
+    def close(%{test: test, id: id, close_mode: close_mode}) do
       send(test, {:sandbox_closed, id})
-      :ok
+
+      case close_mode do
+        :ok -> :ok
+        :error -> {:error, Sandbox.Error.exception(reason: :backend_failure)}
+      end
     end
 
     defmodule Command do
@@ -55,17 +59,25 @@ defmodule Kinda.Capsule.LifecycleTest do
       test = Keyword.fetch!(options, :test)
       mode = Keyword.get(options, :mode, :ok)
       observe_mode = Keyword.get(options, :observe_mode, :ok)
+      close_mode = Keyword.get(options, :close_mode, :ok)
       send(test, {:task_reset, seed, self(), context.sandbox})
 
       case mode do
         :ok ->
-          {:ok, %{test: test, seed: seed, observe_mode: observe_mode}, %Observation{value: seed}}
+          state = %{test: test, seed: seed, observe_mode: observe_mode, close_mode: close_mode}
+          {:ok, state, %Observation{value: seed}}
 
         :error ->
           {:error, :reset_failed}
 
         :raise ->
           raise "reset failed"
+
+        :throw ->
+          throw(:reset_failed)
+
+        :exit ->
+          exit(:reset_failed)
 
         :invalid ->
           :invalid
@@ -85,9 +97,13 @@ defmodule Kinda.Capsule.LifecycleTest do
     end
 
     @impl true
-    def close(_context, %{test: test, seed: seed}) do
+    def close(_context, %{test: test, seed: seed, close_mode: close_mode}) do
       send(test, {:task_closed, seed})
-      :ok
+
+      case close_mode do
+        :ok -> :ok
+        :error -> {:error, :close_failed}
+      end
     end
   end
 
@@ -224,10 +240,73 @@ defmodule Kinda.Capsule.LifecycleTest do
     assert :ok = Capsule.close(capsule)
   end
 
+  test "old task cleanup failure prevents replacement but still closes Sandbox" do
+    {:ok, capsule} =
+      Capsule.create(spec(test: self(), id: :task_cleanup, close_mode: :error))
+
+    {:ok, _observation} = Capsule.reset(capsule, seed: 1)
+    assert_receive {:sandbox_created, :task_cleanup, _server}
+
+    assert {:error, %Error{phase: :reset, reason: :task_cleanup_failed}} =
+             Capsule.reset(capsule, seed: 2)
+
+    assert_receive {:task_closed, 1}
+    assert_receive {:sandbox_closed, :task_cleanup}
+    refute_receive {:sandbox_created, :task_cleanup, _server}
+    assert {:error, %Error{reason: :not_reset}} = Capsule.observe(capsule)
+    assert :ok = Capsule.close(capsule)
+  end
+
+  test "old Sandbox cleanup failure prevents replacement after task cleanup" do
+    backend_spec = %{test: self(), id: :sandbox_cleanup, close_mode: :error}
+    {:ok, capsule} = Capsule.create(spec(test: self(), backend_spec: backend_spec))
+    {:ok, _observation} = Capsule.reset(capsule, seed: 1)
+    assert_receive {:sandbox_created, :sandbox_cleanup, _server}
+
+    assert {:error, %Error{phase: :reset, reason: :sandbox_failure}} =
+             Capsule.reset(capsule, seed: 2)
+
+    assert_receive {:task_closed, 1}
+    assert_receive {:sandbox_closed, :sandbox_cleanup}
+    refute_receive {:sandbox_created, :sandbox_cleanup, _server}
+    assert {:error, %Error{reason: :not_reset}} = Capsule.trace(capsule)
+    assert :ok = Capsule.close(capsule)
+  end
+
+  test "a failing first close is complete and later close is idempotent" do
+    {:ok, capsule} = Capsule.create(spec(test: self(), id: :close_error, close_mode: :error))
+    {:ok, _observation} = Capsule.reset(capsule, seed: 5)
+
+    assert {:error, %Error{phase: :close, reason: :task_cleanup_failed}} =
+             Capsule.close(capsule)
+
+    assert_receive {:task_closed, 5}
+    assert_receive {:sandbox_closed, :close_error}
+    assert :ok = Capsule.close(capsule)
+    refute_receive {:task_closed, 5}
+    refute_receive {:sandbox_closed, :close_error}
+  end
+
+  test "reset catches invalid returns, raises, throws, and exits" do
+    Enum.each([:invalid, :raise, :throw, :exit], fn mode ->
+      {:ok, capsule} = Capsule.create(spec(test: self(), id: mode, mode: mode))
+      assert {:error, %Error{phase: :reset}} = Capsule.reset(capsule, seed: mode)
+      assert_receive {:sandbox_closed, ^mode}
+      assert {:error, %Error{reason: :not_reset}} = Capsule.trace(capsule)
+      assert :ok = Capsule.close(capsule)
+    end)
+  end
+
   defp spec(options) do
     test = Keyword.get(options, :test, self())
     backend = Keyword.get(options, :backend, FakeBackend)
-    backend_spec = Keyword.get(options, :backend_spec, %{test: test, id: options[:id]})
+
+    backend_spec =
+      Keyword.get(options, :backend_spec, %{
+        test: test,
+        id: options[:id],
+        close_mode: Keyword.get(options, :backend_close_mode, :ok)
+      })
 
     %Spec{
       task: Keyword.get(options, :task, Task),
@@ -235,7 +314,8 @@ defmodule Kinda.Capsule.LifecycleTest do
       task_options: [
         test: test,
         mode: Keyword.get(options, :mode, :ok),
-        observe_mode: Keyword.get(options, :observe_mode, :ok)
+        observe_mode: Keyword.get(options, :observe_mode, :ok),
+        close_mode: Keyword.get(options, :close_mode, :ok)
       ],
       verifier: Verifier,
       verifier_version: "verifier@1",

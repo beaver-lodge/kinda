@@ -5,7 +5,7 @@ defmodule Kinda.Capsule.Server do
 
   alias Kinda.Capsule.Action.Command
   alias Kinda.Capsule.{CommandSummary, Context, Error, Execution, ExecutionServer}
-  alias Kinda.Capsule.{Observation, Step, Trace}
+  alias Kinda.Capsule.{Observation, Score, Step, Telemetry, Trace, Verification}
   alias Kinda.Sandbox
   alias Kinda.Sandbox.Command, as: SandboxCommand
 
@@ -43,18 +43,22 @@ defmodule Kinda.Capsule.Server do
   def init(options) do
     owner = Keyword.fetch!(options, :owner)
 
-    {:ok,
-     %__MODULE__{
-       ref: Keyword.fetch!(options, :ref),
-       capsule_id: next_id(),
-       spec: Keyword.fetch!(options, :spec),
-       owner: owner,
-       owner_monitor: Process.monitor(owner)
-     }}
+    state =
+      %__MODULE__{
+        ref: Keyword.fetch!(options, :ref),
+        capsule_id: next_id(),
+        spec: Keyword.fetch!(options, :spec),
+        owner: owner,
+        owner_monitor: Process.monitor(owner)
+      }
+
+    emit(:create, state, :ok)
+    {:ok, state}
   end
 
   @impl true
   def handle_call({:reset, _seed}, _from, %{status: :running} = state) do
+    emit(:reset, state, :error)
     {:reply, {:error, error(:reset, :busy)}, state}
   end
 
@@ -62,27 +66,33 @@ defmodule Kinda.Capsule.Server do
     case cleanup_current(state, :reset) do
       {:ok, clean_state} ->
         {reply, next_state} = start_episode(clean_state, seed)
+        emit(:reset, state, outcome(reply))
         {:reply, reply, next_state}
 
       {{:error, cleanup_error}, clean_state} ->
+        emit(:reset, state, :error)
         {:reply, {:error, cleanup_error}, clean_state}
     end
   end
 
   def handle_call(:observe, _from, %{status: :new} = state) do
+    emit(:observe, state, :error)
     {:reply, {:error, error(:observe, :not_reset)}, state}
   end
 
   def handle_call(:observe, _from, %{status: :running} = state) do
+    emit(:observe, state, :error)
     {:reply, {:error, error(:observe, :busy)}, state}
   end
 
   def handle_call(:observe, _from, %{status: :ready} = state) do
     case callback(state.spec.task, :observe, [state.context, state.task_state]) do
       {:ok, %Observation{metadata: metadata} = observation} when is_map(metadata) ->
+        emit(:observe, state, :ok)
         {:reply, {:ok, observation}, %{state | observation: observation}}
 
       {:error, reason} ->
+        emit(:observe, state, :error)
         {:reply, {:error, callback_error(:observe, :task_error, reason)}, state}
 
       {:invalid, return} ->
@@ -94,32 +104,72 @@ defmodule Kinda.Capsule.Server do
   end
 
   def handle_call({:start, _action}, _from, %{status: :new} = state) do
+    emit(:execute, state, :error)
     {:reply, {:error, error(:execute, :not_reset)}, state}
   end
 
   def handle_call({:start, _action}, _from, %{status: :running} = state) do
+    emit(:execute, state, :error)
     {:reply, {:error, error(:execute, :busy)}, state}
   end
 
   def handle_call({:start, action}, _from, %{status: :ready} = state) do
     if length(state.trace.steps) >= state.spec.max_steps do
+      emit(:execute, state, :error)
       {:reply, {:error, error(:execute, :step_limit)}, state}
     else
       case start_command(state, action) do
-        {:ok, execution, next_state} -> {:reply, {:ok, execution}, next_state}
-        {:error, execution_error} -> {:reply, {:error, execution_error}, state}
+        {:ok, execution, next_state} ->
+          {:reply, {:ok, execution}, next_state}
+
+        {:error, execution_error} ->
+          emit(:execute, state, :error)
+          {:reply, {:error, execution_error}, state}
       end
     end
   end
 
   def handle_call(:trace, _from, %{status: :new} = state) do
+    emit(:trace, state, :error)
     {:reply, {:error, error(:trace, :not_reset)}, state}
   end
 
-  def handle_call(:trace, _from, state), do: {:reply, {:ok, state.trace}, state}
+  def handle_call(:trace, _from, state) do
+    emit(:trace, state, :ok)
+    {:reply, {:ok, state.trace}, state}
+  end
+
+  def handle_call(:grade, _from, %{status: :new} = state) do
+    emit(:grade, state, :error)
+    {:reply, {:error, error(:grade, :not_reset)}, state}
+  end
+
+  def handle_call(:grade, _from, %{status: :running} = state) do
+    emit(:grade, state, :error)
+    {:reply, {:error, error(:grade, :busy)}, state}
+  end
+
+  def handle_call(:grade, _from, %{status: :ready} = state) do
+    case callback(state.spec.task, :observe, [state.context, state.task_state]) do
+      {:ok, %Observation{metadata: metadata} = observation} when is_map(metadata) ->
+        grade_observation(state, observation)
+
+      {:error, reason} ->
+        result = {:error, callback_error(:grade, :task_error, reason)}
+        emit(:grade, state, :error)
+        {:reply, result, state}
+
+      {:invalid, return} ->
+        fail_untrusted_grade(state, callback_error(:grade, :invalid_callback_return, return))
+
+      {:raised, cause} ->
+        fail_untrusted_grade(state, callback_error(:grade, :callback_failure, cause))
+    end
+  end
 
   def handle_call(:close, _from, state) do
     {reply, clean_state} = cleanup_reply(cleanup_current(state, :close))
+    emit(:close, state, outcome(reply))
     {:stop, :normal, reply, clean_state}
   end
 
@@ -137,6 +187,7 @@ defmodule Kinda.Capsule.Server do
       action = state.executions |> Map.fetch!(ref) |> Map.fetch!(:action)
       step = project_step(state, action, result)
       trace = %{state.trace | steps: state.trace.steps ++ [step], score: nil}
+      emit_execution(state, step, Map.fetch!(state.executions, ref))
 
       {:noreply, %{state | active_execution: nil, trace: trace, status: :ready, observation: nil}}
     else
@@ -254,7 +305,7 @@ defmodule Kinda.Capsule.Server do
              {ExecutionServer, options}
            ) do
         {:ok, pid} ->
-          entry = %{pid: pid, action: action}
+          entry = %{pid: pid, action: action, started_at: System.monotonic_time()}
 
           next_state = %{
             state
@@ -294,6 +345,49 @@ defmodule Kinda.Capsule.Server do
   end
 
   defp reset_failure(state, error), do: {{:error, error}, clear_episode(state)}
+
+  defp grade_observation(state, observation) do
+    verification = %Verification{
+      capsule_id: state.capsule_id,
+      task_version: state.spec.task_version,
+      verifier_version: state.spec.verifier_version,
+      seed: state.trace.seed,
+      observation: observation,
+      trace: state.trace
+    }
+
+    case callback(state.spec.verifier, :grade, [verification, state.spec.verifier_options]) do
+      {:ok, %Score{} = score} ->
+        if Score.valid?(score) do
+          emit(:grade, state, :ok)
+
+          {:reply, {:ok, score},
+           %{state | observation: observation, trace: %{state.trace | score: score}}}
+        else
+          grade_callback_failure(state, :invalid_callback_return, score)
+        end
+
+      {:error, reason} ->
+        grade_callback_failure(state, :verifier_error, reason)
+
+      {:invalid, return} ->
+        grade_callback_failure(state, :invalid_callback_return, return)
+
+      {:raised, cause} ->
+        grade_callback_failure(state, :callback_failure, cause)
+    end
+  end
+
+  defp grade_callback_failure(state, reason, cause) do
+    emit(:grade, state, :error)
+    {:reply, {:error, callback_error(:grade, reason, cause)}, state}
+  end
+
+  defp fail_untrusted_grade(state, primary) do
+    {_cleanup_result, clean_state} = cleanup_current(state, :grade)
+    emit(:grade, state, :error)
+    {:reply, {:error, primary}, clean_state}
+  end
 
   defp fail_untrusted_task(state, primary) do
     {_cleanup_result, clean_state} = cleanup_current(state, :observe)
@@ -392,6 +486,38 @@ defmodule Kinda.Capsule.Server do
       metadata: action.metadata
     }
   end
+
+  defp emit_execution(state, step, %{started_at: started_at}) do
+    metadata = %{
+      sequence: step.sequence,
+      termination: termination_class(step.termination),
+      stdout_bytes: byte_size(step.stdout),
+      stderr_bytes: byte_size(step.stderr),
+      stdout_truncated?: step.stdout_truncated?,
+      stderr_truncated?: step.stderr_truncated?
+    }
+
+    emit(:execute, state, :ok, System.monotonic_time() - started_at, metadata)
+  end
+
+  defp termination_class({:exit, _status}), do: :exit
+  defp termination_class({:signal, _signal}), do: :signal
+  defp termination_class(termination), do: termination
+
+  defp emit(operation, state, result, duration \\ 0, metadata \\ %{}) do
+    common = %{
+      capsule_id: state.capsule_id,
+      operation: operation,
+      outcome: result,
+      backend: state.spec.sandbox.backend
+    }
+
+    Telemetry.emit(operation, duration, Map.merge(common, metadata))
+  end
+
+  defp outcome(:ok), do: :ok
+  defp outcome({:ok, _value}), do: :ok
+  defp outcome({:error, _error}), do: :error
 
   defp callback(module, function, arguments) do
     apply(module, function, arguments)
