@@ -46,7 +46,7 @@ defmodule Kinda.Capsule.Web3D.Runner do
          {:ok, verification} <-
            execute(
              capsule,
-             action(node_executable(), [browser_verifier(), workspace, evidence], "verify"),
+             verification_action(workspace, evidence),
              "verify"
            ),
          :ok <- stage("evidence_projection", project_evidence(verification.stdout, evidence)),
@@ -125,6 +125,25 @@ defmodule Kinda.Capsule.Web3D.Runner do
     }
   end
 
+  defp verification_action(workspace, evidence) do
+    envelope = Path.join(workspace, ".kinda-web3d-evidence.json")
+
+    action(
+      shell(),
+      [
+        "-c",
+        ~S|"$1" "$2" "$3" "$4" "$5" && cat "$5"|,
+        "kinda-web3d-verifier",
+        node_executable(),
+        browser_verifier(),
+        workspace,
+        evidence,
+        envelope
+      ],
+      "verify"
+    )
+  end
+
   defp attach_artifacts(capsule, evidence) do
     artifacts = [
       {"before.png", :image, "image/png"},
@@ -159,6 +178,8 @@ defmodule Kinda.Capsule.Web3D.Runner do
   end
 
   defp npm, do: System.find_executable("npm") || raise("npm executable unavailable")
+
+  defp shell, do: System.find_executable("sh") || raise("POSIX shell unavailable")
 
   defp node_executable,
     do: System.find_executable("node") || raise("node executable unavailable")
