@@ -86,7 +86,7 @@ try {
   await assertArtifacts(['before.png', 'after.png', 'interaction.webm', 'interaction.json', 'performance.json', 'expert-review.json', 'browser.json']);
   const envelope = { schema: 'kinda.web3d.evidence/v1', artifacts: {} };
   for (const name of ['before.png', 'after.png', 'interaction.webm', 'interaction.json', 'performance.json', 'expert-review.json', 'browser.json']) envelope.artifacts[name] = (await readFile(path.join(artifacts, name))).toString('base64');
-  process.stdout.write(JSON.stringify(envelope));
+  await writeStdout(JSON.stringify(envelope));
 
 } finally {
   server.kill('SIGTERM');
@@ -94,6 +94,7 @@ try {
 
 async function snapshot(page) { return page.evaluate(() => window.__web3dEpisode.snapshot()); }
 async function writeJson(name, value) { await writeFile(path.join(artifacts, name), JSON.stringify(value, null, 2)); }
+async function writeStdout(value) { await new Promise((resolve, reject) => process.stdout.write(value, error => error ? reject(error) : resolve())); }
 async function assertArtifacts(names) { for (const name of names) { const info = await stat(path.join(artifacts, name)); if (!info.isFile() || info.size === 0) throw new Error(`missing verifier artifact: ${name}`); } }
 async function waitForServer(url) {
   for (let attempt = 0; attempt < 100; attempt++) {
