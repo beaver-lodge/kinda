@@ -158,6 +158,25 @@ defmodule Kinda.Capsule.LifecycleTest do
     refute_receive {:sandbox_closed, :first}
   end
 
+  test "every successful reset creates a new addressable episode" do
+    {:ok, capsule} = Capsule.create(spec(test: self(), id: :identity))
+
+    {:ok, _observation} = Capsule.reset(capsule, seed: 1)
+    {:ok, first} = Capsule.episode(capsule)
+    {:ok, first_trace} = Capsule.trace(capsule)
+    {:ok, _observation} = Capsule.reset(capsule, seed: 2)
+    {:ok, second} = Capsule.episode(capsule)
+
+    assert first.capsule_id == second.capsule_id
+    refute first.episode_id == second.episode_id
+    assert first_trace.episode_id == first.episode_id
+    assert first.fixture_digest == "unspecified"
+    assert first.verifier_source_digest == "unspecified"
+    assert first.verifier_executable_digest == "unspecified"
+
+    assert :ok = Capsule.close(capsule)
+  end
+
   test "owner exit closes task and Sandbox" do
     parent = self()
 

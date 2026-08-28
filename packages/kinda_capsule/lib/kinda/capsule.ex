@@ -4,7 +4,7 @@ defmodule Kinda.Capsule do
   """
 
   alias Kinda.Capsule.Action.Command
-  alias Kinda.Capsule.{Error, Execution, ExecutionServer, Handle}
+  alias Kinda.Capsule.{Artifact, Episode, Error, Execution, ExecutionServer, Handle}
   alias Kinda.Capsule.{Observation, Score, Server, Spec, Trace}
 
   @type result(value) :: {:ok, value} | {:error, Error.t()}
@@ -64,6 +64,16 @@ defmodule Kinda.Capsule do
 
   @spec trace(Handle.t()) :: result(Trace.t())
   def trace(%Handle{ref: ref}), do: call(ref, :trace, :trace)
+
+  @spec episode(Handle.t()) :: result(Episode.t())
+  def episode(%Handle{ref: ref}), do: call(ref, :episode, :trace)
+
+  @spec attach_artifact(Handle.t(), Artifact.t()) :: :ok | {:error, Error.t()}
+  def attach_artifact(%Handle{ref: ref}, %Artifact{} = artifact),
+    do: call(ref, {:attach_artifact, artifact}, :artifact)
+
+  def attach_artifact(%Handle{}, _artifact),
+    do: {:error, error(:artifact, :invalid_artifact)}
 
   @spec grade(Handle.t()) :: result(Score.t())
   def grade(%Handle{ref: ref}), do: call(ref, :grade, :grade)

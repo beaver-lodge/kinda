@@ -1,11 +1,32 @@
 defmodule Kinda.Capsule.Error do
   @moduledoc "Normalized failure at a Capsule orchestration boundary."
 
-  @phases [:create, :reset, :execute, :observe, :grade, :trace, :close]
+  @phases [
+    :create,
+    :reset,
+    :execute,
+    :observe,
+    :grade,
+    :trace,
+    :artifact,
+    :export,
+    :regrade,
+    :close
+  ]
 
   defexception [:phase, :reason, :cause, :details, message: "capsule operation failed"]
 
-  @type phase :: :create | :reset | :execute | :observe | :grade | :trace | :close
+  @type phase ::
+          :create
+          | :reset
+          | :execute
+          | :observe
+          | :grade
+          | :trace
+          | :artifact
+          | :export
+          | :regrade
+          | :close
   @type t :: %__MODULE__{
           phase: phase(),
           reason: atom(),

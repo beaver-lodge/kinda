@@ -1,0 +1,55 @@
+name: Capsule Web3D CI
+
+on:
+  pull_request:
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: capsule-web3d-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  showcase:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: packages/kinda_capsule_web3d
+
+    steps:
+      - uses: actions/checkout@v5
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: "0.16.0"
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "27.3"
+          elixir-version: "1.20.3"
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: packages/kinda_capsule_web3d/priv/web3d/package-lock.json
+      - name: Check test policy
+        run: elixir ../../scripts/check_test_policy.exs test
+      - name: Install Elixir dependencies
+        run: mix deps.get
+      - name: Check formatting and warnings
+        env:
+          MIX_ENV: test
+        run: mix format --check-formatted && mix compile --force --warnings-as-errors
+      - name: Run tests and Credo
+        run: mix test && mix credo --strict
+      - name: Install browser fixture
+        working-directory: packages/kinda_capsule_web3d/priv/web3d
+        run: npm ci && npx playwright install --with-deps chromium
+      - name: Build browser fixture
+        working-directory: packages/kinda_capsule_web3d/priv/web3d
+        run: npm run build
+      - name: Run, seal, and regrade an episode
+        run: |
+          mix web3d.showcase --parent tmp/capsules --bundle tmp/episode
+          mix run -e 'Kinda.Capsule.Bundle.regrade("tmp/episode", Kinda.Capsule.Web3D.Verifier) |> IO.inspect(label: "sealed regrade")'

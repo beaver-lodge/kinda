@@ -1,0 +1,15 @@
+{
+  "name": "kinda-capsule-web3d-showcase",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build",
+    "verify": "node tests/verify.mjs"
+  },
+  "dependencies": {
+    "@playwright/test": "1.62.1",
+    "three": "0.185.1",
+    "vite": "8.2.2"
+  }
+}

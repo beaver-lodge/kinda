@@ -1,0 +1,8 @@
+/_build/
+/deps/
+/tmp/
+/priv/web3d/node_modules/
+/priv/web3d/artifacts/
+/priv/web3d/dist/
+/priv/web3d/playwright-report/
+/priv/web3d/test-results/

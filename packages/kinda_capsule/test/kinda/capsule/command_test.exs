@@ -3,7 +3,7 @@ defmodule Kinda.Capsule.CommandTest do
 
   alias Kinda.Capsule
   alias Kinda.Capsule.Action.Command
-  alias Kinda.Capsule.{Error, Observation, SandboxSpec, Score, Spec}
+  alias Kinda.Capsule.{Artifact, Error, Observation, SandboxSpec, Score, Spec}
   alias Kinda.Sandbox
 
   @process_start_timeout 5_000
@@ -57,6 +57,34 @@ defmodule Kinda.Capsule.CommandTest do
     assert first.action.stdin_bytes == byte_size(secret)
     assert first.metadata == %{label: "first"}
     refute inspect(trace) =~ secret
+    assert :ok = Capsule.close(capsule)
+  end
+
+  @tag :tmp_dir
+  test "artifacts project stable evidence references onto their producing step", %{
+    tmp_dir: parent
+  } do
+    {:ok, capsule} = Capsule.create(spec(parent))
+    {:ok, _observation} = Capsule.reset(capsule, seed: 7)
+    {:ok, _result} = Capsule.execute(capsule, command(success_command()))
+
+    artifact = %Artifact{
+      id: "evidence-id",
+      name: "trace.json",
+      kind: :trace,
+      path: "artifacts/trace.json",
+      sha256: String.duplicate("0", 64),
+      media_type: "application/json",
+      produced_by: %{step: 99}
+    }
+
+    assert :ok = Capsule.attach_artifact(capsule, artifact)
+
+    assert {:ok, %{steps: [%{evidence: [%{artifact: "evidence-id"}]}]}} =
+             Capsule.trace(capsule)
+
+    assert {:ok, %{artifacts: [%{produced_by: %{step: 0}}]}} = Capsule.trace(capsule)
+
     assert :ok = Capsule.close(capsule)
   end
 

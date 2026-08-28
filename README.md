@@ -77,6 +77,12 @@ isolated native build identities and directories without making the sandbox
 package depend on Kinda's Zig code generator. The old `Kinda.Testing.Sandbox`
 API has been removed rather than retained as a compatibility shim.
 
+`packages/kinda_capsule` adds owner-scoped episode identity, command traces,
+digest-addressed evidence, export, and sealed regrading above any Sandbox
+backend. `packages/kinda_capsule_web3d` is its executable Three.js showcase: a
+Playwright verifier produces screenshots, video, interaction/performance
+traces, scored failure modes, an immutable bundle, and a SQLite event index.
+
 If you want the same thing without compiling the project first, run:
 
 ```sh
