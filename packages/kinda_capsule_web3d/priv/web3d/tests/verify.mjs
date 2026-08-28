@@ -84,6 +84,9 @@ try {
   await video.saveAs(path.join(artifacts, 'interaction.webm'));
   await browser.close();
   await assertArtifacts(['before.png', 'after.png', 'interaction.webm', 'interaction.json', 'performance.json', 'expert-review.json', 'browser.json']);
+  const envelope = { schema: 'kinda.web3d.evidence/v1', artifacts: {} };
+  for (const name of ['before.png', 'after.png', 'interaction.webm', 'interaction.json', 'performance.json', 'expert-review.json', 'browser.json']) envelope.artifacts[name] = (await readFile(path.join(artifacts, name))).toString('base64');
+  process.stdout.write(JSON.stringify(envelope));
 
 } finally {
   server.kill('SIGTERM');

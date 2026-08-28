@@ -8,6 +8,16 @@ defmodule Kinda.Capsule.Web3D.Runner do
   alias Kinda.Capsule.Web3D.EventIndex
   alias Kinda.Sandbox
 
+  @browser_artifacts [
+    "before.png",
+    "after.png",
+    "interaction.webm",
+    "interaction.json",
+    "performance.json",
+    "expert-review.json",
+    "browser.json"
+  ]
+
   @spec run(keyword()) :: {:ok, map()} | {:error, term()}
   def run(options) do
     bundle = Keyword.fetch!(options, :bundle)
@@ -32,13 +42,14 @@ defmodule Kinda.Capsule.Web3D.Runner do
 
   defp run_episode(capsule, bundle, index, evidence, task_options) do
     with {:ok, %{value: %{"workspace" => workspace}}} <- Capsule.reset(capsule, seed: "showcase"),
-         :ok <- execute(capsule, action(npm(), ["ci"], "install"), "install"),
-         :ok <-
+         {:ok, _install} <- execute(capsule, action(npm(), ["ci"], "install"), "install"),
+         {:ok, verification} <-
            execute(
              capsule,
              action(node_executable(), [browser_verifier(), workspace, evidence], "verify"),
              "verify"
            ),
+         :ok <- stage("evidence_projection", project_evidence(verification.stdout, evidence)),
          :ok <-
            stage(
              "integrity",
@@ -55,7 +66,7 @@ defmodule Kinda.Capsule.Web3D.Runner do
 
   defp execute(capsule, action, phase) do
     case Capsule.execute(capsule, action, :infinity) do
-      {:ok, %{termination: {:exit, 0}}} -> :ok
+      {:ok, %{termination: {:exit, 0}} = result} -> {:ok, result}
       {:ok, result} -> {:error, {:command_failed, phase, result.termination, result.stderr}}
       {:error, error} -> {:error, {:command_error, phase, error}}
     end
@@ -69,6 +80,37 @@ defmodule Kinda.Capsule.Web3D.Runner do
     Path.join(Path.dirname(Path.expand(bundle)), ".kinda-web3d-evidence-#{id}")
   end
 
+  defp project_evidence(encoded, destination) do
+    with {:ok, %{"schema" => "kinda.web3d.evidence/v1", "artifacts" => artifacts}} <-
+           JSON.decode(encoded),
+         true <-
+           is_map(artifacts) and Enum.sort(Map.keys(artifacts)) == Enum.sort(@browser_artifacts) do
+      project_artifacts(artifacts, destination)
+    else
+      {:error, reason} -> {:error, {:invalid_envelope, reason}}
+      false -> {:error, :invalid_envelope_artifacts}
+      _value -> {:error, :invalid_envelope}
+    end
+  end
+
+  defp project_artifacts(artifacts, destination) do
+    Enum.reduce_while(@browser_artifacts, :ok, fn name, :ok ->
+      case write_projected_artifact(destination, name, Map.fetch!(artifacts, name)) do
+        :ok -> {:cont, :ok}
+        {:error, reason} -> {:halt, {:error, {:invalid_artifact, name, reason}}}
+      end
+    end)
+  end
+
+  defp write_projected_artifact(destination, name, encoded) when is_binary(encoded) do
+    with {:ok, contents} <- Base.decode64(encoded) do
+      File.write(Path.join(destination, name), contents)
+    end
+  end
+
+  defp write_projected_artifact(_destination, _name, _encoded),
+    do: {:error, :invalid_encoding}
+
   defp action(executable, args, phase) do
     %Command{
       spec: %Sandbox.Command.Spec{
@@ -77,7 +119,7 @@ defmodule Kinda.Capsule.Web3D.Runner do
         inherit_env: runtime_env(),
         timeout: 180_000,
         terminate_after: 2_000,
-        max_output_bytes: 2_000_000
+        max_output_bytes: 10_000_000
       },
       metadata: %{phase: phase}
     }
