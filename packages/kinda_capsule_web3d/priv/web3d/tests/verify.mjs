@@ -6,10 +6,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(process.argv[2] || process.cwd());
+const artifacts = path.resolve(process.argv[3] || path.join(root, 'artifacts'));
 const require = createRequire(path.join(root, 'package.json'));
 const { chromium } = require('@playwright/test');
 const verifierDigest = createHash('sha256').update(await readFile(fileURLToPath(import.meta.url))).digest('hex');
-const artifacts = path.join(root, 'artifacts');
 await mkdir(artifacts, { recursive: true });
 const vite = path.join(root, 'node_modules', 'vite', 'bin', 'vite.js');
 const server = spawn(process.execPath, [vite, '--host', '127.0.0.1', '--port', '4173'], { cwd: root, stdio: 'ignore' });

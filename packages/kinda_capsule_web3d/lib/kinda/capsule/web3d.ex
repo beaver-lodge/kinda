@@ -18,6 +18,7 @@ defmodule Kinda.Capsule.Web3D do
       task_version: @task_version,
       task_options: [
         fixture: fixture,
+        evidence_directory: Keyword.get(options, :evidence_directory),
         protected_digest: digest_file(Path.join(fixture, "package-lock.json")),
         browser_verifier_digest: digest_file(Path.join(fixture, "tests/verify.mjs"))
       ],

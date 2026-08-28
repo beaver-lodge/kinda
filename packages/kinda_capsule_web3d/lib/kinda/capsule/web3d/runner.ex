@@ -12,24 +12,31 @@ defmodule Kinda.Capsule.Web3D.Runner do
   def run(options) do
     bundle = Keyword.fetch!(options, :bundle)
     index = Keyword.get(options, :index, bundle <> ".sqlite3")
-    spec = Web3D.spec(options)
+    evidence = evidence_directory(bundle)
+    spec = Web3D.spec(Keyword.put(options, :evidence_directory, evidence))
 
-    with {:ok, capsule} <- Capsule.create(spec) do
+    with :ok <- File.mkdir_p(evidence) do
       try do
-        run_episode(capsule, bundle, index, spec.task_options)
+        with {:ok, capsule} <- Capsule.create(spec) do
+          try do
+            run_episode(capsule, bundle, index, evidence, spec.task_options)
+          after
+            Capsule.close(capsule)
+          end
+        end
       after
-        Capsule.close(capsule)
+        File.rm_rf(evidence)
       end
     end
   end
 
-  defp run_episode(capsule, bundle, index, task_options) do
+  defp run_episode(capsule, bundle, index, evidence, task_options) do
     with {:ok, %{value: %{"workspace" => workspace}}} <- Capsule.reset(capsule, seed: "showcase"),
          :ok <- execute(capsule, action(npm(), ["ci"], "install"), "install"),
          :ok <-
            execute(
              capsule,
-             action(node_executable(), [browser_verifier(), workspace], "verify"),
+             action(node_executable(), [browser_verifier(), workspace, evidence], "verify"),
              "verify"
            ),
          :ok <-
@@ -37,7 +44,7 @@ defmodule Kinda.Capsule.Web3D.Runner do
              "integrity",
              Kinda.Capsule.Web3D.Task.write_integrity_evidence(workspace, task_options)
            ),
-         {:ok, sources} <- attach_artifacts(capsule, workspace),
+         {:ok, sources} <- attach_artifacts(capsule, evidence),
          {:ok, score} <- Capsule.grade(capsule),
          {:ok, trace} <- Capsule.trace(capsule),
          {:ok, digest} <- Bundle.export(trace, bundle, artifact_sources: sources),
@@ -57,6 +64,11 @@ defmodule Kinda.Capsule.Web3D.Runner do
   defp stage(_stage, :ok), do: :ok
   defp stage(stage, {:error, reason}), do: {:error, {:stage_failed, stage, reason}}
 
+  defp evidence_directory(bundle) do
+    id = System.unique_integer([:positive, :monotonic])
+    Path.join(Path.dirname(Path.expand(bundle)), ".kinda-web3d-evidence-#{id}")
+  end
+
   defp action(executable, args, phase) do
     %Command{
       spec: %Sandbox.Command.Spec{
@@ -71,7 +83,7 @@ defmodule Kinda.Capsule.Web3D.Runner do
     }
   end
 
-  defp attach_artifacts(capsule, workspace) do
+  defp attach_artifacts(capsule, evidence) do
     artifacts = [
       {"before.png", :image, "image/png"},
       {"after.png", :image, "image/png"},
@@ -84,17 +96,15 @@ defmodule Kinda.Capsule.Web3D.Runner do
     ]
 
     Enum.reduce_while(artifacts, {:ok, %{}}, fn {name, kind, media_type}, {:ok, sources} ->
-      relative = Path.join("artifacts", name)
-
       with {:ok, artifact} <-
-             Artifact.from_file(workspace, relative,
+             Artifact.from_file(evidence, name,
                name: name,
                kind: kind,
                media_type: media_type,
                produced_by: %{verifier: Web3D.verifier_version()}
              ),
            :ok <- Capsule.attach_artifact(capsule, artifact) do
-        source = Path.join(workspace, relative)
+        source = Path.join(evidence, name)
         {:cont, {:ok, Map.put(sources, artifact.id, source)}}
       else
         {:error, reason} -> {:halt, {:error, {:artifact_unavailable, name, reason}}}

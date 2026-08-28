@@ -16,6 +16,8 @@ defmodule Kinda.Capsule.Web3D.Task do
          {:ok, copied} <- copy_fixture(fixture, workspace) do
       state = %{
         workspace: workspace,
+        evidence_directory:
+          Keyword.get(options, :evidence_directory) || Path.join(workspace, "artifacts"),
         copied: copied,
         protected_digest: protected_digest,
         browser_verifier_digest: browser_verifier_digest
@@ -30,11 +32,15 @@ defmodule Kinda.Capsule.Web3D.Task do
 
   @impl true
   def observe(_context, state) do
-    with {:ok, interaction, interaction_ref} <- read_evidence(state.workspace, "interaction.json"),
-         {:ok, performance, performance_ref} <- read_evidence(state.workspace, "performance.json"),
-         {:ok, expert_review, expert_ref} <- read_evidence(state.workspace, "expert-review.json"),
-         {:ok, _browser, browser_ref} <- read_evidence(state.workspace, "browser.json"),
-         {:ok, integrity, integrity_ref} <- read_evidence(state.workspace, "integrity.json") do
+    with {:ok, interaction, interaction_ref} <-
+           read_evidence(state.evidence_directory, "interaction.json"),
+         {:ok, performance, performance_ref} <-
+           read_evidence(state.evidence_directory, "performance.json"),
+         {:ok, expert_review, expert_ref} <-
+           read_evidence(state.evidence_directory, "expert-review.json"),
+         {:ok, _browser, browser_ref} <- read_evidence(state.evidence_directory, "browser.json"),
+         {:ok, integrity, integrity_ref} <-
+           read_evidence(state.evidence_directory, "integrity.json") do
       {:ok,
        %Observation{
          value: %{
@@ -61,7 +67,10 @@ defmodule Kinda.Capsule.Web3D.Task do
     protected_digest = Keyword.fetch!(options, :protected_digest)
     browser_verifier_digest = Keyword.fetch!(options, :browser_verifier_digest)
 
-    browser_evidence = Path.join([workspace, "artifacts", "browser.json"])
+    evidence_directory =
+      Keyword.get(options, :evidence_directory) || Path.join(workspace, "artifacts")
+
+    browser_evidence = Path.join(evidence_directory, "browser.json")
 
     with {:ok, encoded} <- read_browser_evidence(browser_evidence),
          {:ok, browser} <- JSON.decode(encoded) do
@@ -79,7 +88,7 @@ defmodule Kinda.Capsule.Web3D.Task do
       }
 
       File.write(
-        Path.join([workspace, "artifacts", "integrity.json"]),
+        Path.join(evidence_directory, "integrity.json"),
         JSON.encode!(evidence)
       )
     end
@@ -129,8 +138,8 @@ defmodule Kinda.Capsule.Web3D.Task do
 
   defp erl, do: System.find_executable("erl") || raise("erl executable unavailable")
 
-  defp read_evidence(workspace, name) do
-    path = Path.join([workspace, "artifacts", name])
+  defp read_evidence(evidence_directory, name) do
+    path = Path.join(evidence_directory, name)
 
     with {:ok, encoded} <- File.read(path),
          {:ok, value} <- JSON.decode(encoded) do
