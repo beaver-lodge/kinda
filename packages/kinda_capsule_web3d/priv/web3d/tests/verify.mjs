@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(process.argv[2] || process.cwd());
 const artifacts = path.resolve(process.argv[3] || path.join(root, 'artifacts'));
+const artifactNames = ['before.png', 'after.png', 'interaction.webm', 'interaction.json', 'performance.json', 'expert-review.json', 'browser.json'];
 const require = createRequire(path.join(root, 'package.json'));
 const { chromium } = require('@playwright/test');
 const verifierDigest = createHash('sha256').update(await readFile(fileURLToPath(import.meta.url))).digest('hex');
@@ -82,10 +83,8 @@ try {
   await page.close();
   await context.close();
   await video.saveAs(path.join(artifacts, 'interaction.webm'));
-  await assertArtifacts(['before.png', 'after.png', 'interaction.webm', 'interaction.json', 'performance.json', 'expert-review.json', 'browser.json']);
-  const envelope = { schema: 'kinda.web3d.evidence/v1', artifacts: {} };
-  for (const name of ['before.png', 'after.png', 'interaction.webm', 'interaction.json', 'performance.json', 'expert-review.json', 'browser.json']) envelope.artifacts[name] = (await readFile(path.join(artifacts, name))).toString('base64');
-  await writeStdout(JSON.stringify(envelope));
+  await assertArtifacts(artifactNames);
+  await writeEvidenceEnvelope();
   await browser.close();
 
 } finally {
@@ -94,7 +93,20 @@ try {
 
 async function snapshot(page) { return page.evaluate(() => window.__web3dEpisode.snapshot()); }
 async function writeJson(name, value) { await writeFile(path.join(artifacts, name), JSON.stringify(value, null, 2)); }
-async function writeStdout(value) { await new Promise((resolve, reject) => process.stdout.write(value, error => error ? reject(error) : resolve())); }
+async function writeEvidenceEnvelope() {
+  await writeStdout('{"schema":"kinda.web3d.evidence/v1","artifacts":{');
+  for (const [index, name] of artifactNames.entries()) {
+    const encoded = (await readFile(path.join(artifacts, name))).toString('base64');
+    await writeStdout(`${index === 0 ? '' : ','}${JSON.stringify(name)}:"${encoded}"`);
+  }
+  await writeStdout('}}');
+}
+async function writeStdout(value) {
+  for (let offset = 0; offset < value.length; offset += 32 * 1024) {
+    const chunk = value.slice(offset, offset + 32 * 1024);
+    await new Promise((resolve, reject) => process.stdout.write(chunk, error => error ? reject(error) : resolve()));
+  }
+}
 async function assertArtifacts(names) { for (const name of names) { const info = await stat(path.join(artifacts, name)); if (!info.isFile() || info.size === 0) throw new Error(`missing verifier artifact: ${name}`); } }
 async function waitForServer(url) {
   for (let attempt = 0; attempt < 100; attempt++) {
