@@ -12,9 +12,9 @@ defmodule Mix.Tasks.Web3d.Showcase do
     {options, _remaining, _invalid} =
       OptionParser.parse(arguments, strict: [parent: :string, bundle: :string, index: :string])
 
-    parent = Keyword.get(options, :parent, Path.expand("tmp/showcase"))
-    bundle = Keyword.get(options, :bundle, Path.expand("episode", File.cwd!()))
-    index = Keyword.get(options, :index, bundle <> ".sqlite3")
+    parent = options |> Keyword.get(:parent, "tmp/showcase") |> Path.expand()
+    bundle = options |> Keyword.get(:bundle, "episode") |> Path.expand()
+    index = options |> Keyword.get(:index, bundle <> ".sqlite3") |> Path.expand()
     File.mkdir_p!(parent)
 
     Mix.Task.run("app.start")

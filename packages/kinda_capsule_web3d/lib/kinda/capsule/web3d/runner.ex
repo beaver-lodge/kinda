@@ -32,12 +32,16 @@ defmodule Kinda.Capsule.Web3D.Runner do
              action(node_executable(), [browser_verifier(), "."], "verify"),
              "verify"
            ),
-         :ok <- Kinda.Capsule.Web3D.Task.write_integrity_evidence(workspace, task_options),
+         :ok <-
+           stage(
+             "integrity",
+             Kinda.Capsule.Web3D.Task.write_integrity_evidence(workspace, task_options)
+           ),
          {:ok, sources} <- attach_artifacts(capsule, workspace),
          {:ok, score} <- Capsule.grade(capsule),
          {:ok, trace} <- Capsule.trace(capsule),
          {:ok, digest} <- Bundle.export(trace, bundle, artifact_sources: sources),
-         :ok <- EventIndex.record(index, trace, digest) do
+         :ok <- stage("event_index", EventIndex.record(index, trace, digest)) do
       {:ok, %{bundle: bundle, index: index, digest: digest, score: score, episode: trace.episode}}
     end
   end
@@ -49,6 +53,9 @@ defmodule Kinda.Capsule.Web3D.Runner do
       {:error, error} -> {:error, {:command_error, phase, error}}
     end
   end
+
+  defp stage(_stage, :ok), do: :ok
+  defp stage(stage, {:error, reason}), do: {:error, {:stage_failed, stage, reason}}
 
   defp action(executable, args, phase) do
     %Command{
