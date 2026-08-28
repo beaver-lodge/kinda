@@ -29,7 +29,7 @@ defmodule Kinda.Capsule.Web3D.Runner do
          :ok <-
            execute(
              capsule,
-             action(node_executable(), [browser_verifier(), "."], "verify"),
+             action(node_executable(), [browser_verifier(), workspace], "verify"),
              "verify"
            ),
          :ok <-

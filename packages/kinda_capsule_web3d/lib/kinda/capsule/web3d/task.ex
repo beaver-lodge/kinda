@@ -61,7 +61,9 @@ defmodule Kinda.Capsule.Web3D.Task do
     protected_digest = Keyword.fetch!(options, :protected_digest)
     browser_verifier_digest = Keyword.fetch!(options, :browser_verifier_digest)
 
-    with {:ok, encoded} <- File.read(Path.join([workspace, "artifacts", "browser.json"])),
+    browser_evidence = Path.join([workspace, "artifacts", "browser.json"])
+
+    with {:ok, encoded} <- read_browser_evidence(browser_evidence),
          {:ok, browser} <- JSON.decode(encoded) do
       fixture_digest = digest_file(Path.join(workspace, "package-lock.json"))
       verifier_digest = browser["verifier_digest"]
@@ -80,6 +82,13 @@ defmodule Kinda.Capsule.Web3D.Task do
         Path.join([workspace, "artifacts", "integrity.json"]),
         JSON.encode!(evidence)
       )
+    end
+  end
+
+  defp read_browser_evidence(path) do
+    case File.read(path) do
+      {:ok, encoded} -> {:ok, encoded}
+      {:error, reason} -> {:error, {:browser_evidence_unavailable, path, reason}}
     end
   end
 
