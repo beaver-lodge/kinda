@@ -47,10 +47,10 @@ review. This package currently evaluates a supplied repaired fixture; inserting
 a model-driven inspection and patch action is intentionally a separate agent
 harness concern.
 
-The browser verifier returns its fixed artifact set through a bounded,
-versioned evidence envelope. The host runner validates and projects that
-envelope into Capsule-owned staging before hashing and attachment, so evidence
-does not depend on a command workspace surviving after the command exits.
+The browser verifier and host runner use a bounded ready/ack handoff for the
+fixed artifact set. The runner projects evidence into Capsule-owned staging
+while the verifier action is still alive, before hashing and attachment, so
+evidence does not depend on a command workspace surviving after command exit.
 
 This is an episode/evidence showcase, not a containment claim. The task and
 verifier are trusted host components; browser isolation comes from the selected

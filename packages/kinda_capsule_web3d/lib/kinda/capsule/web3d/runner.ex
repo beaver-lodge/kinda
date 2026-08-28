@@ -43,13 +43,7 @@ defmodule Kinda.Capsule.Web3D.Runner do
   defp run_episode(capsule, bundle, index, evidence, task_options) do
     with {:ok, %{value: %{"workspace" => workspace}}} <- Capsule.reset(capsule, seed: "showcase"),
          {:ok, _install} <- execute(capsule, action(npm(), ["ci"], "install"), "install"),
-         {:ok, verification} <-
-           execute(
-             capsule,
-             verification_action(workspace, evidence),
-             "verify"
-           ),
-         :ok <- stage("evidence_projection", project_evidence(verification.stdout, evidence)),
+         {:ok, _verification} <- execute_verification(capsule, workspace, evidence),
          :ok <-
            stage(
              "integrity",
@@ -72,6 +66,40 @@ defmodule Kinda.Capsule.Web3D.Runner do
     end
   end
 
+  defp execute_verification(capsule, workspace, evidence) do
+    source = Path.join(workspace, ".kinda-web3d-evidence")
+
+    with {:ok, execution} <-
+           Capsule.start(
+             capsule,
+             action(node_executable(), [browser_verifier(), workspace, source], "verify")
+           ) do
+      await_and_project_verification(execution, source, evidence)
+    end
+  end
+
+  defp await_and_project_verification(execution, source, evidence) do
+    result =
+      with :ok <- stage("evidence_ready", await_file(Path.join(source, ".ready"), 180_000)),
+           :ok <- stage("evidence_projection", copy_evidence(source, evidence)),
+           :ok <- File.write(Path.join(source, ".ack"), "ok") do
+        case Capsule.await(execution, :infinity) do
+          {:ok, %{termination: {:exit, 0}} = command_result} ->
+            {:ok, command_result}
+
+          {:ok, command_result} ->
+            {:error,
+             {:command_failed, "verify", command_result.termination, command_result.stderr}}
+
+          {:error, error} ->
+            {:error, {:command_error, "verify", error}}
+        end
+      end
+
+    if match?({:error, _reason}, result), do: Capsule.cancel(execution)
+    result
+  end
+
   defp stage(_stage, :ok), do: :ok
   defp stage(stage, {:error, reason}), do: {:error, {:stage_failed, stage, reason}}
 
@@ -80,36 +108,33 @@ defmodule Kinda.Capsule.Web3D.Runner do
     Path.join(Path.dirname(Path.expand(bundle)), ".kinda-web3d-evidence-#{id}")
   end
 
-  defp project_evidence(encoded, destination) do
-    with {:ok, %{"schema" => "kinda.web3d.evidence/v1", "artifacts" => artifacts}} <-
-           JSON.decode(encoded),
-         true <-
-           is_map(artifacts) and Enum.sort(Map.keys(artifacts)) == Enum.sort(@browser_artifacts) do
-      project_artifacts(artifacts, destination)
-    else
-      {:error, reason} -> {:error, {:invalid_envelope, reason}}
-      false -> {:error, :invalid_envelope_artifacts}
-      _value -> {:error, :invalid_envelope}
-    end
-  end
-
-  defp project_artifacts(artifacts, destination) do
+  defp copy_evidence(source, destination) do
     Enum.reduce_while(@browser_artifacts, :ok, fn name, :ok ->
-      case write_projected_artifact(destination, name, Map.fetch!(artifacts, name)) do
+      case File.cp(Path.join(source, name), Path.join(destination, name)) do
         :ok -> {:cont, :ok}
-        {:error, reason} -> {:halt, {:error, {:invalid_artifact, name, reason}}}
+        {:error, reason} -> {:halt, {:error, {:unavailable_artifact, name, reason}}}
       end
     end)
   end
 
-  defp write_projected_artifact(destination, name, encoded) when is_binary(encoded) do
-    with {:ok, contents} <- Base.decode64(encoded) do
-      File.write(Path.join(destination, name), contents)
-    end
+  defp await_file(path, timeout) do
+    deadline = System.monotonic_time(:millisecond) + timeout
+    await_file_until(path, deadline)
   end
 
-  defp write_projected_artifact(_destination, _name, _encoded),
-    do: {:error, :invalid_encoding}
+  defp await_file_until(path, deadline) do
+    cond do
+      File.regular?(path) ->
+        :ok
+
+      System.monotonic_time(:millisecond) >= deadline ->
+        {:error, {:timeout, path}}
+
+      true ->
+        Process.sleep(25)
+        await_file_until(path, deadline)
+    end
+  end
 
   defp action(executable, args, phase) do
     %Command{
@@ -119,29 +144,10 @@ defmodule Kinda.Capsule.Web3D.Runner do
         inherit_env: runtime_env(),
         timeout: 180_000,
         terminate_after: 2_000,
-        max_output_bytes: 10_000_000
+        max_output_bytes: 2_000_000
       },
       metadata: %{phase: phase}
     }
-  end
-
-  defp verification_action(workspace, evidence) do
-    envelope = Path.join(workspace, ".kinda-web3d-evidence.json")
-
-    action(
-      shell(),
-      [
-        "-c",
-        ~S|"$1" "$2" "$3" "$4" "$5" && cat "$5"|,
-        "kinda-web3d-verifier",
-        node_executable(),
-        browser_verifier(),
-        workspace,
-        evidence,
-        envelope
-      ],
-      "verify"
-    )
   end
 
   defp attach_artifacts(capsule, evidence) do
@@ -178,8 +184,6 @@ defmodule Kinda.Capsule.Web3D.Runner do
   end
 
   defp npm, do: System.find_executable("npm") || raise("npm executable unavailable")
-
-  defp shell, do: System.find_executable("sh") || raise("POSIX shell unavailable")
 
   defp node_executable,
     do: System.find_executable("node") || raise("node executable unavailable")

@@ -7,7 +7,6 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(process.argv[2] || process.cwd());
 const artifacts = path.resolve(process.argv[3] || path.join(root, 'artifacts'));
-const envelopePath = process.argv[4];
 const artifactNames = ['before.png', 'after.png', 'interaction.webm', 'interaction.json', 'performance.json', 'expert-review.json', 'browser.json'];
 const require = createRequire(path.join(root, 'package.json'));
 const { chromium } = require('@playwright/test');
@@ -85,7 +84,8 @@ try {
   await context.close();
   await video.saveAs(path.join(artifacts, 'interaction.webm'));
   await assertArtifacts(artifactNames);
-  await writeEvidenceEnvelope();
+  await writeFile(path.join(artifacts, '.ready'), 'ready');
+  await waitForFile(path.join(artifacts, '.ack'));
   await browser.close();
 
 } finally {
@@ -94,14 +94,14 @@ try {
 
 async function snapshot(page) { return page.evaluate(() => window.__web3dEpisode.snapshot()); }
 async function writeJson(name, value) { await writeFile(path.join(artifacts, name), JSON.stringify(value, null, 2)); }
-async function writeEvidenceEnvelope() {
-  const envelope = { schema: 'kinda.web3d.evidence/v1', artifacts: {} };
-  for (const name of artifactNames) envelope.artifacts[name] = (await readFile(path.join(artifacts, name))).toString('base64');
-  const encoded = JSON.stringify(envelope);
-  if (envelopePath) await writeFile(envelopePath, encoded);
-  else await new Promise((resolve, reject) => process.stdout.write(encoded, error => error ? reject(error) : resolve()));
-}
 async function assertArtifacts(names) { for (const name of names) { const info = await stat(path.join(artifacts, name)); if (!info.isFile() || info.size === 0) throw new Error(`missing verifier artifact: ${name}`); } }
+async function waitForFile(file) {
+  for (let attempt = 0; attempt < 3600; attempt++) {
+    try { if ((await stat(file)).isFile()) return; } catch {}
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+  throw new Error(`evidence acknowledgement timed out: ${file}`);
+}
 async function waitForServer(url) {
   for (let attempt = 0; attempt < 100; attempt++) {
     try { const response = await fetch(url); if (response.ok) return; } catch {}
