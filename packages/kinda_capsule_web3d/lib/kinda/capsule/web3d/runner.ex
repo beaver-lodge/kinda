@@ -74,13 +74,17 @@ defmodule Kinda.Capsule.Web3D.Runner do
              capsule,
              action(node_executable(), [browser_verifier(), workspace, source], "verify")
            ) do
-      await_and_project_verification(execution, source, evidence)
+      await_and_project_verification(capsule, execution, source, evidence)
     end
   end
 
-  defp await_and_project_verification(execution, source, evidence) do
+  defp await_and_project_verification(capsule, execution, source, evidence) do
     result =
-      with :ok <- stage("evidence_ready", await_file(Path.join(source, ".ready"), 180_000)),
+      with :ok <-
+             stage(
+               "evidence_ready",
+               await_evidence(capsule, execution, Path.join(source, ".ready"), 180_000)
+             ),
            :ok <- stage("evidence_projection", copy_evidence(source, evidence)),
            :ok <- File.write(Path.join(source, ".ack"), "ok") do
         case Capsule.await(execution, :infinity) do
@@ -117,22 +121,44 @@ defmodule Kinda.Capsule.Web3D.Runner do
     end)
   end
 
-  defp await_file(path, timeout) do
+  defp await_evidence(capsule, execution, path, timeout) do
     deadline = System.monotonic_time(:millisecond) + timeout
-    await_file_until(path, deadline)
+    await_evidence_until(capsule, execution, path, deadline)
   end
 
-  defp await_file_until(path, deadline) do
+  defp await_evidence_until(capsule, execution, path, deadline) do
     cond do
       File.regular?(path) ->
         :ok
+
+      verification_finished?(capsule) ->
+        early_verification_exit(execution)
 
       System.monotonic_time(:millisecond) >= deadline ->
         {:error, {:timeout, path}}
 
       true ->
         Process.sleep(25)
-        await_file_until(path, deadline)
+        await_evidence_until(capsule, execution, path, deadline)
+    end
+  end
+
+  defp verification_finished?(capsule) do
+    case Capsule.trace(capsule) do
+      {:ok, %{steps: steps}} -> match?(%{metadata: %{phase: "verify"}}, List.last(steps))
+      _result -> false
+    end
+  end
+
+  defp early_verification_exit(execution) do
+    case Capsule.await(execution, :infinity) do
+      {:ok, result} ->
+        {:error,
+         {:verifier_exited_before_evidence, result.termination, result.stderr,
+          byte_size(result.stdout)}}
+
+      {:error, error} ->
+        {:error, {:command_error, "verify", error}}
     end
   end
 
