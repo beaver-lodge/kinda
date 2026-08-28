@@ -16,29 +16,37 @@ defmodule Kinda.Capsule.Web3D.Runner do
 
     with {:ok, capsule} <- Capsule.create(spec) do
       try do
-        run_episode(capsule, bundle, index)
+        run_episode(capsule, bundle, index, spec.task_options)
       after
         Capsule.close(capsule)
       end
     end
   end
 
-  defp run_episode(capsule, bundle, index) do
+  defp run_episode(capsule, bundle, index, task_options) do
     with {:ok, %{value: %{"workspace" => workspace}}} <- Capsule.reset(capsule, seed: "showcase"),
-         {:ok, %{termination: {:exit, 0}}} <-
-           Capsule.execute(capsule, action(npm(), ["ci"], "install"), :infinity),
-         {:ok, %{termination: {:exit, 0}}} <-
-           Capsule.execute(
+         :ok <- execute(capsule, action(npm(), ["ci"], "install"), "install"),
+         :ok <-
+           execute(
              capsule,
              action(node_executable(), [browser_verifier(), "."], "verify"),
-             :infinity
+             "verify"
            ),
+         :ok <- Kinda.Capsule.Web3D.Task.write_integrity_evidence(workspace, task_options),
          {:ok, sources} <- attach_artifacts(capsule, workspace),
          {:ok, score} <- Capsule.grade(capsule),
          {:ok, trace} <- Capsule.trace(capsule),
          {:ok, digest} <- Bundle.export(trace, bundle, artifact_sources: sources),
          :ok <- EventIndex.record(index, trace, digest) do
       {:ok, %{bundle: bundle, index: index, digest: digest, score: score, episode: trace.episode}}
+    end
+  end
+
+  defp execute(capsule, action, phase) do
+    case Capsule.execute(capsule, action, :infinity) do
+      {:ok, %{termination: {:exit, 0}}} -> :ok
+      {:ok, result} -> {:error, {:command_failed, phase, result.termination, result.stderr}}
+      {:error, error} -> {:error, {:command_error, phase, error}}
     end
   end
 
@@ -63,7 +71,9 @@ defmodule Kinda.Capsule.Web3D.Runner do
       {"interaction.webm", :video, "video/webm"},
       {"interaction.json", :trace, "application/json"},
       {"performance.json", :metrics, "application/json"},
-      {"verification.json", :metrics, "application/json"}
+      {"expert-review.json", :document, "application/json"},
+      {"browser.json", :metrics, "application/json"},
+      {"integrity.json", :metrics, "application/json"}
     ]
 
     Enum.reduce_while(artifacts, {:ok, %{}}, fn {name, kind, media_type}, {:ok, sources} ->
@@ -74,13 +84,13 @@ defmodule Kinda.Capsule.Web3D.Runner do
                name: name,
                kind: kind,
                media_type: media_type,
-               produced_by: %{step: 1, verifier: Web3D.verifier_version()}
+               produced_by: %{verifier: Web3D.verifier_version()}
              ),
            :ok <- Capsule.attach_artifact(capsule, artifact) do
         source = Path.join(workspace, relative)
         {:cont, {:ok, Map.put(sources, artifact.id, source)}}
       else
-        error -> {:halt, error}
+        {:error, reason} -> {:halt, {:error, {:artifact_unavailable, name, reason}}}
       end
     end)
   end

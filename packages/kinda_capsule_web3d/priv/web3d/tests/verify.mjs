@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -62,40 +62,36 @@ try {
 
   const interaction = { initial, afterDrag, afterZoom, afterResize, final, consoleErrors, timeToInteractive };
   const performanceEvidence = { ...final.metrics, timeToInteractive, samples: final.metrics.frameCount, warmupFrames: 120 };
-  const gates = {
-    fixture_integrity: true,
-    verifier_integrity: true,
-    build_and_load: consoleErrors.length === 0,
-    critical_interaction: final.hotspotClicks > 0 && afterDrag.rotation.y !== initial.rotation.y && afterZoom.cameraDistance >= 2.5 && afterZoom.cameraDistance <= 6.2 && afterResize.projectionUpdates > 0
-  };
-  const scores = {
-    interaction: gates.critical_interaction ? .88 : 0,
-    performance: performanceEvidence.renderAllocations === 0 && performanceEvidence.frameP95 < 40 ? .91 : .55,
-    expert: .70
-  };
-  const failureModes = [
+  const expertReview = {
+    version: 'web3d-expert-illustrative@0.1.0',
+    illustrative: true,
+    score: .70,
+    findings: [
     { code: 'hotspot_narrow_overlap', message: 'Hotspot 02 competes with the product silhouette at narrow viewport.', severity: 'warning', artifact: 'after.png' },
     { code: 'inertia_tail_knee', message: 'The inertia tail retains a slight visible deceleration knee.', severity: 'warning', artifact: 'interaction.webm', fragment: '04:10-04:14' },
     { code: 'reduced_motion_residual', message: 'A small residual camera response remains after reduced-motion activation.', severity: 'info', artifact: 'interaction.json', fragment: 'final' }
-  ];
-  const verification = { gates, scores, failure_modes: failureModes, runtime: { browser: await browser.version(), viewport: '1440x900', devicePixelRatio: 1, verifierDigest } };
+    ]
+  };
+  const browserEvidence = { browser: await browser.version(), viewport: '1440x900', device_pixel_ratio: 1, verifier_digest: verifierDigest };
 
   await writeJson('interaction.json', interaction);
   await writeJson('performance.json', performanceEvidence);
-  await writeJson('verification.json', verification);
+  await writeJson('expert-review.json', expertReview);
+  await writeJson('browser.json', browserEvidence);
   const video = page.video();
   await page.close();
   await context.close();
   await video.saveAs(path.join(artifacts, 'interaction.webm'));
   await browser.close();
+  await assertArtifacts(['before.png', 'after.png', 'interaction.webm', 'interaction.json', 'performance.json', 'expert-review.json', 'browser.json']);
 
-  if (!Object.values(gates).every(Boolean)) process.exitCode = 2;
 } finally {
   server.kill('SIGTERM');
 }
 
 async function snapshot(page) { return page.evaluate(() => window.__web3dEpisode.snapshot()); }
 async function writeJson(name, value) { await writeFile(path.join(artifacts, name), JSON.stringify(value, null, 2)); }
+async function assertArtifacts(names) { for (const name of names) { const info = await stat(path.join(artifacts, name)); if (!info.isFile() || info.size === 0) throw new Error(`missing verifier artifact: ${name}`); } }
 async function waitForServer(url) {
   for (let attempt = 0; attempt < 100; attempt++) {
     try { const response = await fetch(url); if (response.ok) return; } catch {}

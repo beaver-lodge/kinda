@@ -30,37 +30,58 @@ defmodule Kinda.Capsule.Web3D.Task do
 
   @impl true
   def observe(_context, state) do
-    workspace = state.workspace
-    verification = Path.join([workspace, "artifacts", "verification.json"])
-
-    case File.read(verification) do
-      {:ok, encoded} ->
-        case JSON.decode(encoded) do
-          {:ok, result} ->
-            result = enforce_integrity_gates(result, state)
-            digest = encoded |> then(&:crypto.hash(:sha256, &1)) |> Base.encode16(case: :lower)
-
-            {:ok,
-             %Observation{
-               value: result,
-               metadata: %{status: :verified},
-               evidence: [%EvidenceRef{artifact: digest}]
-             }}
-
-          {:error, reason} ->
-            {:error, {:invalid_verification, reason}}
-        end
-
-      {:error, :enoent} ->
-        {:ok, observation(workspace, :ready)}
-
-      {:error, reason} ->
-        {:error, reason}
+    with {:ok, interaction, interaction_ref} <- read_evidence(state.workspace, "interaction.json"),
+         {:ok, performance, performance_ref} <- read_evidence(state.workspace, "performance.json"),
+         {:ok, expert_review, expert_ref} <- read_evidence(state.workspace, "expert-review.json"),
+         {:ok, _browser, browser_ref} <- read_evidence(state.workspace, "browser.json"),
+         {:ok, integrity, integrity_ref} <- read_evidence(state.workspace, "integrity.json") do
+      {:ok,
+       %Observation{
+         value: %{
+           "interaction" => interaction,
+           "performance" => performance,
+           "expert_review" => expert_review,
+           "integrity" => integrity
+         },
+         metadata: %{status: :verified},
+         evidence: [interaction_ref, performance_ref, expert_ref, browser_ref, integrity_ref]
+       }}
+    else
+      {:error, :enoent} -> {:ok, observation(state.workspace, :ready)}
+      {:error, reason} -> {:error, reason}
     end
   end
 
   @impl true
   def close(_context, _state), do: :ok
+
+  @doc false
+  @spec write_integrity_evidence(binary(), keyword()) :: :ok | {:error, term()}
+  def write_integrity_evidence(workspace, options) do
+    protected_digest = Keyword.fetch!(options, :protected_digest)
+    browser_verifier_digest = Keyword.fetch!(options, :browser_verifier_digest)
+
+    with {:ok, encoded} <- File.read(Path.join([workspace, "artifacts", "browser.json"])),
+         {:ok, browser} <- JSON.decode(encoded) do
+      fixture_digest = digest_file(Path.join(workspace, "package-lock.json"))
+      verifier_digest = browser["verifier_digest"]
+
+      evidence = %{
+        "fixture" => fixture_digest == protected_digest,
+        "verifier" => verifier_digest == browser_verifier_digest,
+        "fixture_expected" => protected_digest,
+        "fixture_actual" => fixture_digest,
+        "verifier_expected" => browser_verifier_digest,
+        "verifier_actual" => verifier_digest,
+        "produced_by" => "kinda-capsule-trusted-task@0.1.0"
+      }
+
+      File.write(
+        Path.join([workspace, "artifacts", "integrity.json"]),
+        JSON.encode!(evidence)
+      )
+    end
+  end
 
   defp observation(workspace, status) do
     %Observation{value: %{"status" => to_string(status), "workspace" => workspace}}
@@ -99,16 +120,17 @@ defmodule Kinda.Capsule.Web3D.Task do
 
   defp erl, do: System.find_executable("erl") || raise("erl executable unavailable")
 
-  defp enforce_integrity_gates(result, state) do
-    fixture_digest = digest_file(Path.join(state.workspace, "package-lock.json"))
-    verifier_digest = get_in(result, ["runtime", "verifierDigest"])
+  defp read_evidence(workspace, name) do
+    path = Path.join([workspace, "artifacts", name])
 
-    result
-    |> put_in(["gates", "fixture_integrity"], fixture_digest == state.protected_digest)
-    |> put_in(
-      ["gates", "verifier_integrity"],
-      verifier_digest == state.browser_verifier_digest
-    )
+    with {:ok, encoded} <- File.read(path),
+         {:ok, value} <- JSON.decode(encoded) do
+      digest = encoded |> then(&:crypto.hash(:sha256, &1)) |> Base.encode16(case: :lower)
+      {:ok, value, %EvidenceRef{artifact: digest}}
+    else
+      {:error, :enoent} -> {:error, :enoent}
+      {:error, reason} -> {:error, {:invalid_evidence, name, reason}}
+    end
   end
 
   defp digest_file(path) do

@@ -9,6 +9,7 @@ defmodule Kinda.Capsule.Web3D.VerifierTest do
       artifact("interaction.json"),
       artifact("interaction.webm"),
       artifact("performance.json"),
+      artifact("expert-review.json"),
       artifact("after.png")
     ]
 
@@ -34,7 +35,7 @@ defmodule Kinda.Capsule.Web3D.VerifierTest do
 
   test "a failed required gate zeroes the continuous score" do
     episode = episode()
-    failed = put_in(result(), ["gates", "build_and_load"], false)
+    failed = put_in(result(), ["interaction", "consoleErrors"], ["load failed"])
 
     verification = %Verification{
       capsule_id: episode.capsule_id,
@@ -52,24 +53,58 @@ defmodule Kinda.Capsule.Web3D.VerifierTest do
     refute score.metadata.required_gates_passed?
   end
 
+  @tag :tmp_dir
+  test "sealed regrade recomputes from raw domain evidence", %{tmp_dir: tmp_dir} do
+    artifacts = Path.join(tmp_dir, "artifacts")
+    File.mkdir!(artifacts)
+    raw = result()
+
+    entries = [
+      write_artifact(artifacts, "interaction.json", raw["interaction"]),
+      write_artifact(artifacts, "performance.json", raw["performance"]),
+      write_artifact(artifacts, "expert-review.json", raw["expert_review"]),
+      write_artifact(artifacts, "integrity.json", raw["integrity"]),
+      artifact_entry("interaction.webm"),
+      artifact_entry("after.png")
+    ]
+
+    assert {:ok, score} =
+             Verifier.regrade(%{root: tmp_dir, manifest: %{"artifacts" => entries}}, [])
+
+    assert score.value == 0.835
+    assert score.metadata.expert_review == :illustrative
+    assert score.components.performance.value == 0.91
+  end
+
   defp result do
     %{
-      "gates" => %{
-        "fixture_integrity" => true,
-        "verifier_integrity" => true,
-        "build_and_load" => true,
-        "critical_interaction" => true
-      },
-      "scores" => %{"interaction" => 0.88, "performance" => 0.91, "expert" => 0.70},
-      "failure_modes" => [
-        %{
-          "code" => "residual_motion",
-          "message" => "Residual response remains.",
-          "severity" => "warning",
-          "artifact" => "interaction.json",
-          "fragment" => "final"
+      "integrity" => %{"fixture" => true, "verifier" => true},
+      "interaction" => %{
+        "consoleErrors" => [],
+        "initial" => %{"rotation" => %{"y" => 0.1}},
+        "afterDrag" => %{"rotation" => %{"y" => 0.8}},
+        "afterZoom" => %{"cameraDistance" => 6.2},
+        "afterResize" => %{"projectionUpdates" => 1},
+        "final" => %{
+          "hotspotClicks" => 1,
+          "reducedMotion" => true
         }
-      ]
+      },
+      "performance" => %{"renderAllocations" => 0, "frameP95" => 17.0},
+      "expert_review" => %{
+        "version" => "web3d-expert-illustrative@0.1.0",
+        "illustrative" => true,
+        "score" => 0.70,
+        "findings" => [
+          %{
+            "code" => "residual_motion",
+            "message" => "Residual response remains.",
+            "severity" => "warning",
+            "artifact" => "interaction.json",
+            "fragment" => "final"
+          }
+        ]
+      }
     }
   end
 
@@ -83,6 +118,15 @@ defmodule Kinda.Capsule.Web3D.VerifierTest do
       media_type: "application/octet-stream",
       produced_by: %{}
     }
+  end
+
+  defp write_artifact(root, name, value) do
+    File.write!(Path.join(root, name), JSON.encode!(value))
+    artifact_entry(name)
+  end
+
+  defp artifact_entry(name) do
+    %{"id" => "id-#{name}", "name" => name, "path" => "artifacts/#{name}"}
   end
 
   defp episode do

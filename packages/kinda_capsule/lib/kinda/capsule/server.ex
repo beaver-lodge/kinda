@@ -173,6 +173,8 @@ defmodule Kinda.Capsule.Server do
   end
 
   def handle_call({:attach_artifact, %Artifact{} = artifact}, _from, state) do
+    artifact = bind_artifact_to_latest_step(artifact, state.trace.steps)
+
     cond do
       not Artifact.valid?(artifact) ->
         {:reply, {:error, error(:artifact, :invalid_artifact)}, state}
@@ -596,6 +598,14 @@ defmodule Kinda.Capsule.Server do
       _sequence ->
         trace
     end
+  end
+
+  defp bind_artifact_to_latest_step(artifact, []), do: artifact
+
+  defp bind_artifact_to_latest_step(artifact, steps) do
+    step = List.last(steps)
+    producer = Map.put(artifact.produced_by, :step, step.sequence)
+    %{artifact | produced_by: producer}
   end
 
   defp link_step(%{sequence: sequence} = step, sequence, reference),

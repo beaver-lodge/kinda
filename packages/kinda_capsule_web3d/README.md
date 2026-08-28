@@ -3,10 +3,11 @@
 This package turns the Web3D repair scenario into a real Capsule episode:
 
 - a procedural Three.js product viewer with deliberate `broken` and repaired modes;
-- a fixed Playwright interaction path with screenshots, video, interaction trace,
-  performance metrics, gates, scored dimensions, and explicit failure modes;
+- a fixed Playwright interaction path with screenshots, video, raw interaction
+  and performance evidence;
 - a `Kinda.Capsule.Task` that provisions the fixture into a fresh Sandbox;
-- live grading plus digest-verified export and sealed-evidence regrading;
+- live grading plus digest-verified export and sealed-evidence regrading that
+  recomputes gates and scores from raw domain evidence;
 - a one-page viewer where findings link back to timeline events and evidence.
 
 ## Run the visual fixture
@@ -37,6 +38,14 @@ bundle can be checked and regraded without a live Capsule:
 Kinda.Capsule.Bundle.verify("episode")
 Kinda.Capsule.Bundle.regrade("episode", Kinda.Capsule.Web3D.Verifier)
 ```
+
+Fixture and browser-verifier integrity are computed by the trusted Task and
+sealed as `integrity.json`; they are not self-reported by browser code. The
+included `expert-review.json` is explicitly illustrative and versioned. It
+demonstrates the expert-evidence contract but is not presented as a real human
+review. This package currently evaluates a supplied repaired fixture; inserting
+a model-driven inspection and patch action is intentionally a separate agent
+harness concern.
 
 This is an episode/evidence showcase, not a containment claim. The task and
 verifier are trusted host components; browser isolation comes from the selected

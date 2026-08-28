@@ -6,7 +6,7 @@ defmodule Kinda.Capsule.Web3D do
   alias Kinda.Sandbox.Backend.LocalProcess
 
   @task_version "web3d-viewer-repair@0.1.0"
-  @verifier_version "web3d-four-layer@0.1.0"
+  @verifier_version "web3d-four-layer@0.2.0"
 
   @spec spec(keyword()) :: Spec.t()
   def spec(options) do

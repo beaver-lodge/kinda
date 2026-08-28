@@ -75,13 +75,15 @@ defmodule Kinda.Capsule.CommandTest do
       path: "artifacts/trace.json",
       sha256: String.duplicate("0", 64),
       media_type: "application/json",
-      produced_by: %{step: 0}
+      produced_by: %{step: 99}
     }
 
     assert :ok = Capsule.attach_artifact(capsule, artifact)
 
     assert {:ok, %{steps: [%{evidence: [%{artifact: "evidence-id"}]}]}} =
              Capsule.trace(capsule)
+
+    assert {:ok, %{artifacts: [%{produced_by: %{step: 0}}]}} = Capsule.trace(capsule)
 
     assert :ok = Capsule.close(capsule)
   end
