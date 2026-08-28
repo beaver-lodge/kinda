@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -73,7 +74,17 @@ try {
     { code: 'reduced_motion_residual', message: 'A small residual camera response remains after reduced-motion activation.', severity: 'info', artifact: 'interaction.json', fragment: 'final' }
     ]
   };
-  const browserEvidence = { browser: await browser.version(), viewport: '1440x900', device_pixel_ratio: 1, verifier_digest: verifierDigest };
+  const browserEvidence = {
+    browser: await browser.version(),
+    architecture: os.arch(),
+    cpu_class: os.cpus()[0]?.model || 'unknown',
+    headless: true,
+    gpu_mode: 'playwright-headless-default',
+    timing_policy: { warmup_frames: 120, sample_frames: 120, frame_timeout_ms: 30000 },
+    viewport: '1440x900',
+    device_pixel_ratio: 1,
+    verifier_digest: verifierDigest
+  };
 
   await writeJson('interaction.json', interaction);
   await writeJson('performance.json', performanceEvidence);

@@ -10,7 +10,8 @@ defmodule Kinda.Capsule.Episode do
     :task_version,
     :fixture_digest,
     :verifier_version,
-    :verifier_digest,
+    :verifier_source_digest,
+    :verifier_executable_digest,
     :runtime
   ]
   defstruct [
@@ -20,7 +21,8 @@ defmodule Kinda.Capsule.Episode do
     :task_version,
     :fixture_digest,
     :verifier_version,
-    :verifier_digest,
+    :verifier_source_digest,
+    :verifier_executable_digest,
     :runtime,
     model: %{}
   ]
@@ -32,7 +34,8 @@ defmodule Kinda.Capsule.Episode do
           task_version: binary(),
           fixture_digest: binary(),
           verifier_version: binary(),
-          verifier_digest: binary(),
+          verifier_source_digest: binary(),
+          verifier_executable_digest: binary(),
           runtime: RuntimeFingerprint.t(),
           model: map()
         }

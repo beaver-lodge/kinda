@@ -7,8 +7,9 @@ defmodule Kinda.Capsule.Web3D.Verifier do
   alias Kinda.Capsule.{Artifact, EvidenceRef, FailureMode, Score, ScoreComponent, Verification}
 
   @version "web3d-four-layer@0.2.0"
+  @source_digest Base.encode16(:crypto.hash(:sha256, File.read!(__ENV__.file)), case: :lower)
   @required_gates [
-    "fixture_integrity",
+    "protected_inputs_integrity",
     "verifier_integrity",
     "build_and_load",
     "critical_interaction"
@@ -18,7 +19,10 @@ defmodule Kinda.Capsule.Web3D.Verifier do
   def version, do: @version
 
   @impl Kinda.Capsule.SealedVerifier
-  def digest do
+  def source_digest, do: @source_digest
+
+  @impl Kinda.Capsule.SealedVerifier
+  def executable_digest do
     {__MODULE__, beam, _path} = :code.get_object_code(__MODULE__)
     beam |> then(&:crypto.hash(:sha256, &1)) |> Base.encode16(case: :lower)
   end
@@ -90,7 +94,7 @@ defmodule Kinda.Capsule.Web3D.Verifier do
 
   defp gates(raw) do
     values = %{
-      "fixture_integrity" => get_in(raw, ["integrity", "fixture"]) == true,
+      "protected_inputs_integrity" => get_in(raw, ["integrity", "protected_inputs"]) == true,
       "verifier_integrity" => get_in(raw, ["integrity", "verifier"]) == true,
       "build_and_load" => build_and_load?(raw),
       "critical_interaction" => critical_interaction?(raw)

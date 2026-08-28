@@ -19,12 +19,15 @@ defmodule Kinda.Capsule.Web3D do
       task_options: [
         fixture: fixture,
         evidence_directory: Keyword.get(options, :evidence_directory),
-        protected_digest: digest_file(Path.join(fixture, "package-lock.json")),
+        protected_inputs: %{
+          "package-lock.json" => digest_file(Path.join(fixture, "package-lock.json"))
+        },
         browser_verifier_digest: digest_file(Path.join(fixture, "tests/verify.mjs"))
       ],
       verifier: Verifier,
       verifier_version: @verifier_version,
-      verifier_digest: Verifier.digest(),
+      verifier_source_digest: Verifier.source_digest(),
+      verifier_executable_digest: Verifier.executable_digest(),
       verifier_options: [],
       fixture_digest: digest_tree(fixture),
       runtime: Keyword.get(options, :runtime, default_runtime()),
@@ -62,12 +65,23 @@ defmodule Kinda.Capsule.Web3D do
 
   defp default_runtime do
     %RuntimeFingerprint{
-      browser: "Chromium (Playwright)",
-      os: :os.type() |> Tuple.to_list() |> Enum.join("/"),
+      browser: "Chromium (Playwright; resolved in browser.json)",
+      os: runtime_architecture(),
       viewport: %{width: 1440, height: 900},
       device_pixel_ratio: 1,
       cache_policy: "cold fixture, fixed warm-up",
-      metadata: %{interaction_script: "web3d-interaction@0.1.0"}
+      metadata: %{
+        interaction_script: "web3d-interaction@0.1.0",
+        runtime_evidence: "browser.json",
+        headless: true,
+        gpu_mode: "playwright-headless-default",
+        timing_policy: %{warmup_frames: 120, sample_frames: 120, frame_timeout_ms: 30_000}
+      }
     }
+  end
+
+  defp runtime_architecture do
+    os = :os.type() |> Tuple.to_list() |> Enum.join("/")
+    "#{os}/#{:erlang.system_info(:system_architecture)}"
   end
 end

@@ -4,6 +4,7 @@ defmodule Kinda.Capsule.SealedVerifier do
   alias Kinda.Capsule.Score
 
   @callback version() :: binary()
-  @callback digest() :: binary()
+  @callback source_digest() :: binary()
+  @callback executable_digest() :: binary()
   @callback regrade(bundle :: map(), keyword()) :: {:ok, Score.t()} | {:error, term()}
 end

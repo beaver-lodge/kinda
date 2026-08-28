@@ -171,7 +171,8 @@ defmodule Kinda.Capsule.LifecycleTest do
     refute first.episode_id == second.episode_id
     assert first_trace.episode_id == first.episode_id
     assert first.fixture_digest == "unspecified"
-    assert first.verifier_digest == "unspecified"
+    assert first.verifier_source_digest == "unspecified"
+    assert first.verifier_executable_digest == "unspecified"
 
     assert :ok = Capsule.close(capsule)
   end

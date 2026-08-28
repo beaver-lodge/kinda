@@ -12,8 +12,10 @@ defmodule Kinda.Capsule.Web3DTest do
 
     assert :ok = Spec.validate(spec)
     assert spec.fixture_digest == Web3D.digest_tree(Web3D.fixture_root())
-    assert spec.verifier_digest == Verifier.digest()
+    assert spec.verifier_source_digest == Verifier.source_digest()
+    assert spec.verifier_executable_digest == Verifier.executable_digest()
     assert spec.runtime.viewport == %{width: 1440, height: 900}
+    assert spec.runtime.metadata.runtime_evidence == "browser.json"
   end
 
   @tag :tmp_dir
@@ -31,11 +33,20 @@ defmodule Kinda.Capsule.Web3DTest do
 
     assert :ok =
              Task.write_integrity_evidence(workspace,
-               protected_digest: fixture_digest,
+               protected_inputs: %{"package-lock.json" => fixture_digest},
                browser_verifier_digest: verifier_digest
              )
 
-    assert {:ok, %{"fixture" => true, "verifier" => true, "produced_by" => producer}} =
+    assert {:ok,
+            %{
+              "protected_inputs" => true,
+              "protected_manifest" => %{
+                "expected" => %{"package-lock.json" => ^fixture_digest},
+                "actual" => %{"package-lock.json" => ^fixture_digest}
+              },
+              "verifier" => true,
+              "produced_by" => producer
+            }} =
              artifacts |> Path.join("integrity.json") |> File.read!() |> JSON.decode()
 
     assert producer == "kinda-capsule-trusted-task@0.1.0"

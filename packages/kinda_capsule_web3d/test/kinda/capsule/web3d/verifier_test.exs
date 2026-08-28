@@ -78,7 +78,7 @@ defmodule Kinda.Capsule.Web3D.VerifierTest do
 
   defp result do
     %{
-      "integrity" => %{"fixture" => true, "verifier" => true},
+      "integrity" => %{"protected_inputs" => true, "verifier" => true},
       "interaction" => %{
         "consoleErrors" => [],
         "initial" => %{"rotation" => %{"y" => 0.1}},
@@ -137,7 +137,8 @@ defmodule Kinda.Capsule.Web3D.VerifierTest do
       task_version: "task@1",
       fixture_digest: "fixture",
       verifier_version: Verifier.version(),
-      verifier_digest: Verifier.digest(),
+      verifier_source_digest: Verifier.source_digest(),
+      verifier_executable_digest: Verifier.executable_digest(),
       runtime: %RuntimeFingerprint{}
     }
   end

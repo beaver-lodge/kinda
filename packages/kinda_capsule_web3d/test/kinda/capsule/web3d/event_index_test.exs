@@ -36,7 +36,8 @@ defmodule Kinda.Capsule.Web3D.EventIndexTest do
       task_version: "task@1",
       fixture_digest: "fixture-digest",
       verifier_version: "verifier@1",
-      verifier_digest: "verifier-digest",
+      verifier_source_digest: "verifier-source-digest",
+      verifier_executable_digest: "verifier-executable-digest",
       runtime: %RuntimeFingerprint{}
     }
 

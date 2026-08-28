@@ -8,18 +8,11 @@ defmodule Kinda.Capsule.Bundle do
   @spec export(Trace.t(), binary(), keyword()) :: {:ok, binary()} | {:error, Error.t()}
   def export(%Trace{} = trace, destination, options \\ []) when is_binary(destination) do
     sources = Keyword.get(options, :artifact_sources, %{})
+    destination = Path.expand(destination)
 
-    with :ok <- validate_export(trace, destination, sources),
-         :ok <- File.mkdir_p(destination),
-         :ok <- File.mkdir(Path.join(destination, "artifacts")),
-         :ok <- File.mkdir(Path.join(destination, "verifier")),
-         {:ok, documents} <- write_documents(trace, destination),
-         :ok <- copy_artifacts(trace.artifacts, sources, destination),
-         {:ok, digest} <- write_manifest(trace, documents, destination) do
-      {:ok, digest}
-    else
+    case validate_export(trace, destination, sources) do
+      :ok -> export_transaction(trace, destination, sources)
       {:error, %Error{} = error} -> {:error, error}
-      {:error, reason} -> {:error, bundle_error(:export, :filesystem_failure, reason)}
     end
   end
 
@@ -44,7 +37,7 @@ defmodule Kinda.Capsule.Bundle do
   @spec regrade(binary(), module(), keyword()) :: {:ok, Score.t()} | {:error, Error.t()}
   def regrade(destination, verifier, options \\ []) when is_atom(verifier) do
     with {:ok, manifest} <- verify(destination),
-         :ok <- verify_verifier(manifest, verifier),
+         :ok <- verify_verifier(manifest, verifier, Keyword.get(options, :identity, :source)),
          {:ok, bundle} <- load_bundle(destination, manifest),
          {:ok, %Score{} = score} <- safely_regrade(verifier, bundle, options),
          true <- Score.valid?(score) do
@@ -55,6 +48,34 @@ defmodule Kinda.Capsule.Bundle do
       false -> {:error, bundle_error(:regrade, :invalid_score, nil)}
       other -> {:error, bundle_error(:regrade, :invalid_verifier_return, other)}
     end
+  end
+
+  defp export_transaction(trace, destination, sources) do
+    staging = staging_destination(destination)
+
+    try do
+      with :ok <- File.mkdir_p(Path.dirname(destination)),
+           :ok <- File.mkdir(staging),
+           :ok <- File.mkdir(Path.join(staging, "artifacts")),
+           :ok <- File.mkdir(Path.join(staging, "verifier")),
+           {:ok, documents} <- write_documents(trace, staging),
+           :ok <- copy_artifacts(trace.artifacts, sources, staging),
+           {:ok, digest} <- write_manifest(trace, documents, staging),
+           {:ok, _manifest} <- verify(staging),
+           :ok <- File.rename(staging, destination) do
+        {:ok, digest}
+      else
+        {:error, %Error{} = error} -> {:error, error}
+        {:error, reason} -> {:error, bundle_error(:export, :filesystem_failure, reason)}
+      end
+    after
+      File.rm_rf(staging)
+    end
+  end
+
+  defp staging_destination(destination) do
+    id = System.unique_integer([:positive, :monotonic])
+    Path.join(Path.dirname(destination), ".#{Path.basename(destination)}.tmp-#{id}")
   end
 
   defp validate_export(trace, destination, sources) do
@@ -197,22 +218,39 @@ defmodule Kinda.Capsule.Bundle do
          %{
            "episode" => %{
              "verifier_version" => version,
-             "verifier_digest" => digest
+             "verifier_source_digest" => source_digest,
+             "verifier_executable_digest" => executable_digest
            }
          },
-         verifier
+         verifier,
+         identity
        ) do
-    if Code.ensure_loaded?(verifier) and function_exported?(verifier, :version, 0) and
-         function_exported?(verifier, :digest, 0) and
-         function_exported?(verifier, :regrade, 2) and verifier.version() == version and
-         verifier.digest() == digest do
+    with true <- sealed_verifier?(verifier),
+         true <- verifier.version() == version,
+         true <- verifier.source_digest() == source_digest,
+         true <- verifier_identity_matches?(verifier, executable_digest, identity) do
       :ok
     else
-      {:error, :verifier_identity_mismatch}
+      _mismatch -> {:error, :verifier_identity_mismatch}
     end
   end
 
-  defp verify_verifier(_manifest, _verifier), do: {:error, :missing_verifier_identity}
+  defp verify_verifier(_manifest, _verifier, _identity),
+    do: {:error, :missing_verifier_identity}
+
+  defp sealed_verifier?(verifier) do
+    Code.ensure_loaded?(verifier) and function_exported?(verifier, :version, 0) and
+      function_exported?(verifier, :source_digest, 0) and
+      function_exported?(verifier, :executable_digest, 0) and
+      function_exported?(verifier, :regrade, 2)
+  end
+
+  defp verifier_identity_matches?(_verifier, _executable_digest, :source), do: true
+
+  defp verifier_identity_matches?(verifier, executable_digest, :exact),
+    do: verifier.executable_digest() == executable_digest
+
+  defp verifier_identity_matches?(_verifier, _executable_digest, _identity), do: false
 
   defp load_bundle(destination, manifest) do
     with {:ok, task} <- read_json(destination, "task.json"),

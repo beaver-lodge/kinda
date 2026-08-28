@@ -317,7 +317,8 @@ defmodule Kinda.Capsule.Server do
       task_version: state.spec.task_version,
       fixture_digest: state.spec.fixture_digest,
       verifier_version: state.spec.verifier_version,
-      verifier_digest: state.spec.verifier_digest,
+      verifier_source_digest: state.spec.verifier_source_digest,
+      verifier_executable_digest: state.spec.verifier_executable_digest,
       runtime: state.spec.runtime,
       model: state.spec.model
     }

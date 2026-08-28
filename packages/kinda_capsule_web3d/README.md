@@ -39,6 +39,11 @@ Kinda.Capsule.Bundle.verify("episode")
 Kinda.Capsule.Bundle.regrade("episode", Kinda.Capsule.Web3D.Verifier)
 ```
 
+Bundle export writes and verifies a sibling staging tree, then atomically
+publishes it at the requested path. Regrading defaults to portable verifier
+source identity; pass `identity: :exact` to require the recorded local BEAM
+build identity as well.
+
 Fixture and browser-verifier integrity are computed by the trusted Task and
 sealed as `integrity.json`; they are not self-reported by browser code. The
 included `expert-review.json` is explicitly illustrative and versioned. It
@@ -51,6 +56,8 @@ The browser verifier and host runner use a bounded ready/ack handoff for the
 fixed artifact set. The runner projects evidence into Capsule-owned staging
 while the verifier action is still alive, before hashing and attachment, so
 evidence does not depend on a command workspace surviving after command exit.
+The episode runtime points to `browser.json`, which records the resolved browser
+version, architecture/CPU class, headless/GPU mode, and timing policy.
 
 This is an episode/evidence showcase, not a containment claim. The task and
 verifier are trusted host components; browser isolation comes from the selected

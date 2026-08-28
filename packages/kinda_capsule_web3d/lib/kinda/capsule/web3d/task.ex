@@ -9,7 +9,7 @@ defmodule Kinda.Capsule.Web3D.Task do
   @impl true
   def reset(context, _seed, options) do
     fixture = Keyword.fetch!(options, :fixture)
-    protected_digest = Keyword.fetch!(options, :protected_digest)
+    protected_inputs = Keyword.fetch!(options, :protected_inputs)
     browser_verifier_digest = Keyword.fetch!(options, :browser_verifier_digest)
 
     with {:ok, workspace} <- workspace(context.sandbox),
@@ -19,7 +19,7 @@ defmodule Kinda.Capsule.Web3D.Task do
         evidence_directory:
           Keyword.get(options, :evidence_directory) || Path.join(workspace, "artifacts"),
         copied: copied,
-        protected_digest: protected_digest,
+        protected_inputs: protected_inputs,
         browser_verifier_digest: browser_verifier_digest
       }
 
@@ -64,7 +64,7 @@ defmodule Kinda.Capsule.Web3D.Task do
   @doc false
   @spec write_integrity_evidence(binary(), keyword()) :: :ok | {:error, term()}
   def write_integrity_evidence(workspace, options) do
-    protected_digest = Keyword.fetch!(options, :protected_digest)
+    protected_inputs = Keyword.fetch!(options, :protected_inputs)
     browser_verifier_digest = Keyword.fetch!(options, :browser_verifier_digest)
 
     evidence_directory =
@@ -74,14 +74,17 @@ defmodule Kinda.Capsule.Web3D.Task do
 
     with {:ok, encoded} <- read_browser_evidence(browser_evidence),
          {:ok, browser} <- JSON.decode(encoded) do
-      fixture_digest = digest_file(Path.join(workspace, "package-lock.json"))
+      actual_inputs =
+        Map.new(protected_inputs, fn {path, _digest} ->
+          {path, digest_file(Path.join(workspace, path))}
+        end)
+
       verifier_digest = browser["verifier_digest"]
 
       evidence = %{
-        "fixture" => fixture_digest == protected_digest,
+        "protected_inputs" => actual_inputs == protected_inputs,
+        "protected_manifest" => %{"expected" => protected_inputs, "actual" => actual_inputs},
         "verifier" => verifier_digest == browser_verifier_digest,
-        "fixture_expected" => protected_digest,
-        "fixture_actual" => fixture_digest,
         "verifier_expected" => browser_verifier_digest,
         "verifier_actual" => verifier_digest,
         "produced_by" => "kinda-capsule-trusted-task@0.1.0"
