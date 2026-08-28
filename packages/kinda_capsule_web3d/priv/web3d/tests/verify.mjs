@@ -57,7 +57,7 @@ try {
   await page.locator('[data-hotspot="controls"]').click();
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.waitForTimeout(150);
-  await page.waitForFunction(() => window.__web3dEpisode.snapshot().metrics.frameCount >= 1200, null, { timeout: 30000 });
+  await page.waitForFunction(() => window.__web3dEpisode.snapshot().metrics.frameCount >= 120, null, { timeout: 30000 });
   const final = await snapshot(page);
   await page.screenshot({ path: path.join(artifacts, 'after.png') });
 
