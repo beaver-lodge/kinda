@@ -22,6 +22,7 @@ defmodule Kinda.Capsule.Step do
     :duration,
     :stdout_truncated?,
     :stderr_truncated?,
+    evidence: [],
     metadata: %{}
   ]
 
@@ -34,6 +35,7 @@ defmodule Kinda.Capsule.Step do
           duration: non_neg_integer(),
           stdout_truncated?: boolean(),
           stderr_truncated?: boolean(),
+          evidence: [Kinda.Capsule.EvidenceRef.t()],
           metadata: map()
         }
 end

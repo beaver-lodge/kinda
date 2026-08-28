@@ -4,7 +4,18 @@ defmodule Kinda.Capsule.Server do
   use GenServer
 
   alias Kinda.Capsule.Action.Command
-  alias Kinda.Capsule.{CommandSummary, Context, Error, Execution, ExecutionServer}
+
+  alias Kinda.Capsule.{
+    Artifact,
+    CommandSummary,
+    Context,
+    Episode,
+    Error,
+    EvidenceRef,
+    Execution,
+    ExecutionServer
+  }
+
   alias Kinda.Capsule.{Observation, Score, Step, Telemetry, Trace, Verification}
   alias Kinda.Sandbox
   alias Kinda.Sandbox.Command, as: SandboxCommand
@@ -20,6 +31,7 @@ defmodule Kinda.Capsule.Server do
     :context,
     :task_state,
     :observation,
+    :episode,
     :trace,
     :active_execution,
     executions: %{},
@@ -87,9 +99,16 @@ defmodule Kinda.Capsule.Server do
 
   def handle_call(:observe, _from, %{status: :ready} = state) do
     case callback(state.spec.task, :observe, [state.context, state.task_state]) do
-      {:ok, %Observation{metadata: metadata} = observation} when is_map(metadata) ->
-        emit(:observe, state, :ok)
-        {:reply, {:ok, observation}, %{state | observation: observation}}
+      {:ok, %Observation{} = observation} ->
+        if valid_observation?(observation) do
+          emit(:observe, state, :ok)
+          {:reply, {:ok, observation}, %{state | observation: observation}}
+        else
+          fail_untrusted_task(
+            state,
+            callback_error(:observe, :invalid_callback_return, observation)
+          )
+        end
 
       {:error, reason} ->
         emit(:observe, state, :error)
@@ -139,6 +158,42 @@ defmodule Kinda.Capsule.Server do
     {:reply, {:ok, state.trace}, state}
   end
 
+  def handle_call(:episode, _from, %{status: :new} = state) do
+    {:reply, {:error, error(:trace, :not_reset)}, state}
+  end
+
+  def handle_call(:episode, _from, state), do: {:reply, {:ok, state.episode}, state}
+
+  def handle_call({:attach_artifact, _artifact}, _from, %{status: :new} = state) do
+    {:reply, {:error, error(:artifact, :not_reset)}, state}
+  end
+
+  def handle_call({:attach_artifact, _artifact}, _from, %{status: :running} = state) do
+    {:reply, {:error, error(:artifact, :busy)}, state}
+  end
+
+  def handle_call({:attach_artifact, %Artifact{} = artifact}, _from, state) do
+    cond do
+      not Artifact.valid?(artifact) ->
+        {:reply, {:error, error(:artifact, :invalid_artifact)}, state}
+
+      Enum.any?(state.trace.artifacts, &(&1.id == artifact.id)) ->
+        {:reply, {:error, error(:artifact, :duplicate_artifact)}, state}
+
+      true ->
+        trace =
+          state.trace
+          |> Map.update!(:artifacts, &(&1 ++ [artifact]))
+          |> link_artifact_to_step(artifact)
+
+        {:reply, :ok, %{state | trace: trace}}
+    end
+  end
+
+  def handle_call({:attach_artifact, _artifact}, _from, state) do
+    {:reply, {:error, error(:artifact, :invalid_artifact)}, state}
+  end
+
   def handle_call(:grade, _from, %{status: :new} = state) do
     emit(:grade, state, :error)
     {:reply, {:error, error(:grade, :not_reset)}, state}
@@ -151,8 +206,15 @@ defmodule Kinda.Capsule.Server do
 
   def handle_call(:grade, _from, %{status: :ready} = state) do
     case callback(state.spec.task, :observe, [state.context, state.task_state]) do
-      {:ok, %Observation{metadata: metadata} = observation} when is_map(metadata) ->
-        grade_observation(state, observation)
+      {:ok, %Observation{} = observation} ->
+        if valid_observation?(observation) do
+          grade_observation(state, observation)
+        else
+          fail_untrusted_grade(
+            state,
+            callback_error(:grade, :invalid_callback_return, observation)
+          )
+        end
 
       {:error, reason} ->
         result = {:error, callback_error(:grade, :task_error, reason)}
@@ -244,27 +306,35 @@ defmodule Kinda.Capsule.Server do
   end
 
   defp reset_task(state, sandbox, seed) do
-    context = %Context{capsule_id: state.capsule_id, sandbox: sandbox, seed: seed}
+    episode_id = next_id()
+
+    episode = %Episode{
+      capsule_id: state.capsule_id,
+      episode_id: episode_id,
+      capsule_version: state.spec.capsule_version,
+      task_version: state.spec.task_version,
+      fixture_digest: state.spec.fixture_digest,
+      verifier_version: state.spec.verifier_version,
+      verifier_digest: state.spec.verifier_digest,
+      runtime: state.spec.runtime,
+      model: state.spec.model
+    }
+
+    context = %Context{
+      capsule_id: state.capsule_id,
+      episode_id: episode_id,
+      sandbox: sandbox,
+      seed: seed
+    }
 
     case callback(state.spec.task, :reset, [context, seed, state.spec.task_options]) do
-      {:ok, task_state, %Observation{metadata: metadata} = observation} when is_map(metadata) ->
-        trace = %Trace{
-          capsule_id: state.capsule_id,
-          task_version: state.spec.task_version,
-          verifier_version: state.spec.verifier_version,
-          seed: seed
-        }
-
-        {{:ok, observation},
-         %{
-           state
-           | sandbox: sandbox,
-             context: context,
-             task_state: task_state,
-             observation: observation,
-             trace: trace,
-             status: :ready
-         }}
+      {:ok, task_state, %Observation{} = observation} ->
+        if valid_observation?(observation) do
+          finish_reset(state, sandbox, context, task_state, observation, episode, seed)
+        else
+          primary = callback_error(:reset, :invalid_callback_return, observation)
+          close_failed_reset(state, sandbox, context, task_state, primary)
+        end
 
       {:ok, task_state, invalid_observation} ->
         primary = callback_error(:reset, :invalid_callback_return, invalid_observation)
@@ -291,6 +361,29 @@ defmodule Kinda.Capsule.Server do
           callback_error(:reset, :callback_failure, cause)
         )
     end
+  end
+
+  defp finish_reset(state, sandbox, context, task_state, observation, episode, seed) do
+    trace = %Trace{
+      capsule_id: state.capsule_id,
+      episode_id: episode.episode_id,
+      task_version: state.spec.task_version,
+      verifier_version: state.spec.verifier_version,
+      seed: seed,
+      episode: episode
+    }
+
+    {{:ok, observation},
+     %{
+       state
+       | sandbox: sandbox,
+         context: context,
+         task_state: task_state,
+         observation: observation,
+         episode: episode,
+         trace: trace,
+         status: :ready
+     }}
   end
 
   defp start_command(state, %Command{spec: command_spec, metadata: metadata} = action)
@@ -349,11 +442,13 @@ defmodule Kinda.Capsule.Server do
   defp grade_observation(state, observation) do
     verification = %Verification{
       capsule_id: state.capsule_id,
+      episode_id: state.episode.episode_id,
       task_version: state.spec.task_version,
       verifier_version: state.spec.verifier_version,
       seed: state.trace.seed,
       observation: observation,
-      trace: state.trace
+      trace: state.trace,
+      episode: state.episode
     }
 
     case callback(state.spec.verifier, :grade, [verification, state.spec.verifier_options]) do
@@ -455,6 +550,7 @@ defmodule Kinda.Capsule.Server do
         context: nil,
         task_state: nil,
         observation: nil,
+        episode: nil,
         trace: nil,
         active_execution: nil,
         executions: %{},
@@ -483,9 +579,29 @@ defmodule Kinda.Capsule.Server do
       duration: result.duration,
       stdout_truncated?: result.stdout_truncated?,
       stderr_truncated?: result.stderr_truncated?,
+      evidence: [],
       metadata: action.metadata
     }
   end
+
+  defp link_artifact_to_step(trace, artifact) do
+    case Map.get(artifact.produced_by, :step) || Map.get(artifact.produced_by, "step") do
+      sequence when is_integer(sequence) and sequence >= 0 ->
+        reference = Artifact.evidence_ref(artifact)
+
+        Map.update!(trace, :steps, fn steps ->
+          Enum.map(steps, &link_step(&1, sequence, reference))
+        end)
+
+      _sequence ->
+        trace
+    end
+  end
+
+  defp link_step(%{sequence: sequence} = step, sequence, reference),
+    do: %{step | evidence: step.evidence ++ [reference]}
+
+  defp link_step(step, _sequence, _reference), do: step
 
   defp emit_execution(state, step, %{started_at: started_at}) do
     metadata = %{
@@ -519,6 +635,11 @@ defmodule Kinda.Capsule.Server do
   defp outcome({:ok, _value}), do: :ok
   defp outcome({:error, _error}), do: :error
 
+  defp valid_observation?(%Observation{metadata: metadata, evidence: evidence}) do
+    is_map(metadata) and is_list(evidence) and
+      Enum.all?(evidence, &EvidenceRef.valid?/1)
+  end
+
   defp callback(module, function, arguments) do
     apply(module, function, arguments)
   rescue
@@ -546,8 +667,9 @@ defmodule Kinda.Capsule.Server do
   defp error(phase, reason), do: Error.exception(phase: phase, reason: reason)
 
   defp next_id do
-    System.unique_integer([:positive, :monotonic])
-    |> Integer.to_string(36)
+    16
+    |> :crypto.strong_rand_bytes()
+    |> Base.encode16(case: :lower)
   end
 
   defp via(ref), do: {:via, Registry, {Kinda.Capsule.Registry, ref}}

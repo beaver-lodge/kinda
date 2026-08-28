@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#090b10" />
+    <title>Kinda Capsule · Web3D Episode</title>
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div class="brand"><span class="brand-mark">K</span><span>Kinda Capsule</span></div>
+        <div class="episode-meta">
+          <span class="live-dot"></span>
+          <span>episode web3d-7f4a</span>
+          <span class="meta-separator">/</span>
+          <span>verifier 0.1.0</span>
+        </div>
+        <button id="mode-toggle" class="mode-toggle" type="button">Compare broken</button>
+      </header>
+
+      <section class="workspace">
+        <article class="preview-panel panel">
+          <div class="panel-heading">
+            <div><span class="eyebrow">LIVE PREVIEW</span><h1>Aster Arc Speaker</h1></div>
+            <div class="viewer-status"><span id="mode-label">REPAIRED</span><span>1440 × 900</span></div>
+          </div>
+          <div id="viewer" class="viewer" aria-label="Interactive 3D product viewer">
+            <div class="viewer-hint">Drag to orbit · Scroll to zoom</div>
+            <button class="hotspot hotspot-a" data-hotspot="acoustic" aria-label="Open acoustic chamber details"><span>1</span><b>Acoustic chamber</b></button>
+            <button class="hotspot hotspot-b" data-hotspot="controls" aria-label="Open controls details"><span>2</span><b>Haptic controls</b></button>
+            <div class="product-note" id="product-note"><small>DESIGN NOTE</small><strong>Radial acoustic chamber</strong><p>Balanced pressure across a compact aluminum body.</p></div>
+          </div>
+          <div class="preview-footer">
+            <div><span>CAMERA</span><strong id="camera-distance">4.20m</strong></div>
+            <div><span>FRAME P95</span><strong id="frame-p95">16.4ms</strong></div>
+            <div><span>DRAW CALLS</span><strong id="draw-calls">4</strong></div>
+            <div><span>MOTION</span><strong id="motion-status">FULL</strong></div>
+          </div>
+        </article>
+
+        <aside class="audit-panel">
+          <section class="score-card panel">
+            <div class="score-summary"><div><span class="eyebrow">VERIFICATION</span><h2>Episode score</h2></div><div class="total-score"><strong>0.83</strong><span>PASS</span></div></div>
+            <div class="gate-row"><span>Required gates</span><strong>4 / 4</strong></div>
+            <div class="score-bars">
+              <button class="score-row" data-target="interaction"><span>Interaction</span><i><b style="width:88%"></b></i><strong>0.88</strong></button>
+              <button class="score-row" data-target="performance"><span>Performance</span><i><b style="width:91%"></b></i><strong>0.91</strong></button>
+              <button class="score-row" data-target="expert"><span>Expert rubric</span><i><b style="width:70%"></b></i><strong>0.70</strong></button>
+            </div>
+          </section>
+
+          <section class="failure-card panel">
+            <div class="section-title"><span class="eyebrow">FAILURE MODES</span><span>3 findings</span></div>
+            <button class="finding active" data-step="6"><span class="finding-index">01</span><span><strong>Hotspot overlap at narrow viewport</strong><small>after.png · x=914–978</small></span><i>−0.08</i></button>
+            <button class="finding" data-step="4"><span class="finding-index">02</span><span><strong>Inertia tail has a visible knee</strong><small>interaction.webm · 04:12.340</small></span><i>−0.05</i></button>
+            <button class="finding" data-step="5"><span class="finding-index">03</span><span><strong>Residual motion under reduced-motion</strong><small>interaction.json · event 27</small></span><i>−0.04</i></button>
+          </section>
+        </aside>
+      </section>
+
+      <section class="timeline panel">
+        <div class="section-title"><span class="eyebrow">EPISODE TIMELINE</span><span>8 meaningful events · 02m 41s</span></div>
+        <div class="timeline-track" id="timeline-track">
+          <button data-step="0" class="timeline-event complete"><i>01</i><span>Reset fixture</span><small>digest verified</small></button>
+          <button data-step="1" class="timeline-event complete"><i>02</i><span>Baseline build</span><small>2 warnings</small></button>
+          <button data-step="2" class="timeline-event complete"><i>03</i><span>Inspect viewer</span><small>camera + resize</small></button>
+          <button data-step="3" class="timeline-event complete"><i>04</i><span>Patch controls</span><small>6 files</small></button>
+          <button data-step="4" class="timeline-event evidence"><i>05</i><span>Interaction path</span><small>video + trace</small></button>
+          <button data-step="5" class="timeline-event evidence"><i>06</i><span>Performance</span><small>1200 frames</small></button>
+          <button data-step="6" class="timeline-event selected"><i>07</i><span>Expert grade</span><small>3 findings</small></button>
+          <button data-step="7" class="timeline-event sealed"><i>08</i><span>Seal bundle</span><small>sha256 verified</small></button>
+        </div>
+        <div class="evidence-detail" id="evidence-detail">
+          <div><span class="evidence-kind">EXPERT RUBRIC · COMPOSITION</span><h3>Hotspot 02 competes with the product silhouette</h3><p>At 768px width the annotation crosses the high-contrast enclosure edge. The interaction remains usable, but the visual hierarchy no longer clearly separates product from annotation.</p></div>
+          <div class="evidence-links"><button>after.png <span>SHA 81f2…9c0a</span></button><button>interaction.webm <span>04:10–04:14</span></button></div>
+        </div>
+      </section>
+    </main>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

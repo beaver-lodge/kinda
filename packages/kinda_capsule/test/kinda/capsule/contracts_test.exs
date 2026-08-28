@@ -57,7 +57,18 @@ defmodule Kinda.Capsule.ContractsTest do
   end
 
   test "error phases cover every public operation family" do
-    assert Error.phases() == [:create, :reset, :execute, :observe, :grade, :trace, :close]
+    assert Error.phases() == [
+             :create,
+             :reset,
+             :execute,
+             :observe,
+             :grade,
+             :trace,
+             :artifact,
+             :export,
+             :regrade,
+             :close
+           ]
   end
 
   defp valid_spec do
