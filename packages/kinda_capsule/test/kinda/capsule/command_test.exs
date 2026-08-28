@@ -6,6 +6,8 @@ defmodule Kinda.Capsule.CommandTest do
   alias Kinda.Capsule.{Error, Observation, SandboxSpec, Score, Spec}
   alias Kinda.Sandbox
 
+  @process_start_timeout 5_000
+
   defmodule Task do
     @behaviour Kinda.Capsule.Task
 
@@ -105,7 +107,7 @@ defmodule Kinda.Capsule.CommandTest do
         receive(do: (:stop -> :ok))
       end)
 
-    assert_receive {:active_execution, execution}
+    assert_receive {:active_execution, execution}, @process_start_timeout
     send(owner, :stop)
     assert_receive {:DOWN, ^monitor, :process, ^owner, :normal}
 
