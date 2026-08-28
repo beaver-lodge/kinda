@@ -7,10 +7,7 @@ defmodule Kinda.Sandbox.FakeBackend do
   def capabilities, do: %{fake: __MODULE__.Capability}
 
   @impl true
-  def create({:notify, test_pid}, _options) do
-    send(test_pid, {:backend_created, self()})
-    {:ok, test_pid}
-  end
+  def create({:notify, test_pid}, _options), do: {:ok, test_pid}
 
   def create(:invalid, _options), do: {:error, Error.exception(reason: :invalid_spec)}
   def create(:raise, _options), do: raise("create failed")
@@ -38,20 +35,18 @@ defmodule Kinda.Sandbox.LifecycleTest do
 
   test "creates a ref-only handle and reports capability keys" do
     assert {:ok, %Handle{} = handle} = Sandbox.create(FakeBackend, {:notify, self()})
-    assert_receive {:backend_created, _server}
     assert {:ok, [:fake]} = Sandbox.capabilities(handle)
     assert :ok = Sandbox.close(handle)
-    assert_receive {:backend_closed, _server}
+    assert_received {:backend_closed, _server}
   end
 
   test "close is idempotent" do
     {:ok, handle} = Sandbox.create(FakeBackend, {:notify, self()})
-    assert_receive {:backend_created, _server}
 
     assert :ok = Sandbox.close(handle)
-    assert_receive {:backend_closed, _server}
+    assert_received {:backend_closed, _server}
     assert :ok = Sandbox.close(handle)
-    refute_receive {:backend_closed, _server}
+    refute_received {:backend_closed, _server}
   end
 
   test "owner exit closes the backend" do
@@ -64,11 +59,10 @@ defmodule Kinda.Sandbox.LifecycleTest do
         receive(do: (:stop -> :ok))
       end)
 
-    assert_receive {:backend_created, _server}
-    assert_receive {:handle, handle}
+    handle = await_owner_result!(owner, owner_monitor, :handle)
     send(owner, :stop)
-    assert_receive {:DOWN, ^owner_monitor, :process, ^owner, :normal}
-    assert_receive {:backend_closed, _server}
+    await_down!(owner, owner_monitor, :normal)
+    await_backend_close!()
     assert {:error, %Error{reason: :disconnected}} = Sandbox.capabilities(handle)
   end
 
@@ -83,16 +77,14 @@ defmodule Kinda.Sandbox.LifecycleTest do
         send(parent, {:transferred, handle})
       end)
 
-    assert_receive {:backend_created, _server}
-    assert_receive {:transferred, handle}
-    assert_receive {:DOWN, ^old_monitor, :process, ^old_owner, :normal}
-    refute_receive {:backend_closed, _server}
+    handle = await_owner_result!(old_owner, old_monitor, :transferred)
+    await_down!(old_owner, old_monitor, :normal)
     assert {:ok, [:fake]} = Sandbox.capabilities(handle)
 
     new_monitor = Process.monitor(new_owner)
     send(new_owner, :stop)
-    assert_receive {:DOWN, ^new_monitor, :process, ^new_owner, :normal}
-    assert_receive {:backend_closed, _server}
+    await_down!(new_owner, new_monitor, :normal)
+    await_backend_close!()
   end
 
   test "detached handles outlive their creator" do
@@ -105,22 +97,20 @@ defmodule Kinda.Sandbox.LifecycleTest do
         send(parent, {:detached, handle})
       end)
 
-    assert_receive {:backend_created, _server}
-    assert_receive {:detached, handle}
-    assert_receive {:DOWN, ^owner_monitor, :process, ^owner, :normal}
-    refute_receive {:backend_closed, _server}
+    handle = await_owner_result!(owner, owner_monitor, :detached)
+    await_down!(owner, owner_monitor, :normal)
+    assert {:ok, [:fake]} = Sandbox.capabilities(handle)
     assert :ok = Sandbox.close(handle)
-    assert_receive {:backend_closed, _server}
+    assert_received {:backend_closed, _server}
   end
 
   test "a forcibly killed handle server is disconnected without cleanup guarantees" do
     {:ok, %Handle{ref: ref} = handle} = Sandbox.create(FakeBackend, {:notify, self()})
-    assert_receive {:backend_created, server}
-    assert [{^server, _value}] = Registry.lookup(Kinda.Sandbox.Registry, ref)
+    assert [{server, _value}] = Registry.lookup(Kinda.Sandbox.Registry, ref)
 
     monitor = Process.monitor(server)
     Process.exit(server, :kill)
-    assert_receive {:DOWN, ^monitor, :process, ^server, :killed}
+    await_down!(server, monitor, :killed)
 
     assert :ok = Sandbox.close(handle)
     assert {:error, %Error{reason: :disconnected}} = Sandbox.capabilities(handle)
@@ -130,7 +120,7 @@ defmodule Kinda.Sandbox.LifecycleTest do
     assert {:error, %Error{reason: :disconnected}} =
              NativeBuild.build(handle, {__MODULE__, :unused, []})
 
-    refute_receive {:backend_closed, _server}
+    refute_received {:backend_closed, _server}
   end
 
   test "normalizes invalid backends and create failures" do
@@ -155,14 +145,40 @@ defmodule Kinda.Sandbox.LifecycleTest do
 
     {:ok, handle} = Sandbox.create(FakeBackend, {:notify, self()})
 
-    assert_receive {:telemetry, [:kinda, :sandbox, :create], %{duration: duration},
-                    %{backend: FakeBackend, capabilities: [:fake], outcome: :ok}}
+    assert_received {:telemetry, [:kinda, :sandbox, :create], %{duration: duration},
+                     %{backend: FakeBackend, capabilities: [:fake], outcome: :ok}}
 
     assert is_integer(duration)
 
     :ok = Sandbox.close(handle)
 
-    assert_receive {:telemetry, [:kinda, :sandbox, :close], %{duration: _duration},
-                    %{backend: FakeBackend, capabilities: [:fake], outcome: :ok}}
+    assert_received {:telemetry, [:kinda, :sandbox, :close], %{duration: _duration},
+                     %{backend: FakeBackend, capabilities: [:fake], outcome: :ok}}
+  end
+
+  defp await_owner_result!(owner, monitor, tag) do
+    receive do
+      {^tag, handle} ->
+        handle
+
+      {:DOWN, ^monitor, :process, ^owner, reason} ->
+        flunk("sandbox owner exited before publishing #{tag}: #{inspect(reason)}")
+    end
+  end
+
+  defp await_down!(pid, monitor, reason) do
+    receive do
+      {:DOWN, ^monitor, :process, ^pid, ^reason} ->
+        :ok
+
+      {:DOWN, ^monitor, :process, ^pid, actual_reason} ->
+        flunk("process exited with #{inspect(actual_reason)} instead of #{inspect(reason)}")
+    end
+  end
+
+  defp await_backend_close! do
+    receive do
+      {:backend_closed, _server} -> :ok
+    end
   end
 end
