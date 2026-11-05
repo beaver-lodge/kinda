@@ -12,8 +12,11 @@ The reduction combines shared numeric conversion, resource storage, NIF entry
 setup, declaration generation, and manifest serialization with removal of
 unused helpers. Core Elixir formatting uses a 120-column limit. Native callback
 completion uses Zig's mutex/event primitives, preserving single completion,
-caller handoff, library pinning, bounded deadlines, and unbounded waits. Fixed
-size result tuples use stack storage instead of temporary allocations.
+caller handoff, library pinning, bounded deadlines, and unbounded waits. Reply
+states retain their creating library's synchronization backend across hot
+upgrades, with ERTS resource ownership keeping it alive until the last reference
+is released. Fixed size result tuples use stack storage instead of temporary
+allocations.
 
 Beaver and the bundled packages retain their consumed interfaces. Projects
 using the auxiliary interfaces below must migrate before updating.

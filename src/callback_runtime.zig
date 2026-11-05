@@ -33,13 +33,13 @@ pub const Error = error{
     FailedToSendCallback,
 };
 
-/// Pins the native library generation which created a Dispatcher.
+/// Pins the native library generation which created a dispatcher or reply state.
 ///
 /// Resource-type takeover is correct for data-only resources, but a native
 /// library may retain a callback function pointer into the old DSO. The
 /// address-qualified resource type below is only taken over when the exact
 /// same DSO is shared; otherwise its live objects postpone unloading until all
-/// dispatchers from that generation are destroyed.
+/// dispatchers and reply states from that generation are destroyed.
 const LibraryPin = struct {
     var resource_type: beam.resource_type = undefined;
 
@@ -68,9 +68,11 @@ pub const ReplyToken = struct {
     const Allocation = struct { state: *State, term: beam.term };
 
     const State = struct {
+        // Windows futex queues belong to the creating DSO. Keep its backend alive
+        // even after resource-type takeover and dispatcher destruction.
+        backend: std.Io = io,
         mutex: std.Io.Mutex = .init,
         completed: std.Io.Event = .unset,
-        references: std.atomic.Value(usize) = .init(2),
         response: Response = .{ .success = false, .status = .dropped },
         caller: ?beam.pid = null,
         const Snapshot = struct { response: Response, caller: ?beam.pid };
@@ -81,47 +83,47 @@ pub const ReplyToken = struct {
                     .clock = .awake,
                     .raw = .{ .nanoseconds = @as(i96, milliseconds) * std.time.ns_per_ms },
                 } };
-                const deadline = duration.toDeadline(io);
+                const deadline = duration.toDeadline(self.backend);
                 while (!self.completed.isSet()) {
-                    self.completed.waitTimeout(io, deadline) catch |err| switch (err) {
+                    self.completed.waitTimeout(self.backend, deadline) catch |err| switch (err) {
                         error.Canceled => @panic("callback reply wait canceled"),
                         // Event waits can wake spuriously: only expire the original deadline.
-                        error.Timeout => if (deadline.toDurationFromNow(io).?.raw.toNanoseconds() <= 0) {
+                        error.Timeout => if (deadline.toDurationFromNow(self.backend).?.raw.toNanoseconds() <= 0) {
                             _ = self.complete(.{ .status = .timed_out, .success = false }, null);
                         },
                     };
                 }
-            } else self.completed.waitUncancelable(io);
+            } else self.completed.waitUncancelable(self.backend);
             // Event publication releases the immutable terminal snapshot.
             return .{ .response = self.response, .caller = self.caller };
         }
 
         fn complete(self: *State, response: Response, caller: ?beam.pid) bool {
-            self.mutex.lockUncancelable(io);
-            defer self.mutex.unlock(io);
+            self.mutex.lockUncancelable(self.backend);
+            defer self.mutex.unlock(self.backend);
             if (self.completed.isSet()) return false;
             self.response = response;
             self.caller = caller;
-            self.completed.set(io);
+            self.completed.set(self.backend);
             return true;
         }
 
         fn release(self: *State) void {
-            if (self.references.fetchSub(1, .acq_rel) == 1) std.heap.smp_allocator.destroy(self);
+            nifApi("enif_release_resource")(self);
         }
     };
 
     fn allocate(environment: beam.env) Error!Allocation {
-        const state = std.heap.smp_allocator.create(State) catch
-            return Error.FailedToAllocateReplyToken;
-        errdefer std.heap.smp_allocator.destroy(state);
+        const memory = nifApi("enif_alloc_resource")(LibraryPin.resource_type, @sizeOf(State)) orelse return Error.FailedToAllocateReplyToken;
+        const state: *State = @ptrCast(@alignCast(memory));
+        errdefer state.release();
         state.* = .{};
 
         const token = resource.alloc() catch return Error.FailedToAllocateReplyToken;
-        const memory: *anyopaque = token;
         token.* = .{ .state = state };
-        const term = nifApi("enif_make_resource")(environment, memory);
-        nifApi("enif_release_resource")(memory);
+        nifApi("enif_keep_resource")(state);
+        const term = nifApi("enif_make_resource")(environment, token);
+        nifApi("enif_release_resource")(token);
         return .{ .state = state, .term = term };
     }
 

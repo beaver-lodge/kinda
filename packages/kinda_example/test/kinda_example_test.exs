@@ -234,7 +234,7 @@ defmodule KindaExampleTest do
       {:ok, :destroyed}
     end
 
-    registration = Raw.callback_fixture_register(fn _, _ -> {:ok, {0, 0}} end, destructor, 1_000)
+    registration = Raw.callback_fixture_register(fn _, _ -> {:ok, {0, 0}} end, destructor, nil)
 
     upgrade_nif = Path.join(tmp_dir, "libKindaExampleNIFUpgrade")
     nif_extension = if match?({:win32, _}, :os.type()), do: ".dll", else: ".so"
@@ -262,7 +262,8 @@ defmodule KindaExampleTest do
              end)
 
     assert_receive :destructor_called
-    assert_receive {:callback_fixture_destroyed, :replied, true, 0, 0}
+    assert_receive {:callback_fixture_destroyed, :replied, true, 0, 0}, 1_000
+    assert :stale = Raw.callback_fixture_cancel(token)
 
     assert :ok = Raw.callback_fixture_invoke_on_worker(registration, 1)
     assert_receive {:callback_fixture_error, :registration_closed}
