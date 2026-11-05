@@ -138,24 +138,17 @@ const Allocator = std.mem.Allocator;
 /// }
 /// ```
 ///
-/// currently does not release memory that is resized.  For this behaviour, use
-/// use `beam.general_purpose_allocator`.
-///
-/// not threadsafe.  for a threadsafe allocator, use `beam.general_purpose_allocator`
+/// Allocations are backed by ERTS; shrinking retains the existing allocation.
+/// Alignments greater than eight bytes require a separate allocator.
 pub const allocator = raw_beam_allocator;
 
 pub const MAX_ALIGN: mem.Alignment = .@"8";
 
-const raw_beam_allocator = Allocator{
-    .ptr = undefined,
-    .vtable = &raw_beam_allocator_vtable,
-};
+const raw_beam_allocator = Allocator{ .ptr = undefined, .vtable = &raw_beam_allocator_vtable };
 const raw_beam_allocator_vtable = Allocator.VTable{ .alloc = raw_beam_alloc, .resize = raw_beam_resize, .free = raw_beam_free, .remap = remap };
 
 fn raw_beam_alloc(_: *anyopaque, len: usize, ptr_align: mem.Alignment, _: usize) ?[*]u8 {
-    if (ptr_align.compare(.gt, MAX_ALIGN)) {
-        return null;
-    }
+    if (ptr_align.compare(.gt, MAX_ALIGN)) return null;
     const ptr = nifApi("enif_alloc")(len) orelse return null;
     return @as([*]u8, @ptrCast(ptr));
 }
@@ -165,9 +158,7 @@ fn raw_beam_resize(_: *anyopaque, buf: []u8, _: mem.Alignment, new_len: usize, _
         nifApi("enif_free")(buf.ptr);
         return true;
     }
-    if (new_len <= buf.len) {
-        return true;
-    }
+    if (new_len <= buf.len) return true;
     return false;
 }
 
@@ -175,92 +166,10 @@ fn raw_beam_free(_: *anyopaque, buf: []u8, _: mem.Alignment, _: usize) void {
     nifApi("enif_free")(buf.ptr);
 }
 
-/// !value
-/// provides a BEAM allocator that can perform allocations with greater
-/// alignment than the machine word.  Note that this comes at the cost
-/// of some memory to store important metadata.
-///
-/// currently does not release memory that is resized.  For this behaviour
-/// use `beam.general_purpose_allocator`.
-///
-/// not threadsafe.  for a threadsafe allocator, use `beam.general_purpose_allocator`
-pub const large_allocator = large_beam_allocator;
-
-const large_beam_allocator = Allocator{
-    .ptr = undefined,
-    .vtable = &large_beam_allocator_vtable,
-};
-const large_beam_allocator_vtable = Allocator.VTable{ .alloc = large_beam_alloc, .resize = large_beam_resize, .free = Allocator.NoOpFree(anyopaque).noOpFree, .remap = remap };
-
 fn remap(context: *anyopaque, memory: []u8, alignment: std.mem.Alignment, new_len: usize, return_address: usize) ?[*]u8 {
     // can't use realloc directly because it might not respect alignment.
     return if (raw_beam_resize(context, memory, alignment, new_len, return_address)) memory.ptr else null;
 }
-
-fn large_beam_alloc(_: *anyopaque, len: usize, alignment: u29, len_align: u29, return_address: usize) error{OutOfMemory}![]u8 {
-    var ptr = try alignedAlloc(len, alignment, len_align, return_address);
-    if (len_align == 0) {
-        return ptr[0..len];
-    }
-    return ptr[0..std.mem.alignBackwardAnyAlign(len, len_align)];
-}
-
-fn large_beam_resize(
-    _: *anyopaque,
-    buf: []u8,
-    buf_align: u29,
-    new_len: usize,
-    len_align: u29,
-    _: usize,
-) ?usize {
-    if (new_len > buf.len) {
-        return null;
-    }
-    if (new_len == 0) {
-        return alignedFree(buf, buf_align);
-    }
-    if (len_align == 0) {
-        return new_len;
-    }
-    return std.mem.alignBackwardAnyAlign(new_len, len_align);
-}
-
-fn alignedAlloc(len: usize, alignment: u29, _: u29, _: usize) ![*]u8 {
-    const safe_len = safeLen(len, alignment);
-    const alloc_slice: []u8 = try allocator.allocAdvanced(u8, MAX_ALIGN, safe_len, std.mem.Allocator.Exact.exact);
-
-    const unaligned_addr = @intFromPtr(alloc_slice.ptr);
-    const aligned_addr = reAlign(unaligned_addr, alignment);
-
-    getPtrPtr(aligned_addr).* = unaligned_addr;
-    return aligned_addr;
-}
-
-fn alignedFree(buf: []u8, alignment: u29) usize {
-    const ptr = getPtrPtr(buf.ptr).*;
-    allocator.free(@as([*]u8, @ptrFromInt(ptr))[0..safeLen(buf.len, alignment)]);
-    return 0;
-}
-
-fn reAlign(unaligned_addr: usize, alignment: u29) [*]u8 {
-    return @ptrFromInt(std.mem.alignForward(unaligned_addr + @sizeOf(usize), alignment));
-}
-
-fn safeLen(len: usize, alignment: u29) usize {
-    return len + alignment - @sizeOf(usize) + MAX_ALIGN;
-}
-
-fn getPtrPtr(aligned_ptr: [*]u8) *usize {
-    return @ptrFromInt(@intFromPtr(aligned_ptr) - @sizeOf(usize));
-}
-
-/// !value
-/// wraps the zig GeneralPurposeAllocator into the standard BEAM allocator.
-var general_purpose_allocator_instance = std.heap.GeneralPurposeAllocator(.{ .thread_safe = true }){
-    .backing_allocator = large_allocator,
-};
-
-pub var general_purpose_allocator = general_purpose_allocator_instance.allocator();
 
 ///////////////////////////////////////////////////////////////////////////////
 // syntactic sugar: important elixir terms
@@ -272,8 +181,6 @@ pub const Error =
 
 /// errors for launching nif errors
 /// LaunchError Occurs when there's a problem launching a threaded nif.
-pub const ThreadError = error{LaunchError};
-
 /// syntactic sugar for the BEAM environment.  Note that the `env` type
 /// encapsulates the pointer, since you will almost always be passing this
 /// pointer to an opaque struct around without accessing it.
@@ -306,26 +213,10 @@ pub const term = e.ERL_NIF_TERM;
 /// - `f32`
 /// - `f64`
 pub fn get(comptime T: type, env_: env, value: term) !T {
-    switch (T) {
-        c_int => return get_c_int(env_, value),
-        c_uint => return get_c_uint(env_, value),
-        c_long => return get_c_long(env_, value),
-        isize => return get_isize(env_, value),
-        usize => return get_usize(env_, value),
-        u8 => return get_u8(env_, value),
-        u16 => return get_u16(env_, value),
-        u32 => return get_u32(env_, value),
-        u64 => return get_u64(env_, value),
-        i8 => return get_i8(env_, value),
-        i16 => return get_i16(env_, value),
-        i32 => return get_i32(env_, value),
-        i64 => return get_i64(env_, value),
-        f16 => return get_f16(env_, value),
-        f32 => return get_f32(env_, value),
-        f64 => return get_f64(env_, value),
-        bool => return get_bool(env_, value),
-        else => return Error.@"Function clause error",
+    inline for (.{ c_int, c_uint, c_long, isize, usize, u8, u16, u32, u64, i8, i16, i32, i64, f16, f32, f64, bool }) |Value| {
+        if (T == Value) return @field(@This(), "get_" ++ @typeName(Value))(env_, value);
     }
+    return Error.@"Function clause error";
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -334,194 +225,99 @@ pub fn get(comptime T: type, env_: env, value: term) !T {
 /// Takes a BEAM int term and returns a `c_int` value.  Should only be used for
 /// C interop with Zig functions.
 ///
-pub fn get_c_int(environment: env, src_term: term) !c_int {
-    var result: c_int = undefined;
-    if (0 != nifApi("enif_get_int")(environment, src_term, &result)) {
-        return result;
-    } else {
-        return Error.@"Function clause error";
-    }
+// Keep the public typed entry points while sharing conversion and range checks.
+fn Number(comptime T: type, comptime Native: type, comptime getter: []const u8, comptime maker: []const u8) type {
+    return struct {
+        fn get(environment: env, value: term) !T {
+            var decoded: Native = undefined;
+            if (nifApi("enif_get_" ++ getter)(environment, value, &decoded) == 0)
+                return Error.@"Function clause error";
+            if (@typeInfo(T) == .float) return @floatCast(decoded);
+            if (T == u8 or T == u16 or T == i8 or T == i16)
+                return std.math.cast(T, decoded) orelse Error.@"Function clause error";
+            return @intCast(decoded);
+        }
+
+        fn make(environment: env, value: T) term {
+            return nifApi("enif_make_" ++ maker)(environment, if (@typeInfo(T) == .float) @floatCast(value) else @intCast(value));
+        }
+    };
 }
+
+pub const get_c_int = Number(c_int, c_int, "int", "int").get;
 
 /// Takes a BEAM int term and returns a `c_uint` value.  Should only be used for
 /// C interop with Zig functions.
 ///
-pub fn get_c_uint(environment: env, src_term: term) !c_uint {
-    var result: c_uint = undefined;
-    if (0 != nifApi("enif_get_uint")(environment, src_term, &result)) {
-        return result;
-    } else {
-        return Error.@"Function clause error";
-    }
-}
+pub const get_c_uint = Number(c_uint, c_uint, "uint", "uint").get;
 
 /// Takes a BEAM int term and returns a `c_long` value.  Should only be used
 /// for C interop with Zig functions.
 ///
-pub fn get_c_long(environment: env, src_term: term) !c_long {
-    var result: c_long = undefined;
-    if (0 != nifApi("enif_get_long")(environment, src_term, &result)) {
-        return result;
-    } else {
-        return Error.@"Function clause error";
-    }
-}
+pub const get_c_long = Number(c_long, c_long, "long", "long").get;
 
 /// Takes a BEAM int term and returns a `c_ulong` value.  Should only be used
 /// for C interop with Zig functions.
 ///
-pub fn get_c_ulong(environment: env, src_term: term) !c_ulong {
-    var result: c_ulong = undefined;
-    if (0 != nifApi("enif_get_ulong")(environment, src_term, &result)) {
-        return result;
-    } else {
-        return Error.@"Function clause error";
-    }
-}
+pub const get_c_ulong = Number(c_ulong, c_ulong, "ulong", "ulong").get;
 
 /// Takes a BEAM int term and returns a `isize` value.  Should only be used
 /// for C interop.
 ///
-pub fn get_isize(environment: env, src_term: term) !isize {
-    var result: i64 = undefined;
-    if (0 != nifApi("enif_get_int64")(environment, src_term, &result)) {
-        return @intCast(result);
-    } else {
-        return Error.@"Function clause error";
-    }
-}
+pub const get_isize = Number(isize, i64, "int64", "int64").get;
 
 /// Takes a BEAM int term and returns a `usize` value.  Zig idiomatically uses
 /// `usize` for its size values, so typically you should be using this function.
 ///
-pub fn get_usize(environment: env, src_term: term) !usize {
-    var result: u64 = undefined;
-    if (0 != nifApi("enif_get_uint64")(environment, src_term, &result)) {
-        return @intCast(result);
-    } else {
-        return Error.@"Function clause error";
-    }
-}
+pub const get_usize = Number(usize, u64, "uint64", "uint64").get;
 
 /// Takes a BEAM int term and returns a `u8` value.
 ///
 /// Note that this conversion function checks to make sure it's in range
 /// (`0..255`).
 ///
-pub fn get_u8(environment: env, src_term: term) !u8 {
-    var result: c_int = undefined;
-    if (0 != nifApi("enif_get_int")(environment, src_term, &result)) {
-        if ((result >= 0) and (result <= 0xFF)) {
-            return @intCast(result);
-        } else {
-            return Error.@"Function clause error";
-        }
-    } else {
-        return Error.@"Function clause error";
-    }
-}
+pub const get_u8 = Number(u8, c_int, "int", "uint").get;
 
 /// Takes a BEAM int term and returns a `u16` value.
 ///
 /// Note that this conversion function checks to make sure it's in range
 /// (`0..65535`).
 ///
-pub fn get_u16(environment: env, src_term: term) !u16 {
-    var result: c_int = undefined;
-    if (0 != nifApi("enif_get_int")(environment, src_term, &result)) {
-        if ((result >= 0) and (result <= 0xFFFF)) {
-            return @intCast(result);
-        } else {
-            return Error.@"Function clause error";
-        }
-    } else {
-        return Error.@"Function clause error";
-    }
-}
+pub const get_u16 = Number(u16, c_int, "int", "uint").get;
 
 /// Takes a BEAM int term and returns a `u32` value.
 ///
-pub fn get_u32(environment: env, src_term: term) !u32 {
-    var result: c_uint = undefined;
-    if (0 != nifApi("enif_get_uint")(environment, src_term, &result)) {
-        return @intCast(result);
-    } else {
-        return Error.@"Function clause error";
-    }
-}
+pub const get_u32 = Number(u32, c_uint, "uint", "uint").get;
 
 /// Takes a BEAM int term and returns a `u64` value.
 ///
-pub fn get_u64(environment: env, src_term: term) !u64 {
-    var result: u64 = undefined;
-    if (0 != nifApi("enif_get_uint64")(environment, src_term, &result)) {
-        return @intCast(result);
-    } else {
-        return Error.@"Function clause error";
-    }
-}
+pub const get_u64 = Number(u64, u64, "uint64", "uint64").get;
 
 /// Takes a BEAM int term and returns an `i8` value.
 ///
 /// Note that this conversion function checks to make sure it's in range
 /// (`-128..127`).
 ///
-pub fn get_i8(environment: env, src_term: term) !i8 {
-    var result: c_int = undefined;
-    if (0 != nifApi("enif_get_int")(environment, src_term, &result)) {
-        if ((result >= -128) and (result <= 127)) {
-            return @intCast(result);
-        } else {
-            return Error.@"Function clause error";
-        }
-    } else {
-        return Error.@"Function clause error";
-    }
-}
+pub const get_i8 = Number(i8, c_int, "int", "int").get;
 
 /// Takes a BEAM int term and returns an `i16` value.
 ///
 /// Note that this conversion function checks to make sure it's in range
 /// (`-32768..32767`).
 ///
-pub fn get_i16(environment: env, src_term: term) !i16 {
-    var result: c_int = undefined;
-    if (0 != nifApi("enif_get_int")(environment, src_term, &result)) {
-        if ((result >= -32768) and (result <= 32767)) {
-            return @intCast(result);
-        } else {
-            return Error.@"Function clause error";
-        }
-    } else {
-        return Error.@"Function clause error";
-    }
-}
+pub const get_i16 = Number(i16, c_int, "int", "int").get;
 
 /// Takes a BEAM int term and returns an `i32` value.
 ///
 /// Note that this conversion function does not currently do range checking.
 ///
-pub fn get_i32(environment: env, src_term: term) !i32 {
-    var result: c_int = undefined;
-    if (0 != nifApi("enif_get_int")(environment, src_term, &result)) {
-        return @intCast(result);
-    } else {
-        return Error.@"Function clause error";
-    }
-}
+pub const get_i32 = Number(i32, c_int, "int", "int").get;
 
 /// Takes a BEAM int term and returns an `i64` value.
 ///
 /// Note that this conversion function does not currently do range checking.
 ///
-pub fn get_i64(environment: env, src_term: term) !i64 {
-    var result: i64 = undefined;
-    if (0 != nifApi("enif_get_int64")(environment, src_term, &result)) {
-        return result;
-    } else {
-        return Error.@"Function clause error";
-    }
-}
+pub const get_i64 = Number(i64, i64, "int64", "int64").get;
 
 ///////////////////////////////////////////////////////////////////////////////
 // floats
@@ -530,38 +326,17 @@ pub fn get_i64(environment: env, src_term: term) !i64 {
 ///
 /// Note that this conversion function does not currently do range checking.
 ///
-pub fn get_f16(environment: env, src_term: term) !f16 {
-    var result: f64 = undefined;
-    if (0 != nifApi("enif_get_double")(environment, src_term, &result)) {
-        return @floatCast(result);
-    } else {
-        return Error.@"Function clause error";
-    }
-}
+pub const get_f16 = Number(f16, f64, "double", "double").get;
 
 /// Takes a BEAM float term and returns an `f32` value.
 ///
 /// Note that this conversion function does not currently do range checking.
 ///
-pub fn get_f32(environment: env, src_term: term) !f32 {
-    var result: f64 = undefined;
-    if (0 != nifApi("enif_get_double")(environment, src_term, &result)) {
-        return @floatCast(result);
-    } else {
-        return Error.@"Function clause error";
-    }
-}
+pub const get_f32 = Number(f32, f64, "double", "double").get;
 
 /// Takes a BEAM float term and returns an `f64` value.
 ///
-pub fn get_f64(environment: env, src_term: term) !f64 {
-    var result: f64 = undefined;
-    if (0 != nifApi("enif_get_double")(environment, src_term, &result)) {
-        return result;
-    } else {
-        return Error.@"Function clause error";
-    }
-}
+pub const get_f64 = Number(f64, f64, "double", "double").get;
 
 ///////////////////////////////////////////////////////////////////////////////
 // atoms
@@ -610,36 +385,12 @@ pub fn get_atom_slice_alloc(a: Allocator, environment: env, src_term: atom) ![]u
 /// shorthand for `e.ErlNifBinary`.
 pub const binary = e.ErlNifBinary;
 
-/// Takes an BEAM `t:binary/0` term and retrieves a pointer to the
-/// binary data as a Zig c-string (`[*c]u8`).  No memory is allocated for
-/// this operation.
-///
-/// Should only be used for c interop functions.
-///
-/// *Note*: this function could have unexpected results if your BEAM binary
-/// contains any zero byte values.  Always use `get_char_slice/2` when
-/// C-interop is not necessary.
-///
-pub fn get_c_string(environment: env, src_term: term) ![*c]u8 {
-    var bin: binary = undefined;
-    if (0 != nifApi("enif_inspect_binary")(environment, src_term, &bin)) {
-        return bin.data;
-    } else {
-        return Error.@"Function clause error";
-    }
-}
-
 /// Takes an BEAM `t:binary/0` term and retrieves it as a Zig character slice
 /// (`[]u8`)  No memory is allocated for this operation.
 ///
 pub fn get_char_slice(environment: env, src_term: term) ![]u8 {
-    var bin: binary = undefined;
-
-    if (0 != nifApi("enif_inspect_binary")(environment, src_term, &bin)) {
-        return bin.data[0..bin.size];
-    } else {
-        return Error.@"Function clause error";
-    }
+    const bin = try get_binary(environment, src_term);
+    return bin.data[0..bin.size];
 }
 
 /// Takes an BEAM `t:binary/0` term and returns the corresponding
@@ -647,11 +398,7 @@ pub fn get_char_slice(environment: env, src_term: term) ![]u8 {
 ///
 pub fn get_binary(environment: env, src_term: term) !binary {
     var bin: binary = undefined;
-    if (0 != nifApi("enif_inspect_binary")(environment, src_term, &bin)) {
-        return bin;
-    } else {
-        return Error.@"Function clause error";
-    }
+    return if (0 != nifApi("enif_inspect_binary")(environment, src_term, &bin)) bin else Error.@"Function clause error";
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -659,22 +406,6 @@ pub fn get_binary(environment: env, src_term: term) !binary {
 
 /// shorthand for `e.ErlNifPid`.
 pub const pid = e.ErlNifPid;
-
-/// Takes an BEAM `t:pid/0` term and returns the corresponding `pid`
-/// struct.
-///
-/// Note that this is a fairly opaque struct and you're on your
-/// own as to what you can do with this (for now), except as a argument
-/// for the `e.enif_send` function.
-///
-pub fn get_pid(environment: env, src_term: term) !pid {
-    var result: pid = undefined;
-    if (0 != nifApi("enif_get_local_pid")(environment, src_term, &result)) {
-        return result;
-    } else {
-        return Error.@"Function clause error";
-    }
-}
 
 /// shortcut for `e.enif_self`, marshalling into zig error style.
 ///
@@ -685,21 +416,7 @@ pub fn get_pid(environment: env, src_term: term) !pid {
 /// if you need the process mailbox for the actual spawned thread, use `e.enif_self`
 pub fn self(environment: env) !pid {
     var p: pid = undefined;
-    if (nifApi("enif_self")(environment, @ptrCast(&p))) |self_val| {
-        return self_val.*;
-    } else {
-        return Error.@"Fail to get calling process";
-    }
-}
-
-/// shortcut for `e.enif_send`
-///
-/// returns true if the send is successful, false otherwise.
-///
-/// NOTE this function assumes a valid BEAM environment.  If you have spawned
-/// an OS thread without a BEAM environment, you must use `send_advanced/4`
-pub fn send(c_env: env, to_pid: pid, msg: term) bool {
-    return (nifApi("enif_send")(c_env, &to_pid, null, msg) == 1);
+    return (nifApi("enif_self")(environment, &p) orelse return Error.@"Fail to get calling process").*;
 }
 
 /// shortcut for `e.enif_send`
@@ -715,19 +432,6 @@ pub fn send_advanced(c_env: env, to_pid: pid, m_env: env, msg: term) bool {
 ///////////////////////////////////////////////////////////////////////////////
 // tuples
 
-/// Takes an Beam `t:tuple/0` term and returns it as a slice of `term` structs.
-/// Does *not* allocate memory for this operation.
-///
-pub fn get_tuple(environment: env, src_term: term) ![]term {
-    var length: c_int = 0;
-    var term_list: [*c]term = null;
-    if (0 != nifApi("enif_get_tuple")(environment, src_term, &length, &term_list)) {
-        return term_list[0..(length - 1)];
-    } else {
-        return Error.@"Function clause error";
-    }
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 // lists
 
@@ -735,11 +439,7 @@ pub fn get_tuple(environment: env, src_term: term) ![]term {
 ///
 pub fn get_list_length(environment: env, list: term) !usize {
     var result: c_uint = undefined;
-    if (0 != nifApi("enif_get_list_length")(environment, list, &result)) {
-        return @intCast(result);
-    } else {
-        return Error.@"Function clause error";
-    }
+    return if (0 != nifApi("enif_get_list_length")(environment, list, &result)) @intCast(result) else Error.@"Function clause error";
 }
 
 /// Iterates over a BEAM `t:list/0`.
@@ -749,105 +449,22 @@ pub fn get_list_length(environment: env, list: term) !usize {
 ///
 pub fn get_head_and_iter(environment: env, list: *term) !term {
     var head: term = undefined;
-    if (0 != nifApi("enif_get_list_cell")(environment, list.*, &head, list)) {
-        return head;
-    } else {
-        return Error.@"Function clause error";
-    }
-}
-
-/// A generic function which lets you convert a BEAM `t:list/0` of
-/// homogeous type into a Zig slice.
-///
-/// The resulting slice will be allocated using the beam allocator, with
-/// ownership passed to the caller.  If you need to use a different allocator,
-/// use `get_slice_of_alloc/4`
-///
-/// supported internal types:
-/// - `c_int`
-/// - `c_long`
-/// - `isize`
-/// - `usize`
-/// - `u8`
-/// - `i32`
-/// - `i64`
-/// - `f16`
-/// - `f32`
-/// - `f64`
-pub fn get_slice_of(comptime T: type, environment: env, list: term) ![]T {
-    return get_slice_of_alloc(T, allocator, environment, list);
-}
-
-/// Converts an BEAM `t:list/0` of homogeneous type into a Zig slice, but
-/// using any allocator you wish.
-///
-/// ownership is passed to the caller.
-///
-/// supported internal types:
-/// - `c_int`
-/// - `c_long`
-/// - `isize`
-/// - `usize`
-/// - `u8`
-/// - `i32`
-/// - `i64`
-/// - `f16`
-/// - `f32`
-/// - `f64`
-pub fn get_slice_of_alloc(comptime T: type, a: Allocator, environment: env, list: term) ![]T {
-    const size = try get_list_length(environment, list);
-
-    var idx: usize = 0;
-    var head: term = undefined;
-
-    // allocate memory for the Zig list.
-    var result = try a.alloc(T, size);
-    var movable_list = list;
-
-    while (idx < size) {
-        head = try get_head_and_iter(environment, &movable_list);
-        result[idx] = try get(T, environment, head);
-        idx += 1;
-    }
-    errdefer a.free(result);
-
-    return result;
+    return if (0 != nifApi("enif_get_list_cell")(environment, list.*, &head, list)) head else Error.@"Function clause error";
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // booleans
 
-/// private helper string comparison function
-fn str_cmp(comptime ref: []const u8, str: []const u8) bool {
-    if (str.len != ref.len) {
-        return false;
-    }
-    for (str, 0..) |item, idx| {
-        if (item != ref[idx]) {
-            return false;
-        }
-    }
-    return true;
-}
-
-const true_slice = "true"[0..];
-const false_slice = "false"[0..];
 /// Converts an BEAM `t:boolean/0` into a Zig `bool`.
 ///
 /// May potentially raise an out of memory error, as it must make an allocation
 /// to perform its conversion.
 pub fn get_bool(environment: env, val: term) !bool {
-    var str: []u8 = undefined;
-    str = try get_atom_slice(environment, val);
+    const str = try get_atom_slice(environment, val);
     defer allocator.free(str);
-
-    if (str_cmp(true_slice, str)) {
-        return true;
-    } else if (str_cmp(false_slice, str)) {
-        return false;
-    } else {
-        return Error.@"Fail to get boolean";
-    }
+    if (std.mem.eql(u8, "true", str)) return true;
+    if (std.mem.eql(u8, "false", str)) return false;
+    return Error.@"Fail to get boolean";
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -872,117 +489,66 @@ pub fn get_bool(environment: env, val: term) !bool {
 /// - `f32`
 /// - `f64`
 pub fn make(comptime T: type, environment: env, val: T) !term {
-    switch (T) {
-        bool => return make_bool(environment, val),
-        u8 => return make_u8(environment, val),
-        u16 => return make_u16(environment, val),
-        u32 => return make_u32(environment, val),
-        u64 => return make_u64(environment, val),
-        c_int => return make_c_int(environment, val),
-        c_uint => return make_c_uint(environment, val),
-        c_long => return make_c_long(environment, val),
-        c_ulong => return make_c_ulong(environment, val),
-        isize => return make_isize(environment, val),
-        usize => return make_usize(environment, val),
-        i8 => return make_i8(environment, val),
-        i16 => return make_i16(environment, val),
-        i32 => return make_i32(environment, val),
-        i64 => return make_i64(environment, val),
-        f16 => return make_f16(environment, val),
-        f32 => return make_f32(environment, val),
-        f64 => return make_f64(environment, val),
-        ?*anyopaque => return make_u64(environment, @intFromPtr(val)),
-        else => return Error.@"Function clause error",
+    if (T == ?*anyopaque) return make_u64(environment, @intFromPtr(val));
+    inline for (.{ bool, u8, u16, u32, u64, c_int, c_uint, c_long, c_ulong, isize, usize, i8, i16, i32, i64, f16, f32, f64 }) |Value| {
+        if (T == Value) return @field(@This(), "make_" ++ @typeName(Value))(environment, val);
     }
+    return Error.@"Function clause error";
 }
 
 /// converts a char (`u8`) value into a BEAM `t:integer/0`.
-pub fn make_u8(environment: env, chr: u8) term {
-    return nifApi("enif_make_uint")(environment, @intCast(chr));
-}
+pub const make_u8 = Number(u8, c_int, "int", "uint").make;
 
 /// converts a unsigned (`u16`) value into a BEAM `t:integer/0`.
-pub fn make_u16(environment: env, val: u16) term {
-    return nifApi("enif_make_uint")(environment, @intCast(val));
-}
+pub const make_u16 = Number(u16, c_int, "int", "uint").make;
 
 /// converts a unsigned (`u32`) value into a BEAM `t:integer/0`.
-pub fn make_u32(environment: env, val: u32) term {
-    return nifApi("enif_make_uint")(environment, @intCast(val));
-}
+pub const make_u32 = Number(u32, c_uint, "uint", "uint").make;
 
 /// converts a unsigned (`u64`) value into a BEAM `t:integer/0`.
-pub fn make_u64(environment: env, val: u64) term {
-    return nifApi("enif_make_uint64")(environment, val);
-}
+pub const make_u64 = Number(u64, u64, "uint64", "uint64").make;
 
 /// converts a `c_int` value into a BEAM `t:integer/0`.
-pub fn make_c_int(environment: env, val: c_int) term {
-    return nifApi("enif_make_int")(environment, val);
-}
+pub const make_c_int = Number(c_int, c_int, "int", "int").make;
 
 /// converts a `c_uint` value into a BEAM `t:integer/0`.
-pub fn make_c_uint(environment: env, val: c_uint) term {
-    return nifApi("enif_make_uint")(environment, val);
-}
+pub const make_c_uint = Number(c_uint, c_uint, "uint", "uint").make;
 
 /// converts a `c_long` value into a BEAM `t:integer/0`.
-pub fn make_c_long(environment: env, val: c_long) term {
-    return nifApi("enif_make_long")(environment, val);
-}
+pub const make_c_long = Number(c_long, c_long, "long", "long").make;
 
 /// converts a `c_ulong` value into a BEAM `t:integer/0`.
-pub fn make_c_ulong(environment: env, val: c_ulong) term {
-    return nifApi("enif_make_ulong")(environment, val);
-}
+pub const make_c_ulong = Number(c_ulong, c_ulong, "ulong", "ulong").make;
 
 /// converts an `i8` value into a BEAM `t:integer/0`.
-pub fn make_i8(environment: env, val: i8) term {
-    return nifApi("enif_make_int")(environment, @intCast(val));
-}
+pub const make_i8 = Number(i8, c_int, "int", "int").make;
 
 /// converts an `i16` value into a BEAM `t:integer/0`.
-pub fn make_i16(environment: env, val: i16) term {
-    return nifApi("enif_make_int")(environment, @intCast(val));
-}
+pub const make_i16 = Number(i16, c_int, "int", "int").make;
 
 /// converts an `isize` value into a BEAM `t:integer/0`.
-pub fn make_isize(environment: env, val: isize) term {
-    return nifApi("enif_make_int64")(environment, val);
-}
+pub const make_isize = Number(isize, i64, "int64", "int64").make;
 
 /// converts a `usize` value into a BEAM `t:integer/0`.
-pub fn make_usize(environment: env, val: usize) term {
-    return nifApi("enif_make_uint64")(environment, val);
-}
+pub const make_usize = Number(usize, u64, "uint64", "uint64").make;
 
 /// converts an `i32` value into a BEAM `t:integer/0`.
-pub fn make_i32(environment: env, val: i32) term {
-    return nifApi("enif_make_int")(environment, @intCast(val));
-}
+pub const make_i32 = Number(i32, c_int, "int", "int").make;
 
 /// converts an `i64` value into a BEAM `t:integer/0`.
-pub fn make_i64(environment: env, val: i64) term {
-    return nifApi("enif_make_int64")(environment, val);
-}
+pub const make_i64 = Number(i64, i64, "int64", "int64").make;
 
 ///////////////////////////////////////////////////////////////////////////////
 // floats
 
 /// converts an `f16` value into a BEAM `t:float/0`.
-pub fn make_f16(environment: env, val: f16) term {
-    return nifApi("enif_make_double")(environment, @floatCast(val));
-}
+pub const make_f16 = Number(f16, f64, "double", "double").make;
 
 /// converts an `f32` value into a BEAM `t:float/0`.
-pub fn make_f32(environment: env, val: f32) term {
-    return nifApi("enif_make_double")(environment, @floatCast(val));
-}
+pub const make_f32 = Number(f32, f64, "double", "double").make;
 
 /// converts an `f64` value into a BEAM `t:float/0`.
-pub fn make_f64(environment: env, val: f64) term {
-    return nifApi("enif_make_double")(environment, val);
-}
+pub const make_f64 = Number(f64, f64, "double", "double").make;
 
 ///////////////////////////////////////////////////////////////////////////////
 // atoms
@@ -1005,33 +571,9 @@ pub fn make_slice(environment: env, val: []const u8) term {
 
     var bin: [*]u8 = @ptrCast(nifApi("enif_make_new_binary")(environment, val.len, &result));
 
-    for (val, 0..) |_, i| {
-        bin[i] = val[i];
-    }
+    for (val, 0..) |_, i| bin[i] = val[i];
 
     return result;
-}
-
-/// converts an c string (`[*c]u8`) into a BEAM `t:binary/0`. Mostly used for
-/// c interop.
-///
-/// no memory allocation inside of Zig is performed and the BEAM environment
-/// is responsible for the resulting binary.  You are responsible for managing
-/// the allocation of the slice.
-pub fn make_c_string(environment: env, val: [*c]const u8) term {
-    const result: e.ERL_NIF_TERM = undefined;
-    var len: usize = 0;
-
-    // first get the length of the c string.
-    for (result, 0..) |chr, i| {
-        if (chr == 0) {
-            break;
-        }
-        len = i;
-    }
-
-    // punt to the slicing function.
-    return make_slice(environment, val[0 .. len + 1]);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1050,104 +592,8 @@ pub fn make_term_list(environment: env, val: []term) term {
     return nifApi("enif_make_list_from_array")(environment, @ptrCast(val.ptr), @intCast(val.len));
 }
 
-/// converts a Zig char slice (`[]u8`) into a BEAM `t:charlist/0`.
-pub fn make_charlist(environment: env, val: []const u8) term {
-    return nifApi("enif_make_string_len")(environment, val, val.len, __latin1);
-}
-
-/// converts a c string (`[*c]u8`) into a BEAM `t:charlist/0`.
-pub fn make_c_string_charlist(environment: env, val: [*c]const u8) term {
-    return nifApi("enif_make_string")(environment, val, __latin1);
-}
-
-pub fn make_charlist_len(environment: env, val: [*c]const u8, length: usize) term {
-    return nifApi("enif_make_string_len")(environment, val, length, __latin1);
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 // list-generic
-
-/// A helper to make BEAM lists out of slices of `term`.  Use this function if
-/// you need a generic listbuilding function.
-///
-/// uses the BEAM allocator internally.  If you would like to use a custom
-/// allocator, (for example an arena allocator, if you have very long lists),
-/// use `make_list_alloc/4`
-///
-/// supported internal types:
-/// - `c_int`
-/// - `c_long`
-/// - `isize`
-/// - `usize`
-/// - `u8`
-/// - `i32`
-/// - `i64`
-/// - `f16`
-/// - `f32`
-/// - `f64`
-pub fn make_list(comptime T: type, environment: env, val: []T) !term {
-    return make_list_alloc(T, allocator, environment, val);
-}
-
-/// A helper to make a BEAM `t:Kernel.list` out of `term`s, with any allocator.
-/// Use this function if you need a generic listbuilding function.
-///
-/// supported internal types:
-/// - `c_int`
-/// - `c_long`
-/// - `isize`
-/// - `usize`
-/// - `u8`
-/// - `i32`
-/// - `i64`
-/// - `f16`
-/// - `f32`
-/// - `f64`
-pub fn make_list_alloc(comptime T: type, a: Allocator, environment: env, val: []T) !term {
-    var term_slice: []term = try a.alloc(term, val.len);
-    defer a.free(term_slice);
-
-    for (val, 0..) |item, idx| {
-        term_slice[idx] = make(T, environment, item);
-    }
-
-    return nifApi("enif_make_list_from_array")(environment, @ptrCast(&term_slice[0]), @intCast(val.len));
-}
-
-/// converts a c_int slice (`[]c_int`) into a BEAM list of `integer/0`.
-pub fn make_c_int_list(environment: env, val: []c_int) !term {
-    return try make_list(c_int, environment, val);
-}
-
-/// converts a c_long slice (`[]c_long`) into a BEAM list of `integer/0`.
-pub fn make_c_long_list(environment: env, val: []c_long) !term {
-    return try make_list(c_long, environment, val);
-}
-
-/// converts an i32 slice (`[]i32`) into a BEAM list of `integer/0`.
-pub fn make_i32_list(environment: env, val: []i32) !term {
-    return try make_list(i32, environment, val);
-}
-
-/// converts an i64 slice (`[]i64`) into a BEAM list of `integer/0`.
-pub fn make_i64_list(environment: env, val: []i64) !term {
-    return try make_list(i64, environment, val);
-}
-
-/// converts an f16 slice (`[]f16`) into a BEAM list of `t:float/0`.
-pub fn make_f16_list(environment: env, val: []f16) !term {
-    return try make_list(f16, environment, val);
-}
-
-/// converts an f32 slice (`[]f32`) into a BEAM list of `t:float/0`.
-pub fn make_f32_list(environment: env, val: []f32) !term {
-    return try make_list(f32, environment, val);
-}
-
-/// converts an f64 slice (`[]f64`) into a BEAM list of `t:float/0`.
-pub fn make_f64_list(environment: env, val: []f64) !term {
-    return try make_list(f64, environment, val);
-}
 
 ///////////////////////////////////////////////////////////////////////////////
 // special atoms
@@ -1175,59 +621,14 @@ pub fn make_error(environment: env) term {
 ///////////////////////////////////////////////////////////////////////////////
 // ok and error tuples
 
-/// A helper to make `{:ok, term}` terms from arbitrarily-typed values.
-///
-/// supported types:
-/// - `c_int`
-/// - `c_long`
-/// - `isize`
-/// - `usize`
-/// - `u8`
-/// - `i32`
-/// - `i64`
-/// - `f16`
-/// - `f32`
-/// - `f64`
-///
-/// Use `make_ok_term/2` to make ok tuples from generic terms.
-/// Use `make_ok_atom/2` to make ok tuples with atom terms from slices.
-pub fn make_ok_tuple(comptime T: type, environment: env, val: T) term {
-    return make_ok_term(environment, make(T, environment, val));
-}
-
 /// A helper to make `{:ok, binary}` terms from slices
 pub fn make_ok_binary(environment: env, val: []const u8) term {
     return make_ok_term(environment, make_slice(environment, val));
 }
 
-/// A helper to make `{:ok, atom}` terms from slices
-pub fn make_ok_atom(environment: env, val: []const u8) term {
-    return make_ok_term(environment, make_atom(environment, val));
-}
-
 /// A helper to make `{:ok, term}` terms in general
 pub fn make_ok_term(environment: env, val: term) term {
     return nifApi("enif_make_tuple")(environment, 2, make_ok(environment), val);
-}
-
-/// A helper to make `{:error, term}` terms from arbitrarily-typed values.
-///
-/// supported types:
-/// - `c_int`
-/// - `c_long`
-/// - `isize`
-/// - `usize`
-/// - `u8`
-/// - `i32`
-/// - `i64`
-/// - `f16`
-/// - `f32`
-/// - `f64`
-///
-/// Use `make_error_term/2` to make error tuples from generic terms.
-/// Use `make_error_atom/2` to make atom errors from slices.
-pub fn make_error_tuple(comptime T: type, environment: env, val: T) term {
-    return make_error_term(environment, make(T, environment, val));
 }
 
 /// A helper to make `{:error, atom}` terms from slices
@@ -1248,67 +649,17 @@ pub fn make_error_term(environment: env, val: term) term {
 ///////////////////////////////////////////////////////////////////////////////
 // refs
 
-/// Encapsulates `e.enif_make_ref`
-pub fn make_ref(environment: env) term {
-    return nifApi("enif_make_ref")(environment);
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 // resources
 
 pub const resource_type = ?*e.ErlNifResourceType;
 
+pub fn open_resource_type(environment: env, name: [*c]const u8, dtor: e.ErlNifResourceDtor) resource_type {
+    return nifApi("enif_open_resource_type")(environment, null, name, dtor, e.ERL_NIF_RT_CREATE | e.ERL_NIF_RT_TAKEOVER, null);
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // errors, etc.
-
-pub fn raise(environment: env, exception: term) term {
-    return nifApi("enif_raise_exception")(environment, exception);
-}
-
-// create a global enomem string, then throw it.
-const enomem_slice = "enomem";
-
-/// This function is used to communicate `:enomem` back to the BEAM as an
-/// exception.
-///
-/// The BEAM is potentially OOM-safe, and Zig lets you leverage that.
-/// OOM errors from `beam.allocator` can be converted to a generic erlang term
-/// that represents an exception.  Returning this from your NIF results in
-/// a BEAM throw event.
-pub fn raise_enomem(environment: env) term {
-    return nifApi("enif_raise_exception")(environment, make_atom(environment, enomem_slice));
-}
-
-const f_c_e_slice = "function_clause";
-
-/// This function is used to communicate `:function_clause` back to the BEAM as an
-/// exception.
-///
-/// By default Zigler will do argument input checking on value
-/// ingress from the dynamic BEAM runtime to the static Zig runtime.
-/// You can also use this function to communicate a similar error by returning the
-/// resulting term from your NIF.
-pub fn raise_function_clause_error(env_: env) term {
-    return nifApi("enif_raise_exception")(env_, make_atom(env_, f_c_e_slice));
-}
-
-const resource_error = "resource_error";
-
-/// This function is used to communicate `:resource_error` back to the BEAM as an
-/// exception.
-pub fn raise_resource_error(env_: env) term {
-    return nifApi("enif_raise_exception")(env_, make_atom(env_, resource_error));
-}
-
-const assert_slice = "assertion_error";
-
-/// This function is used to communicate `:assertion_error` back to the BEAM as an
-/// exception.
-///
-/// Used when running Zigtests, when trapping `beam.AssertionError.AssertionError`.
-pub fn raise_assertion_error(env_: env) term {
-    return nifApi("enif_raise_exception")(env_, make_atom(env_, assert_slice));
-}
 
 pub const CallErrorContext = struct {
     message: []const u8,
@@ -1359,78 +710,20 @@ pub fn raise_call_error(env_: env, context: CallErrorContext) term {
     return nifApi("enif_raise_exception")(env_, make_call_error(env_, context));
 }
 
-pub fn make_exception(env_: env, exception_module: []const u8, err: anyerror) term {
-    const erl_err = make_slice(env_, @errorName(err));
-    var exception = nifApi("enif_make_new_map")(env_);
-    // define the struct
-    put_exception_field(env_, &exception, "__struct__", make_atom(env_, exception_module));
-    put_exception_field(env_, &exception, "__exception__", make_bool(env_, true));
-    // define the error
-    put_exception_field(env_, &exception, "message", erl_err);
-    return exception;
-}
-
-pub fn raise_exception(env_: env, exception_module: []const u8, err: anyerror) term {
-    return nifApi("enif_raise_exception")(env_, make_exception(env_, exception_module, err));
-}
-
-/// !value
-/// you can use this value to access the BEAM environment of your unit test.
-pub threadlocal var test_env: env = undefined;
-
-///////////////////////////////////////////////////////////////////////////////
-// NIF LOADING Boilerplate
-
-pub export fn blank_load(_: env, _: [*c]?*anyopaque, _: term) c_int {
-    return 0;
-}
-
-pub export fn blank_upgrade(_: env, _: [*c]?*anyopaque, _: [*c]?*anyopaque, _: term) c_int {
-    return 0;
-}
-
-const nil_slice = "nil"[0..];
-pub fn is_nil(environment: env, val: term) !bool {
-    var str: []u8 = undefined;
-    str = try get_atom_slice(environment, val);
-    defer allocator.free(str);
-    if (str_cmp(nil_slice, str)) {
-        return true;
-    } else {
-        return false;
-    }
-}
-
 pub fn is_nil2(environment: env, val: term) bool {
-    return is_nil(environment, val) catch false;
+    return nifApi("enif_is_identical")(val, make_nil(environment)) != 0;
 }
 
 pub fn fetch_resource(comptime T: type, environment: env, res_typ: resource_type, res_trm: term) !T {
     var obj: ?*anyopaque = null;
-    if (0 == nifApi("enif_get_resource")(environment, res_trm, res_typ, @ptrCast(&obj))) {
-        return try get(T, environment, res_trm);
-    }
-    if (obj != null) {
-        const val: *T = @ptrCast(@alignCast(obj));
-        return val.*;
-    } else {
-        return Error.@"Fail to fetch resource";
-    }
-}
-
-pub fn fetch_resource_wrapped(comptime T: type, environment: env, arg: term) !T {
-    return fetch_resource(T, environment, T.resource_type, arg);
-}
-
-pub fn fetch_ptr_resource_wrapped(comptime T: type, environment: env, arg: term) !*T {
-    return fetch_resource(*T, environment, T.resource_type, arg);
+    if (0 == nifApi("enif_get_resource")(environment, res_trm, res_typ, @ptrCast(&obj))) return try get(T, environment, res_trm);
+    const val: *T = @ptrCast(@alignCast(obj orelse return Error.@"Fail to fetch resource"));
+    return val.*;
 }
 
 pub fn fetch_resource_ptr(comptime PtrT: type, environment: env, res_typ: resource_type, res_trm: term) !PtrT {
     var obj: PtrT = undefined;
-    if (0 == nifApi("enif_get_resource")(environment, res_trm, res_typ, @ptrCast(&obj))) {
-        return Error.@"Fail to fetch resource ptr";
-    }
+    if (0 == nifApi("enif_get_resource")(environment, res_trm, res_typ, @ptrCast(&obj))) return Error.@"Fail to fetch resource ptr";
     return obj;
 }
 
@@ -1481,9 +774,7 @@ pub fn get_resource_array_from_list(comptime ElementType: type, environment: env
     const U8Ptr = [*c]u8;
     switch (@typeInfo(ElementType)) {
         .@"struct" => |s| {
-            if (s.layout != .@"extern") {
-                return Error.@"Fail to fetch resource list element";
-            }
+            if (s.layout != .@"extern") return Error.@"Fail to fetch resource list element";
         },
         else => {},
     }
@@ -1520,9 +811,7 @@ const mem = @import("std").mem;
 pub fn get_resource_array_from_binary(environment: env, resource_type_array: resource_type, binary_term: term) !term {
     const RType = [*c]u8;
     var bin: binary = undefined;
-    if (0 == nifApi("enif_inspect_binary")(environment, binary_term, &bin)) {
-        return Error.@"Fail to inspect resource binary";
-    }
+    if (0 == nifApi("enif_inspect_binary")(environment, binary_term, &bin)) return Error.@"Fail to inspect resource binary";
     const ptr = nifApi("enif_alloc_resource")(resource_type_array, @sizeOf(RType) + bin.size) orelse
         return Error.@"Fail to make array resource";
     const obj: *RType = @ptrCast(@alignCast(ptr));
@@ -1537,15 +826,8 @@ pub fn get_resource_array_from_binary(environment: env, resource_type_array: res
 // - list of primitives
 // - binary
 pub fn get_resource_array(comptime ElementType: type, environment: env, resource_type_element: resource_type, resource_type_array: resource_type, data: term) !term {
-    if (get_resource_array_from_list(ElementType, environment, resource_type_element, resource_type_array, data)) |value| {
-        return value;
-    } else |_| {
-        if (get_resource_array_from_binary(environment, resource_type_array, data)) |value| {
-            return value;
-        } else |_| {
-            return Error.@"Function clause error";
-        }
-    }
+    return get_resource_array_from_list(ElementType, environment, resource_type_element, resource_type_array, data) catch
+        get_resource_array_from_binary(environment, resource_type_array, data) catch Error.@"Function clause error";
 }
 pub fn get_resource_ptr_from_term(environment: env, comptime PtrType: type, element_resource_type: resource_type, ptr_resource_type: resource_type, element: term) !term {
     const ptr = nifApi("enif_alloc_resource")(ptr_resource_type, @sizeOf(PtrType)) orelse
@@ -1565,15 +847,4 @@ pub fn make_resource(environment: env, value: anytype, rst: resource_type) !term
     return make_resource_term(environment, ptr);
 }
 
-pub fn make_resource_wrapped(environment: env, value: anytype) !term {
-    return make_resource(environment, value, @TypeOf(value).resource_type);
-}
-
-pub fn make_ptr_resource_wrapped(environment: env, ptr: anytype) !term {
-    return make_resource(environment, ptr, @TypeOf(ptr.*).resource_type);
-}
-
 pub export fn destroy_do_nothing(_: env, _: ?*anyopaque) void {}
-pub fn open_resource_wrapped(environment: env, comptime T: type) void {
-    T.resource_type = nifApi("enif_open_resource_type")(environment, null, T.resource_name, destroy_do_nothing, e.ERL_NIF_RT_CREATE | e.ERL_NIF_RT_TAKEOVER, null);
-}

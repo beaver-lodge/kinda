@@ -19,18 +19,12 @@ defmodule Kinda.GenerationError do
 
   @impl true
   def message(%__MODULE__{} = error) do
-    [
-      error.message || "code generation failed",
-      format_field("stage", error.stage),
-      format_field("reason", error.reason),
-      format_field("source", error.source),
-      format_field("expected", error.expected),
-      format_field("actual", error.actual)
-    ]
-    |> Enum.reject(&is_nil/1)
-    |> Enum.join("\n")
-  end
+    details =
+      for key <- ~w(stage reason source expected actual)a,
+          value = Map.fetch!(error, key),
+          value != nil,
+          do: "#{key}: #{inspect(value, pretty: true)}"
 
-  defp format_field(_name, nil), do: nil
-  defp format_field(name, value), do: "#{name}: #{inspect(value, pretty: true)}"
+    Enum.join([error.message || "code generation failed" | details], "\n")
+  end
 end

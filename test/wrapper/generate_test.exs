@@ -87,7 +87,7 @@ defmodule Kinda.Wrapper.GenerateTest do
       do: ~s{nifDirtyCPU("#{base_name}", "#{public_name}"),}
   end
 
-  test "renders generic elixir and zig outputs from manifest + policy" do
+  test "derives variant names and parameters from manifest + policy" do
     manifest = %Manifest{
       functions: [
         %Function{name: "bar", params: ["ctx"], arity: 1},
@@ -96,17 +96,14 @@ defmodule Kinda.Wrapper.GenerateTest do
       ]
     }
 
-    assert Generate.elixir_functions(manifest, FakePolicy) == [
+    assert Enum.map(
+             Generate.elixir_nif_decls(manifest, FakePolicy),
+             &{&1.wrapper_name, &1.params}
+           ) == [
              {:bar, [:ctx]},
              {:barWithDiagnostics, [:context, :ctx]},
              {:foo, []}
            ]
-
-    zig = Generate.render_zig_nif_entries(manifest, FakePolicy)
-    assert zig =~ ~s{nif("bar"),}
-    assert zig =~ ~s{diagnostic.WithDiagnosticsNIF("bar"),}
-    assert zig =~ ~s{nif("foo"),}
-    refute zig =~ ~s{baz}
   end
 
   test "builds elixir nif decls with docs" do

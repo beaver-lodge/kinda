@@ -4,11 +4,7 @@ defmodule Mix.Tasks.Kinda.Example.Verify do
   @shortdoc "Verifies the bundled kinda_example app from the repo root"
 
   @impl Mix.Task
-  def run(_args) do
-    example_verifier().verify()
-  end
+  def run(_args), do: example_verifier().verify()
 
-  defp example_verifier do
-    Application.get_env(:kinda, :example_verifier, Kinda.ExampleVerifier)
-  end
+  defp example_verifier, do: Application.get_env(:kinda, :example_verifier, Kinda.ExampleVerifier)
 end

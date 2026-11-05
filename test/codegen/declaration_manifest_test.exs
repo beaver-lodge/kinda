@@ -139,36 +139,25 @@ defmodule Kinda.CodeGen.DeclarationManifestTest do
            ]
   end
 
-  test "can update and merge declaration manifest surfaces through accessors" do
-    declaration_manifest =
-      DeclarationManifest.build(
+  test "constructs explicit NIF and type surfaces with signature version metadata" do
+    updated =
+      DeclarationManifest.from_parts(
         [
-          %NIFDecl{wrapper_name: :foo, nif_name: Module.concat(Foo.Native, :foo), params: 1}
+          %NIFDecl{wrapper_name: :foo, nif_name: Module.concat(Foo.Native, :foo), params: 1},
+          %NIFDecl{wrapper_name: :bar, nif_name: Module.concat(Bar.Native, :bar), params: 2}
         ],
-        %{"version" => 1, "records" => [], "entries" => []}
+        [
+          %TypeDecl{
+            name: :foo_record,
+            source_record_name: "Foo",
+            doc: "Typed projection for extracted C record Foo.",
+            typespec: TypeSpecRef.map([])
+          }
+        ],
+        %{"version" => 2, "records" => [], "entries" => []}
       )
 
-    updated =
-      declaration_manifest
-      |> DeclarationManifest.put_signature_manifest(%{
-        "version" => 2,
-        "records" => [],
-        "entries" => []
-      })
-      |> DeclarationManifest.put_type_decls([
-        %TypeDecl{
-          name: :foo_record,
-          source_record_name: "Foo",
-          doc: "Typed projection for extracted C record Foo.",
-          typespec: TypeSpecRef.map([])
-        }
-      ])
-      |> DeclarationManifest.merge_nif_decls([
-        %NIFDecl{wrapper_name: :foo, nif_name: Module.concat(Foo.Native, :foo), params: 1},
-        %NIFDecl{wrapper_name: :bar, nif_name: Module.concat(Bar.Native, :bar), params: 2}
-      ])
-
-    assert DeclarationManifest.signature_manifest_version(updated) == 2
+    assert updated.signature_manifest_version == 2
 
     assert DeclarationManifest.nif_decls(updated) == [
              %NIFDecl{wrapper_name: :foo, nif_name: Module.concat(Foo.Native, :foo), params: 1},

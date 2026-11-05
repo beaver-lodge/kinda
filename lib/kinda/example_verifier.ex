@@ -19,32 +19,16 @@ defmodule Kinda.ExampleVerifier do
     runner = Keyword.get(opts, :command_runner, Kinda.SystemCommandRunner)
     env = command_env(opts)
 
-    sync_deps(root, runner, env)
-    run_step(runner, "mix", ["test", "--force"], cd: root, env: env)
-  end
-
-  @spec sync_deps(Path.t(), command_runner(), keyword()) :: :ok | no_return()
-  def sync_deps(root, runner, env) do
     run_step(runner, "mix", ["deps.get"], cd: root, env: env)
+    run_step(runner, "mix", ["test", "--force"], cd: root, env: env)
   end
 
   @spec command_env(keyword()) :: [{String.t(), String.t()}]
   def command_env(opts \\ []) do
-    case zig_bin(opts) do
-      nil ->
-        []
-
-      zig ->
-        current_path = System.get_env("PATH", "")
-        zig_dir = Path.dirname(zig)
-        [{"PATH", zig_dir <> ":" <> current_path}]
+    case Keyword.get(opts, :zig_bin) || System.get_env("KINDA_ZIG_BIN") || detect_zig_016() do
+      nil -> []
+      zig -> [{"PATH", Path.dirname(zig) <> ":" <> System.get_env("PATH", "")}]
     end
-  end
-
-  defp zig_bin(opts) do
-    Keyword.get(opts, :zig_bin) ||
-      System.get_env("KINDA_ZIG_BIN") ||
-      detect_zig_016()
   end
 
   defp detect_zig_016 do

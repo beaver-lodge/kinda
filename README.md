@@ -336,15 +336,19 @@ defmodule MyLib.WrapperPolicy do
   def typespec_field(_record, field), do: ...
   def typespec_params(_variant, function), do: ...
   def typespec_return(_variant, function), do: ...
-  def zig_entry({_kind, _public, base}), do: ~s{nif("#{base}"),}
 end
 ```
 
 ### 3. Generate outputs
 
+Generate declaration data here; the consumer owns file writing and native entry
+assembly using its policy.
+
+The 0.12.0-dev core cleanup retires unused auxiliary APIs. See the
+[migration guide](MIGRATION.md) for replacements and the core size measurement.
+
 ```elixir
 Kinda.Wrapper.Generate.render_elixir_manifest(manifest, MyLib.WrapperPolicy)
-Kinda.Wrapper.Generate.render_zig_nif_entries(manifest, MyLib.WrapperPolicy)
 Kinda.Wrapper.Generate.declaration_surfaces_struct(manifest, MyLib.WrapperPolicy)
 Kinda.Wrapper.Generate.declaration_manifest_struct(manifest, MyLib.WrapperPolicy)
 Kinda.Wrapper.Generate.declaration_manifest(manifest, MyLib.WrapperPolicy)

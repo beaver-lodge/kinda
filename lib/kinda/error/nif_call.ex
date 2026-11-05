@@ -24,18 +24,7 @@ defmodule Kinda.CallError do
           native_error: String.t() | nil
         }
 
-  defexception [
-    :message,
-    :reason,
-    :phase,
-    :function,
-    :arity,
-    :argument_index,
-    :argument_name,
-    :expected,
-    :actual,
-    :native_error
-  ]
+  defexception ~w(message reason phase function arity argument_index argument_name expected actual native_error)a
 
   @doc false
   @spec enrich(t(), map(), [term()]) :: t()
@@ -54,13 +43,8 @@ defmodule Kinda.CallError do
   end
 
   @impl true
-  def message(%__MODULE__{phase: :argument_decode} = error) do
-    target = format_target(error)
-    argument = format_argument(error)
-    expectation = format_expectation(error)
-
-    "#{target} rejected #{argument}#{expectation}"
-  end
+  def message(%__MODULE__{phase: :argument_decode} = error),
+    do: "#{format_target(error)} rejected #{format_argument(error)}#{format_expectation(error)}"
 
   def message(%__MODULE__{} = error) do
     message = error.message || "native call failed"
@@ -80,45 +64,29 @@ defmodule Kinda.CallError do
 
   defp argument_metadata(_context, _key, nil), do: nil
 
-  defp argument_metadata(context, key, index) do
-    context
-    |> Map.get(key, [])
-    |> Enum.at(index - 1)
-  end
+  defp argument_metadata(context, key, index), do: context |> Map.get(key, []) |> Enum.at(index - 1)
 
   defp actual_argument(_arguments, nil, current), do: current
 
-  defp actual_argument(arguments, index, _current),
-    do: describe_argument(Enum.at(arguments, index - 1))
+  defp actual_argument(arguments, index, _current), do: describe_argument(Enum.at(arguments, index - 1))
 
   defp describe_argument(nil), do: "nil"
   defp describe_argument(%module{}), do: inspect(module)
-  defp describe_argument(value) when is_boolean(value), do: "boolean"
-  defp describe_argument(value) when is_atom(value), do: "atom"
-  defp describe_argument(value) when is_binary(value), do: "binary"
-  defp describe_argument(value) when is_bitstring(value), do: "bitstring"
-  defp describe_argument(value) when is_float(value), do: "float"
-  defp describe_argument(value) when is_function(value), do: "function"
-  defp describe_argument(value) when is_integer(value), do: "integer"
-  defp describe_argument(value) when is_list(value), do: "list"
-  defp describe_argument(value) when is_map(value), do: "map"
-  defp describe_argument(value) when is_pid(value), do: "pid"
-  defp describe_argument(value) when is_port(value), do: "port"
-  defp describe_argument(value) when is_reference(value), do: "reference"
-  defp describe_argument(value) when is_tuple(value), do: "tuple"
+
+  for type <- ~w(boolean atom binary bitstring float function integer list map pid port reference tuple) do
+    predicate = String.to_atom("is_#{type}")
+    defp describe_argument(value) when unquote(predicate)(value), do: unquote(type)
+  end
 
   defp format_target(%{function: function, arity: arity})
-       when not is_nil(function) and is_integer(arity),
-       do: "#{function}/#{arity}"
+       when not is_nil(function) and is_integer(arity), do: "#{function}/#{arity}"
 
   defp format_target(_error), do: "NIF call"
 
   defp format_argument(%{argument_index: index, argument_name: name})
-       when is_integer(index) and not is_nil(name),
-       do: "argument ##{index} (#{name})"
+       when is_integer(index) and not is_nil(name), do: "argument ##{index} (#{name})"
 
-  defp format_argument(%{argument_index: index}) when is_integer(index),
-    do: "argument ##{index}"
+  defp format_argument(%{argument_index: index}) when is_integer(index), do: "argument ##{index}"
 
   defp format_argument(_error), do: "an argument"
 
@@ -126,8 +94,7 @@ defmodule Kinda.CallError do
   defp format_expectation(%{expected: expected, actual: nil}), do: ": expected #{expected}"
   defp format_expectation(%{expected: nil, actual: actual}), do: ": got #{actual}"
 
-  defp format_expectation(%{expected: expected, actual: actual}),
-    do: ": expected #{expected}, got #{actual}"
+  defp format_expectation(%{expected: expected, actual: actual}), do: ": expected #{expected}, got #{actual}"
 
   defp format_phase(nil), do: "native execution"
   defp format_phase(phase), do: phase |> Atom.to_string() |> String.replace("_", " ")

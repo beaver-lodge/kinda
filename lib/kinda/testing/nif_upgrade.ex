@@ -60,27 +60,13 @@ defmodule Kinda.Testing.NIFUpgrade do
     end
   end
 
-  @spec run!(module(), atom(), String.t(), Path.t(), (-> result)) :: result when result: term()
-  def run!(module, application, library, directory, scenario) when is_function(scenario, 0) do
-    snapshot = remember!(module)
-    nif_file = copy_library!(application, library, directory)
-
-    try do
-      {:module, ^module, _binary, _load_result} = load!(module, nif_file)
-      scenario.()
-    after
-      restore!(snapshot)
-    end
-  end
-
   defp module_body(module, nif_file) do
     stubs =
       for {name, arity} <- module.__info__(:functions), name != :load_nif do
         arguments = Macro.generate_arguments(arity, __MODULE__)
 
         quote do
-          def unquote(name)(unquote_splicing(arguments)),
-            do: :erlang.nif_error({:nif_not_loaded, unquote(name)})
+          def unquote(name)(unquote_splicing(arguments)), do: :erlang.nif_error({:nif_not_loaded, unquote(name)})
         end
       end
 

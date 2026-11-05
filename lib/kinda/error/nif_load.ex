@@ -6,21 +6,13 @@ defmodule Kinda.NIFLoadError do
   available as structured fields.
   """
 
-  @type t() :: %__MODULE__{
-          message: String.t() | nil,
-          path: Path.t() | charlist() | nil,
-          reason: term()
-        }
+  @type t() :: %__MODULE__{message: String.t() | nil, path: Path.t() | charlist() | nil, reason: term()}
 
   defexception [:message, :path, :reason]
 
   @impl true
   def message(%__MODULE__{} = error) do
-    [
-      error.message || "NIF load failed",
-      format_field("path", error.path),
-      format_field("reason", error.reason)
-    ]
+    [error.message || "NIF load failed", format_field("path", error.path), format_field("reason", error.reason)]
     |> Enum.reject(&is_nil/1)
     |> Enum.join("\n")
   end

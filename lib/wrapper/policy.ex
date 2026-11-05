@@ -11,8 +11,6 @@ defmodule Kinda.Wrapper.Policy do
   - how Elixir arities and Zig NIF entries are derived
   - how raw C param/return facts and record fields project into public types
 
-  The older `unsupported_*` callbacks remain as compatibility aliases, but they
-  are no longer the preferred public vocabulary for new policy code.
   """
 
   alias Kinda.Wrapper.CallbackBridge
@@ -24,18 +22,12 @@ defmodule Kinda.Wrapper.Policy do
   @type function_name :: atom()
   @type params :: [atom()]
   @type generation_blocker_reason :: atom()
-  @type unsupported_reason :: atom()
   @type variant :: term()
 
-  @callback generation_blocker_entries() :: %{
-              optional(function_name()) => generation_blocker_reason()
-            }
+  @callback generation_blocker_entries() :: %{optional(function_name()) => generation_blocker_reason()}
   @callback generation_blocked?(function_name()) :: boolean()
   @callback generation_blocker_reason(function_name()) :: generation_blocker_reason() | nil
 
-  @callback unsupported_entries() :: %{optional(function_name()) => unsupported_reason()}
-  @callback unsupported?(function_name()) :: boolean()
-  @callback unsupported_reason(function_name()) :: unsupported_reason() | nil
   @callback callback_bridge_entries() :: %{optional(function_name()) => CallbackBridge.t()}
   @callback callback_bridge?(function_name()) :: boolean()
   @callback callback_bridge(function_name()) :: CallbackBridge.t() | nil
@@ -48,12 +40,7 @@ defmodule Kinda.Wrapper.Policy do
   @callback typespec_record(CRecord.t()) :: TypeSpecRef.t()
   @callback typespec_params(variant(), Function.t()) :: [TypeSpecRef.t()]
   @callback typespec_return(variant(), Function.t()) :: TypeSpecRef.t()
-  @callback zig_entry(variant()) :: String.t()
-
-  @optional_callbacks unsupported_entries: 0,
-                      unsupported?: 1,
-                      unsupported_reason: 1,
-                      typespec_field: 2,
+  @optional_callbacks typespec_field: 2,
                       typespec_record: 1,
                       typespec_params: 2,
                       typespec_return: 2

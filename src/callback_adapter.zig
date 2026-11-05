@@ -14,36 +14,22 @@ pub fn handle(comptime Kind: type, environment: beam.env, value: Kind.T) !beam.t
 
 /// Projects a native range of handle-like values into a BEAM list. The list
 /// owns resource terms, not the native range storage.
-pub fn handleRange(
-    comptime Kind: type,
-    environment: beam.env,
-    values: []const Kind.T,
-) !beam.term {
+pub fn handleRange(comptime Kind: type, environment: beam.env, values: []const Kind.T) !beam.term {
     const terms = try beam.allocator.alloc(beam.term, values.len);
     defer beam.allocator.free(terms);
 
-    for (values, 0..) |value, index| {
-        terms[index] = try handle(Kind, environment, value);
-    }
+    for (values, 0..) |value, index| terms[index] = try handle(Kind, environment, value);
     return beam.make_term_list(environment, terms);
 }
 
 /// Reads a scalar callback result from the transport code.
-pub fn scalarResult(
-    comptime T: type,
-    response: callback_runtime.Response,
-    failure: T,
-) T {
+pub fn scalarResult(comptime T: type, response: callback_runtime.Response, failure: T) T {
     if (!response.success) return failure;
     return std.math.cast(T, response.code) orelse failure;
 }
 
 /// Reads an enum callback result from the transport code.
-pub fn enumResult(
-    comptime T: type,
-    response: callback_runtime.Response,
-    failure: T,
-) T {
+pub fn enumResult(comptime T: type, response: callback_runtime.Response, failure: T) T {
     if (!response.success) return failure;
     return switch (@typeInfo(T)) {
         .@"enum" => std.enums.fromInt(T, response.code) orelse failure,

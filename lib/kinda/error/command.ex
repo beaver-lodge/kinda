@@ -18,14 +18,7 @@ defmodule Kinda.CommandError do
           reason: term()
         }
 
-  defexception message: nil,
-               stage: nil,
-               command: nil,
-               args: [],
-               cwd: nil,
-               status: nil,
-               output: nil,
-               reason: nil
+  defexception [:message, :stage, :command, :cwd, :status, :output, :reason, args: []]
 
   @impl true
   def message(%__MODULE__{} = error) do
@@ -47,8 +40,7 @@ defmodule Kinda.CommandError do
 
   defp format_command(nil, _args), do: nil
 
-  defp format_command(command, args),
-    do: "command: " <> Enum.join([command | args], " ")
+  defp format_command(command, args), do: "command: " <> Enum.join([command | args], " ")
 
   defp format_field(_name, nil), do: nil
   defp format_field(name, value), do: "#{name}: #{inspect(value)}"

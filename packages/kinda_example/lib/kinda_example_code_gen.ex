@@ -21,6 +21,7 @@ defmodule KindaExample.CodeGen do
         wrapper_name: :kinda_example_add,
         params: [:lhs, :rhs]
       },
+      %NIFDecl{wrapper_name: :kinda_example_variadic_identity, params: [:value]},
       %NIFDecl{
         wrapper_name: :kinda_example_sum_19,
         params: Enum.map(1..19, &String.to_atom("value_#{&1}"))

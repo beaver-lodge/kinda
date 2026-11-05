@@ -4,7 +4,5 @@ defmodule Mix.Tasks.Kinda.Verify do
   @shortdoc "Verifies root tests, reporting, and all bundled example apps"
 
   @impl Mix.Task
-  def run(_args) do
-    Kinda.RootVerifier.verify()
-  end
+  def run(_args), do: Kinda.RootVerifier.verify()
 end

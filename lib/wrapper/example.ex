@@ -24,21 +24,10 @@ defmodule Kinda.Wrapper.Example do
     def generation_blocker_reason(_name), do: nil
 
     @impl true
-    def unsupported_entries, do: generation_blocker_entries()
-
-    @impl true
-    def unsupported?(name), do: generation_blocked?(name)
-
-    @impl true
-    def unsupported_reason(name), do: generation_blocker_reason(name)
-
-    @impl true
     def callback_bridge_entries do
       %{
         mlirTypeConverterAddConversion:
-          CallbackBridge.required(:mlirTypeConverterAddConversion,
-            facets: [:beam_callback, :rich_input_decoder]
-          )
+          CallbackBridge.required(:mlirTypeConverterAddConversion, facets: [:beam_callback, :rich_input_decoder])
       }
     end
 
@@ -49,12 +38,11 @@ defmodule Kinda.Wrapper.Example do
     def callback_bridge(name), do: Map.get(callback_bridge_entries(), name)
 
     @impl true
-    def variants(:mlirContextCreate) do
-      [
+    def variants(:mlirContextCreate),
+      do: [
         {:normal, :mlirContextCreate, :mlirContextCreate},
         {:dirty_cpu, :mlirContextCreate_dirty_cpu, :mlirContextCreate}
       ]
-    end
 
     def variants(_name), do: []
 
@@ -69,9 +57,8 @@ defmodule Kinda.Wrapper.Example do
     def dirty({_kind, _public_name, _base_name}), do: false
 
     @impl true
-    def doc({:dirty_cpu, _public_name, _base_name}, %Function{doc: doc}) when is_binary(doc) do
-      doc <> "\n\nThis variant runs on a dirty CPU scheduler."
-    end
+    def doc({:dirty_cpu, _public_name, _base_name}, %Function{doc: doc}) when is_binary(doc),
+      do: doc <> "\n\nThis variant runs on a dirty CPU scheduler."
 
     def doc({_kind, _public_name, _base_name}, %Function{doc: doc}), do: doc
 
@@ -79,72 +66,31 @@ defmodule Kinda.Wrapper.Example do
     def typespec_params({_kind, _public_name, _base_name}, %Function{}), do: []
 
     @impl true
-    def typespec_return({:dirty_cpu, _public_name, _base_name}, %Function{}),
-      do: TypeSpecRef.term()
-
-    def typespec_return({_kind, _public_name, _base_name}, %Function{}),
-      do: TypeSpecRef.term()
-
-    @impl true
-    def zig_entry({:dirty_cpu, public_name, base_name}),
-      do: ~s|nifDirtyCPU("#{base_name}", "#{public_name}"),|
-
-    def zig_entry({_kind, _public_name, base_name}), do: ~s|nif("#{base_name}"),|
+    def typespec_return({_kind, _public_name, _base_name}, %Function{}), do: TypeSpecRef.term()
   end
 
   @spec manifest() :: Kinda.Wrapper.Manifest.t()
   def manifest do
-    %{
-      "kind" => "TranslationUnitDecl",
-      "inner" => [
-        %{
-          "kind" => "RecordDecl",
-          "id" => "0xctx",
-          "name" => "MlirContext",
-          "tagUsed" => "struct",
-          "completeDefinition" => true,
-          "inner" => [
-            %{
-              "kind" => "FieldDecl",
-              "name" => "ptr",
-              "type" => %{"qualType" => "const void *"}
-            }
-          ]
-        },
-        %{
-          "kind" => "FunctionDecl",
-          "name" => "mlirTypeConverterAddConversion",
-          "inner" => [
-            %{
-              "kind" => "ParmVarDecl",
-              "name" => "converter",
-              "type" => %{"qualType" => "MlirTypeConverter"}
-            }
-          ],
-          "type" => %{"qualType" => "void (MlirTypeConverter)"}
-        },
-        %{
-          "kind" => "FunctionDecl",
-          "name" => "mlirContextCreate",
-          "type" => %{"qualType" => "MlirContext (void)"},
-          "inner" => [
-            %{
-              "kind" => "FullComment",
-              "inner" => [
-                %{
-                  "kind" => "ParagraphComment",
-                  "inner" => [
-                    %{"kind" => "TextComment", "text" => " Creates a fresh MLIR context."}
-                  ]
-                }
-              ]
-            }
-          ]
-        }
-      ]
-    }
+    node("TranslationUnitDecl", [], [
+      node("RecordDecl", [id: "0xctx", name: "MlirContext", tagUsed: "struct", completeDefinition: true], [
+        typed_node("FieldDecl", "ptr", "const void *")
+      ]),
+      typed_node("FunctionDecl", "mlirTypeConverterAddConversion", "void (MlirTypeConverter)", [
+        typed_node("ParmVarDecl", "converter", "MlirTypeConverter")
+      ]),
+      typed_node("FunctionDecl", "mlirContextCreate", "MlirContext (void)", [
+        node("FullComment", [], [
+          node("ParagraphComment", [], [node("TextComment", text: " Creates a fresh MLIR context.")])
+        ])
+      ])
+    ])
     |> Extract.from_clang_ast()
   end
+
+  defp node(kind, attributes, inner \\ []),
+    do: Map.new([{:kind, kind}, {:inner, inner} | attributes], fn {key, value} -> {Atom.to_string(key), value} end)
+
+  defp typed_node(kind, name, type, inner \\ []), do: node(kind, [name: name, type: %{"qualType" => type}], inner)
 
   @type render_mode() :: :all | :json | :report_only
 
@@ -155,47 +101,27 @@ defmodule Kinda.Wrapper.Example do
 
     case output_mode(opts) do
       :json ->
-        manifest
-        |> Generate.callback_bridge_manifest(policy)
-        |> encode_json()
-        |> Kernel.<>("\n")
+        manifest |> Generate.callback_bridge_manifest(policy) |> encode_json() |> Kernel.<>("\n")
 
       :report_only ->
-        [
-          "== Callback Bridge Report ==\n",
-          Generate.render_callback_bridge_report(manifest, policy),
-          "\n"
-        ]
+        ["== Callback Bridge Report ==\n", Generate.render_callback_bridge_report(manifest, policy), "\n"]
         |> IO.iodata_to_binary()
 
       :all ->
         [
-          "== Elixir Manifest ==\n",
-          Generate.render_elixir_manifest(manifest, policy),
-          "\n\n== Declaration Manifest ==\n",
-          manifest
-          |> Generate.declaration_manifest(policy)
-          |> encode_json(),
-          "\n\n== Derived Signature Manifest ==\n",
-          manifest
-          |> Generate.signature_manifest(policy)
-          |> encode_json(),
-          "\n\n== Callback Bridge Report ==\n",
-          Generate.render_callback_bridge_report(manifest, policy),
-          "\n\n== Callback Bridge Manifest ==\n",
-          manifest
-          |> Generate.callback_bridge_manifest(policy)
-          |> encode_json(),
-          "\n"
+          {"Elixir Manifest", Generate.render_elixir_manifest(manifest, policy)},
+          {"Declaration Manifest", encode_json(Generate.declaration_manifest(manifest, policy))},
+          {"Derived Signature Manifest", encode_json(Generate.signature_manifest(manifest, policy))},
+          {"Callback Bridge Report", Generate.render_callback_bridge_report(manifest, policy)},
+          {"Callback Bridge Manifest", encode_json(Generate.callback_bridge_manifest(manifest, policy))}
         ]
-        |> IO.iodata_to_binary()
+        |> Enum.map_join("\n\n", fn {title, content} -> "== #{title} ==\n#{content}" end)
+        |> Kernel.<>("\n")
     end
   end
 
   @spec run(keyword()) :: :ok
-  def run(opts \\ []) do
-    IO.write(render(opts))
-  end
+  def run(opts \\ []), do: IO.write(render(opts))
 
   defp output_mode(opts) do
     cond do
@@ -205,11 +131,5 @@ defmodule Kinda.Wrapper.Example do
     end
   end
 
-  defp encode_json(term) do
-    apply(json_mod(), :encode!, [term])
-  end
-
-  defp json_mod do
-    if Version.match?(System.version(), "< 1.18.0"), do: Jason, else: JSON
-  end
+  defp encode_json(term), do: JSON.encode!(term)
 end

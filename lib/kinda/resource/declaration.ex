@@ -31,8 +31,7 @@ defmodule Kinda.Resource.Declaration do
   end
 
   @spec supports_upgrade?(t()) :: boolean()
-  def supports_upgrade?(%__MODULE__{upgrade: :takeover}), do: true
-  def supports_upgrade?(%__MODULE__{}), do: false
+  def supports_upgrade?(%__MODULE__{upgrade: upgrade}), do: upgrade == :takeover
 
   defp validate!(%__MODULE__{abi_version: version}) when not is_integer(version) or version < 1,
     do: raise(ArgumentError, "resource ABI version must be a positive integer")

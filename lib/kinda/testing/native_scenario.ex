@@ -35,11 +35,7 @@ defmodule Kinda.Testing.NativeScenario do
 
   defp run_steps([], _resources, _directory), do: :ok
 
-  defp run_steps(
-         [{:upgrade, module, application, library} | steps],
-         resources,
-         directory
-       ) do
+  defp run_steps([{:upgrade, module, application, library} | steps], resources, directory) do
     snapshot = NIFUpgrade.remember!(module)
     nif_file = NIFUpgrade.copy_library!(application, library, directory)
     {:module, ^module, _binary, _load_result} = NIFUpgrade.load!(module, nif_file)
@@ -56,47 +52,30 @@ defmodule Kinda.Testing.NativeScenario do
     run_steps(steps, resources, directory)
   end
 
-  defp run_step({:call, name, call}, resources) do
-    Map.put(resources, name, invoke(call, resources))
-  end
+  defp run_step({:call, name, call}, resources), do: Map.put(resources, name, invoke(call, resources))
 
-  defp run_step({:call, call}, resources) do
-    _result = invoke(call, resources)
-    resources
-  end
+  defp run_step({:drop, name}, resources), do: Map.delete(resources, name)
 
-  defp run_step({:drop, name}, resources) do
-    Map.delete(resources, name)
-  end
-
-  defp run_step({:expect, expected, call}, resources) do
-    actual = invoke(call, resources)
-
-    if actual != expected do
-      raise "native scenario expected #{inspect(expected)}, got: #{inspect(actual)}"
+  defp run_step(step, resources) do
+    case step do
+      {:call, call} -> invoke(call, resources)
+      {:expect, expected, call} -> expect!(expected, invoke(call, resources))
+      {:eventually_expect, expected, call} -> eventually_expect(expected, call, resources, 100)
+      {:purge, module} -> :code.purge(module)
+      :garbage_collect -> :erlang.garbage_collect()
     end
 
     resources
   end
 
-  defp run_step({:eventually_expect, expected, call}, resources) do
-    eventually_expect(expected, call, resources, 100)
-    resources
-  end
+  defp expect!(expected, actual) when expected == actual, do: :ok
+  defp expect!(expected, actual), do: expectation_failed(expected, actual)
 
-  defp run_step({:purge, module}, resources) do
-    :code.purge(module)
-    resources
-  end
+  defp expectation_failed(expected, actual),
+    do: raise("native scenario expected #{inspect(expected)}, got: #{inspect(actual)}")
 
-  defp run_step(:garbage_collect, resources) do
-    :erlang.garbage_collect()
-    resources
-  end
-
-  defp invoke({module, function, arguments}, resources) do
-    apply(module, function, Enum.map(arguments, &resolve(&1, resources)))
-  end
+  defp invoke({module, function, arguments}, resources),
+    do: apply(module, function, Enum.map(arguments, &resolve(&1, resources)))
 
   defp resolve({:resource, name}, resources), do: Map.fetch!(resources, name)
   defp resolve(value, _resources), do: value
@@ -113,10 +92,7 @@ defmodule Kinda.Testing.NativeScenario do
     end
   end
 
-  defp eventually_expect(expected, call, resources, 0) do
-    actual = invoke(call, resources)
-    raise "native scenario expected #{inspect(expected)}, got: #{inspect(actual)}"
-  end
+  defp eventually_expect(expected, call, resources, 0), do: expectation_failed(expected, invoke(call, resources))
 
   defp scenario_directory! do
     directory =
