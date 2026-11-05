@@ -2,7 +2,10 @@ defmodule Kinda.Lua.Build do
   @moduledoc false
   @version "5.4.8"
   @checksum "4f18ddae154e793e46eeab727c59ef1c0c0c2b744e7b94219710d76f530629ae"
-  @url "https://www.lua.org/ftp/lua-#{@version}.tar.gz"
+  @urls [
+    "https://www.lua.org/ftp/lua-#{@version}.tar.gz",
+    "https://sources.buildroot.net/lua/lua-#{@version}.tar.gz"
+  ]
 
   def run([cache, prefix, erts_include]) do
     root = Path.expand("..", __DIR__)
@@ -60,15 +63,30 @@ defmodule Kinda.Lua.Build do
       ]
     ]
 
-    case :httpc.request(:get, {String.to_charlist(@url), []}, options, body_format: :binary) do
-      {:ok, {{_version, 200, _reason}, _headers, body}} ->
-        File.write!(destination, body)
+    result =
+      Enum.reduce_while(@urls, [], fn url, failures ->
+        IO.puts("Downloading Lua #{@version} from #{url}")
 
-      {:ok, {{_version, status, reason}, _headers, _body}} ->
-        raise "Lua source download failed with #{status}: #{reason}"
+        case :httpc.request(:get, {String.to_charlist(url), []}, options, body_format: :binary) do
+          {:ok, {{_version, 200, _reason}, _headers, body}} ->
+            if valid_contents?(body) do
+              File.write!(destination, body)
+              {:halt, :ok}
+            else
+              {:cont, [{url, :checksum_mismatch} | failures]}
+            end
 
-      {:error, reason} ->
-        raise "Lua source download failed: #{inspect(reason)}"
+          {:ok, {{_version, status, reason}, _headers, _body}} ->
+            {:cont, [{url, {status, reason}} | failures]}
+
+          {:error, reason} ->
+            {:cont, [{url, reason} | failures]}
+        end
+      end)
+
+    case result do
+      :ok -> :ok
+      failures -> raise "Lua source download failed: #{inspect(Enum.reverse(failures))}"
     end
   end
 
@@ -96,12 +114,15 @@ defmodule Kinda.Lua.Build do
   defp valid_checksum?(path) do
     case File.read(path) do
       {:ok, contents} ->
-        :crypto.hash(:sha256, contents) |> Base.encode16(case: :lower) == @checksum
+        valid_contents?(contents)
 
       {:error, _reason} ->
         false
     end
   end
+
+  defp valid_contents?(contents),
+    do: :crypto.hash(:sha256, contents) |> Base.encode16(case: :lower) == @checksum
 
   defp run!(command, args, directory) do
     {output, status} = System.cmd(command, args, cd: directory, stderr_to_stdout: true)
