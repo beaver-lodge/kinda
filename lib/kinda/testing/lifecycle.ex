@@ -22,8 +22,7 @@ defmodule Kinda.Testing.Lifecycle do
         all_permutations(base)
 
       count when is_integer(count) and count > 0 ->
-        [base, Enum.reverse(base) | seeded_permutations(base, seed, count)]
-        |> Enum.uniq()
+        [base, Enum.reverse(base) | seeded_permutations(base, seed, count)] |> Enum.uniq()
 
       invalid ->
         raise ArgumentError,
@@ -53,9 +52,7 @@ defmodule Kinda.Testing.Lifecycle do
     :ok
   end
 
-  @spec owner_graph!([Declaration.t()]) :: %{
-          optional(atom() | binary()) => atom() | binary() | nil
-        }
+  @spec owner_graph!([Declaration.t()]) :: %{optional(atom() | binary()) => atom() | binary() | nil}
   def owner_graph!(declarations) do
     graph = Map.new(declarations, &{&1.identity, &1.owner})
 
@@ -71,9 +68,7 @@ defmodule Kinda.Testing.Lifecycle do
   defp run_order!(declarations, order, setup, release, probe) do
     resources = setup.()
 
-    Enum.each(declarations, fn declaration ->
-      Map.fetch!(resources, declaration.identity)
-    end)
+    Enum.each(declarations, fn declaration -> Map.fetch!(resources, declaration.identity) end)
 
     _remaining =
       Enum.reduce(order, resources, fn declaration, remaining ->

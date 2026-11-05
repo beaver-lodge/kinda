@@ -45,6 +45,13 @@ defmodule KindaExampleTest do
     assert Exception.message(error) =~ "argument #19 (value_19)"
   end
 
+  test "wraps the declared arguments of variadic C functions" do
+    assert NIF.kinda_example_variadic_identity(42) |> Native.to_term() == 42
+
+    assert %Kinda.CallError{phase: :argument_decode, argument_index: 1} =
+             catch_error(NIF.kinda_example_variadic_identity("42"))
+  end
+
   test "custom make" do
     assert 100 ==
              NIF.CInt.make(100)
@@ -179,6 +186,41 @@ defmodule KindaExampleTest do
 
     assert :ok = Raw.callback_fixture_invoke_on_worker(registration, 1)
     assert_receive {:callback_fixture_error, :FailedToSendCallback}
+  end
+
+  test "callback waits support unbounded and maximum unsigned deadlines" do
+    callback = fn _, _ -> :ok end
+
+    for timeout <- [nil, 18_446_744_073_709_551_615] do
+      registration = Raw.callback_fixture_register(callback, nil, timeout)
+      assert :ok = Raw.callback_fixture_invoke_on_worker(registration, 1)
+      assert_receive {:invoke, token, ^callback, _id, _handle, _range}
+      assert :ok = Raw.callback_fixture_reply_code(token, true, 7)
+      assert_receive {:callback_fixture_done, :replied, true, 7, 0}
+      assert :stale = Raw.callback_fixture_cancel(token)
+    end
+  end
+
+  test "competing callback completions publish exactly one terminal result" do
+    callback = fn _, _ -> :ok end
+
+    for _ <- 1..10 do
+      registration = Raw.callback_fixture_register(callback, nil, 10_000)
+      assert :ok = Raw.callback_fixture_invoke_on_worker(registration, 1)
+      assert_receive {:invoke, token, ^callback, _id, _handle, _range}
+
+      results =
+        [
+          Task.async(fn -> Raw.callback_fixture_reply_code(token, true, 7) end),
+          Task.async(fn -> Raw.callback_fixture_cancel(token) end)
+        ]
+        |> Task.await_many()
+
+      assert Enum.sort(results) == [:ok, :stale]
+      assert_receive {:callback_fixture_done, status, success, code, 0}, 1_000
+      assert {status, success, code} in [{:replied, true, 7}, {:canceled, false, 0}]
+      assert :stale = Raw.callback_fixture_reply_code(token, true, 9)
+    end
   end
 
   @tag :tmp_dir

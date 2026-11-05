@@ -1,7 +1,8 @@
 # Used by "mix format"
 [
+  subdirectories: ["lib"],
   inputs:
-    ["{mix,.formatter}.exs", "{config,lib,test}/**/*.{ex,exs}", "scripts/*.exs"] ++
+    ["{mix,.formatter}.exs", "{config,test}/**/*.{ex,exs}", "scripts/*.exs"] ++
       [
         "packages/kinda_example/{mix,.formatter}.exs",
         "packages/kinda_example/{config,lib,test}/**/*.{ex,exs}"

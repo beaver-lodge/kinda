@@ -22,15 +22,8 @@ defmodule Kinda.Wrapper.Function do
   def typespec_params(%__MODULE__{} = function, emitted_params, mapper)
       when is_list(emitted_params) and is_function(mapper, 1) do
     lookup =
-      function.params
-      |> Enum.map(&String.to_atom/1)
-      |> Enum.zip(function.param_ctypes)
-      |> Map.new()
+      function.params |> Enum.map(&String.to_atom/1) |> Enum.zip(function.param_ctypes) |> Map.new()
 
-    Enum.map(emitted_params, fn param ->
-      lookup
-      |> Map.get(param)
-      |> mapper.()
-    end)
+    Enum.map(emitted_params, fn param -> lookup |> Map.get(param) |> mapper.() end)
   end
 end

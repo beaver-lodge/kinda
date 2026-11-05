@@ -22,13 +22,9 @@ defmodule Kinda.CallbackRuntime do
   validate a resource and project its native handle, before completing the
   reply token.
   """
-  @spec invoke_reply(
-          reply_token :: term(),
-          callback :: (-> callback_result(value)),
-          reply :: (term(), outcome(value) -> term()),
-          before_reply :: (outcome(value) -> term())
-        ) :: outcome(value)
-        when value: term()
+  @spec invoke_reply(term(), (-> callback_result(v)), (term(), outcome(v) -> term()), (outcome(v) -> term())) ::
+          outcome(v)
+        when v: term()
   def invoke_reply(reply_token, callback, reply, before_reply \\ fn _outcome -> :ok end)
       when is_function(callback, 0) and is_function(reply, 2) and
              is_function(before_reply, 1) do
@@ -37,43 +33,28 @@ defmodule Kinda.CallbackRuntime do
     outcome
   end
 
-  @spec invoke(
-          reply_token :: term(),
-          callback :: (-> callback_result(value)),
-          reply :: (term(), boolean() -> term()),
-          before_reply :: (outcome(value) -> term())
-        ) :: outcome(value)
-        when value: term()
+  @spec invoke(term(), (-> callback_result(v)), (term(), boolean() -> term()), (outcome(v) -> term())) ::
+          outcome(v)
+        when v: term()
   def invoke(reply_token, callback, reply, before_reply \\ fn _outcome -> :ok end)
       when is_function(callback, 0) and is_function(reply, 2) and
-             is_function(before_reply, 1) do
-    invoke_reply(
-      reply_token,
-      callback,
-      fn token, outcome -> reply.(token, match?({:ok, _}, outcome)) end,
-      before_reply
-    )
-  end
+             is_function(before_reply, 1),
+      do: invoke_reply(reply_token, callback, &reply.(&1, match?({:ok, _}, &2)), before_reply)
 
   defp capture(callback) do
-    try do
-      callback.() |> normalize!()
-    catch
-      kind, reason -> {:exception, kind, reason, __STACKTRACE__}
-    end
+    callback.() |> normalize!()
+  catch
+    kind, reason -> {:exception, kind, reason, __STACKTRACE__}
   end
 
   defp observe(outcome, before_reply) do
-    try do
-      before_reply.(outcome)
-      outcome
-    catch
-      kind, reason -> {:exception, kind, reason, __STACKTRACE__}
-    end
+    before_reply.(outcome)
+    outcome
+  catch
+    kind, reason -> {:exception, kind, reason, __STACKTRACE__}
   end
 
-  defp normalize!({:ok, _value} = result), do: result
-  defp normalize!({:error, _value} = result), do: result
+  defp normalize!({status, _value} = result) when status in [:ok, :error], do: result
 
   defp normalize!(other) do
     raise ArgumentError,

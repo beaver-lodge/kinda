@@ -5,10 +5,7 @@ defmodule Kinda.Wrapper.CField do
 
   alias Kinda.Wrapper.CType
 
-  @type t() :: %__MODULE__{
-          name: String.t(),
-          ctype: CType.t() | nil
-        }
+  @type t() :: %__MODULE__{name: String.t(), ctype: CType.t() | nil}
 
   defstruct name: nil, ctype: nil
 end

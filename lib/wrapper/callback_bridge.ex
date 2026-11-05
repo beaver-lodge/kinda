@@ -15,11 +15,7 @@ defmodule Kinda.Wrapper.CallbackBridge do
   @type owner :: :beam_process | :native_owner | :unspecified
   @type destructor :: :reply_token_resource | :consumer_callback | :native_owner | :unspecified
   @type lifetime :: :invocation | :registration | :native_owner | :unspecified
-  @type facet ::
-          :beam_callback
-          | :lifetime_contract
-          | :scheduler_contract
-          | :rich_input_decoder
+  @type facet :: :beam_callback | :lifetime_contract | :scheduler_contract | :rich_input_decoder
 
   @enforce_keys [:function, :reason]
   defstruct function: nil,
@@ -50,19 +46,8 @@ defmodule Kinda.Wrapper.CallbackBridge do
 
   @spec required(function_name(), keyword()) :: t()
   def required(function, opts \\ []) do
-    %__MODULE__{
-      function: function,
-      reason: :callback_bridge_required,
-      unblock_path: Keyword.get(opts, :unblock_path, :callback_bridge_runtime),
-      scheduler: Keyword.get(opts, :scheduler, :unspecified),
-      facets: Keyword.get(opts, :facets, []),
-      runtime: :pending,
-      runtime_backed: false,
-      owner: Keyword.get(opts, :owner, :unspecified),
-      destructor: Keyword.get(opts, :destructor, :unspecified),
-      lifetime: Keyword.get(opts, :lifetime, :unspecified),
-      timeout_ms: Keyword.get(opts, :timeout_ms)
-    }
+    defaults = %__MODULE__{function: function, reason: :callback_bridge_required}
+    with_options(defaults, opts, ~w(unblock_path scheduler facets owner destructor lifetime timeout_ms)a)
   end
 
   @doc """
@@ -73,18 +58,25 @@ defmodule Kinda.Wrapper.CallbackBridge do
   """
   @spec runtime_backed(function_name(), keyword()) :: t()
   def runtime_backed(function, opts \\ []) do
-    %__MODULE__{
+    defaults = %__MODULE__{
       function: function,
       reason: nil,
       unblock_path: nil,
-      scheduler: Keyword.get(opts, :scheduler, :foreign_thread),
-      facets: Keyword.get(opts, :facets, []),
+      scheduler: :foreign_thread,
       runtime: :dispatcher,
       runtime_backed: true,
       owner: Keyword.fetch!(opts, :owner),
       destructor: Keyword.fetch!(opts, :destructor),
       lifetime: Keyword.fetch!(opts, :lifetime),
-      timeout_ms: Keyword.get(opts, :timeout_ms, 30_000)
+      timeout_ms: 30_000
     }
+
+    with_options(defaults, opts, [:scheduler, :facets, :timeout_ms])
   end
+
+  defp with_options(defaults, opts, keys),
+    do:
+      Enum.reduce(keys, defaults, fn key, acc ->
+        Map.replace!(acc, key, Keyword.get(opts, key, Map.fetch!(acc, key)))
+      end)
 end

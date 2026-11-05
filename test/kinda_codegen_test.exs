@@ -97,7 +97,7 @@ defmodule Kinda.CodeGenTest do
 
   test "emits docs on generated public wrappers" do
     {ast, _exports} =
-      CodeGen.nif_ast(
+      CodeGen.nif_decls(
         [],
         [
           %NIFDecl{
@@ -108,9 +108,9 @@ defmodule Kinda.CodeGenTest do
             return_typespec: TypeSpecRef.integer()
           }
         ],
-        Module.concat(__MODULE__, GeneratedDocs),
-        Codec
+        Module.concat(__MODULE__, GeneratedDocs)
       )
+      |> CodeGen.nif_ast_from_decls(Module.concat(__MODULE__, GeneratedDocs), Codec)
 
     ast_string = ast |> then(&{:__block__, [], &1}) |> Macro.to_string()
 
@@ -189,7 +189,7 @@ defmodule Kinda.CodeGenTest do
           ]
         }
       )
-      |> CodeGen.type_decls()
+      |> DeclarationManifest.type_decls()
 
     assert type_decls == [
              %TypeDecl{
@@ -383,12 +383,12 @@ defmodule Kinda.CodeGenTest do
 
   test "emits raw companion entries for kind-scoped generated functions" do
     {ast, _exports} =
-      CodeGen.nif_ast(
+      CodeGen.nif_decls(
         [%Kinda.CodeGen.KindDecl{module_name: Module.concat(__MODULE__, Kind)}],
         [],
-        Module.concat(__MODULE__, GeneratedKinds),
-        Codec
+        Module.concat(__MODULE__, GeneratedKinds)
       )
+      |> CodeGen.nif_ast_from_decls(Module.concat(__MODULE__, GeneratedKinds), Codec)
 
     ast_string = ast |> then(&{:__block__, [], &1}) |> Macro.to_string()
 

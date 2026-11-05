@@ -26,12 +26,7 @@ defmodule Kinda.Testing.Isolated do
       |> Kernel.++(["-e", "Kinda.Testing.Isolated.Runner.main()"])
 
     port =
-      Port.open({:spawn_executable, executable}, [
-        :binary,
-        :exit_status,
-        {:cd, working_directory},
-        {:args, args}
-      ])
+      Port.open({:spawn_executable, executable}, [:binary, :exit_status, {:cd, working_directory}, {:args, args}])
 
     payload = scenario |> :erlang.term_to_binary() |> Base.encode64()
     true = Port.command(port, <<byte_size(payload)::unsigned-big-32, payload::binary>>)
@@ -58,23 +53,14 @@ defmodule Kinda.Testing.Isolated do
   end
 
   defp extract_reply(buffer) do
-    case :binary.match(buffer, @reply_marker) do
-      {offset, marker_size} ->
-        framed =
-          binary_part(buffer, offset + marker_size, byte_size(buffer) - offset - marker_size)
+    case :binary.split(buffer, @reply_marker) do
+      [_prefix, <<size::unsigned-big-32, payload::binary-size(size), _rest::binary>>] ->
+        {:ok, :erlang.binary_to_term(payload)}
 
-        extract_framed_reply(framed)
-
-      :nomatch ->
+      _incomplete ->
         :more
     end
   end
-
-  defp extract_framed_reply(<<size::unsigned-big-32, payload::binary-size(size), _rest::binary>>) do
-    {:ok, :erlang.binary_to_term(payload)}
-  end
-
-  defp extract_framed_reply(_incomplete), do: :more
 
   defp decode_result({:ok, value}), do: value
 
@@ -83,7 +69,5 @@ defmodule Kinda.Testing.Isolated do
     raise RuntimeError, "isolated BEAM failed:\n#{message}"
   end
 
-  defp elixir_executable! do
-    System.find_executable("elixir") || raise "cannot find the elixir executable"
-  end
+  defp elixir_executable!, do: System.find_executable("elixir") || raise("cannot find the elixir executable")
 end

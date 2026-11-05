@@ -14,69 +14,57 @@ defmodule Kinda.CodeGen do
 
   alias Kinda.Declaration
 
-  alias Kinda.CodeGen.{
-    DeclarationManifest,
-    KindDecl,
-    NIFDecl,
-    TypeDecl,
-    TypeSpecRef
-  }
+  alias Kinda.CodeGen.{DeclarationManifest, KindDecl, NIFDecl, TypeDecl, TypeSpecRef}
 
   @type declaration_surfaces :: Kinda.CodeGen.DeclarationSurfaces.t()
 
-  defmacro __using__(opts) do
-    quote do
-      mod = Keyword.fetch!(unquote(opts), :with)
-      root = Keyword.fetch!(unquote(opts), :root)
-      codec = Keyword.fetch!(unquote(opts), :codec)
-      Code.ensure_compiled!(mod)
-      surfaces = Declaration.from_generator(mod, root)
-      decls = Declaration.nif_decls(surfaces)
-      type_decls = Declaration.type_decls(surfaces)
+  defmacro __using__(opts), do: quote(do: Kinda.CodeGen.define(unquote(opts), __ENV__))
 
-      surface = Keyword.get(unquote(opts), :surface, :combined)
+  @doc false
+  def define(opts, env) do
+    mod = Keyword.fetch!(opts, :with)
+    root = Keyword.fetch!(opts, :root)
+    codec = Keyword.fetch!(opts, :codec)
+    Code.ensure_compiled!(mod)
+    surfaces = Declaration.from_generator(mod, root)
+    decls = Declaration.nif_decls(surfaces)
+    surface = Keyword.get(opts, :surface, :combined)
 
-      {ast, mf} =
-        case surface do
-          :combined ->
-            Kinda.CodeGen.nif_ast_from_decls(decls, root, codec)
+    {ast, exports} =
+      case surface do
+        :combined ->
+          nif_ast_from_decls(decls, root, codec)
 
-          :public ->
-            raw_module = Keyword.fetch!(unquote(opts), :raw_module)
-            Kinda.CodeGen.public_nif_ast_from_decls(decls, raw_module, codec)
+        :public ->
+          public_nif_ast_from_decls(decls, Keyword.fetch!(opts, :raw_module), codec)
 
-          :raw ->
-            Kinda.CodeGen.raw_nif_ast_from_decls(decls)
+        :raw ->
+          raw_nif_ast_from_decls(decls)
 
-          other ->
-            raise Kinda.GenerationError,
-              message: "unsupported code generation surface",
-              stage: :module_generation,
-              reason: :invalid_surface,
-              expected: [:combined, :public, :raw],
-              actual: other
-        end
-
-      type_ast = if surface == :raw, do: [], else: Kinda.CodeGen.type_decls_ast(type_decls)
-
-      (type_ast ++ ast)
-      |> Code.eval_quoted([], __ENV__)
-
-      if surface != :raw do
-        Module.put_attribute(__MODULE__, :kinda_declaration_generator, mod)
-        Module.put_attribute(__MODULE__, :kinda_declaration_root, root)
-
-        @doc false
-        def __kinda_declaration_surfaces__ do
-          Kinda.Declaration.from_generator(
-            @kinda_declaration_generator,
-            @kinda_declaration_root
-          )
-        end
+        other ->
+          raise Kinda.GenerationError,
+            message: "unsupported code generation surface",
+            stage: :module_generation,
+            reason: :invalid_surface,
+            expected: [:combined, :public, :raw],
+            actual: other
       end
 
-      mf
-    end
+    metadata =
+      if surface == :raw do
+        []
+      else
+        [
+          quote do
+            @doc false
+            def __kinda_declaration_surfaces__, do: Kinda.Declaration.from_generator(unquote(mod), unquote(root))
+          end
+          | type_decls_ast(Declaration.type_decls(surfaces))
+        ]
+      end
+
+    Code.eval_quoted(metadata ++ ast, [], env)
+    exports
   end
 
   @type nif_decl_input :: NIFDecl.t() | {atom(), integer()} | {atom(), [atom()]}
@@ -90,34 +78,13 @@ defmodule Kinda.CodeGen do
   @optional_callbacks kinds: 0
   def kinds(), do: []
 
-  def raw_module(root_module) when is_atom(root_module) do
-    Module.concat(root_module, Raw)
-  end
+  def raw_module(root_module) when is_atom(root_module), do: Module.concat(root_module, Raw)
 
   def nif_decls(kinds, nifs, root_module) do
-    # generate stubs for generated NIFs
-    extra_kind_nifs =
-      kinds
-      |> Enum.map(&NIFDecl.from_resource_kind/1)
-      |> List.flatten()
-
-    nifs = nifs ++ extra_kind_nifs
-
-    for nif <- nifs do
+    for nif <- nifs ++ Enum.flat_map(kinds, &NIFDecl.from_resource_kind/1) do
       case nif do
-        {wrapper_name, arity} when is_atom(wrapper_name) and is_integer(arity) ->
-          %NIFDecl{
-            wrapper_name: wrapper_name,
-            nif_name: Module.concat(root_module, wrapper_name),
-            params: arity
-          }
-
-        {wrapper_name, params} when is_atom(wrapper_name) and is_list(params) ->
-          %NIFDecl{
-            wrapper_name: wrapper_name,
-            nif_name: Module.concat(root_module, wrapper_name),
-            params: params
-          }
+        {name, params} when is_atom(name) and (is_integer(params) or is_list(params)) ->
+          %NIFDecl{wrapper_name: name, nif_name: Module.concat(root_module, name), params: params}
 
         %NIFDecl{} ->
           normalize_nif_decl(nif, root_module)
@@ -125,113 +92,46 @@ defmodule Kinda.CodeGen do
     end
   end
 
-  def nif_ast(kinds, nifs, root_module, codec) do
-    kinds
-    |> nif_decls(nifs, root_module)
-    |> nif_ast_from_decls(root_module, codec)
-  end
-
   def nif_ast_from_decls(decls, root_module, codec) do
-    {entries, raw_entries} =
-      for nif <- decls do
-        {args_ast, arity} =
-          if is_list(nif.params) do
-            {Enum.map(nif.params, &Macro.var(&1, __MODULE__)), length(nif.params)}
-          else
-            {Macro.generate_unique_arguments(nif.params, __MODULE__), nif.params}
-          end
+    {entries, proxies} =
+      Enum.map(decls, fn nif ->
+        {args, arity} = arguments_for(nif)
+        name = normalize_function_name(nif.wrapper_name)
+        public? = nif.nif_name != name
 
-        %NIFDecl{wrapper_name: wrapper_name, nif_name: nif_name} = nif
+        wrapper =
+          if public?, do: wrapper_ast(nif, name, args, arity, raw_module(root_module), codec)
 
-        wrapper_name =
-          if is_bitstring(wrapper_name) do
-            String.to_atom(wrapper_name)
-          else
-            wrapper_name
-          end
+        raw_call = remote_call_ast(root_module, nif.nif_name, args)
 
-        wrapper_ast =
-          if nif_name != wrapper_name do
-            call_error_context = call_error_context(nif, wrapper_name, arity)
-
-            raw_args =
-              Enum.map(args_ast, fn arg ->
-                quote do
-                  Kinda.unwrap_ref(unquote(arg))
-                end
-              end)
-
-            raw_call = remote_call_ast(raw_module(root_module), wrapper_name, raw_args)
-
-            quote do
-              unquote(
-                typespec_attribute_ast(wrapper_name, nif.param_typespecs, nif.return_typespec)
-              )
-
-              unquote(doc_attribute_ast(nif.doc))
-
-              def unquote(wrapper_name)(unquote_splicing(args_ast)) do
-                try do
-                  unquote(raw_call)
-                  |> unquote(codec).normalize()
-                rescue
-                  error in Kinda.CallError ->
-                    reraise Kinda.CallError.enrich(
-                              error,
-                              unquote(Macro.escape(call_error_context)),
-                              [unquote_splicing(args_ast)]
-                            ),
-                            __STACKTRACE__
-                end
-              end
-            end
-          end
-
-        raw_call = remote_call_ast(root_module, nif_name, args_ast)
-
-        raw_entry_ast =
+        proxy =
           quote do
             @doc false
-            def unquote(wrapper_name)(unquote_splicing(args_ast)) do
-              unquote(raw_call)
-            end
+            def unquote(name)(unquote_splicing(args)), do: unquote(raw_call)
           end
 
         ast =
           quote do
-            unquote(
-              if(nif_name == wrapper_name,
-                do:
-                  typespec_attribute_ast(wrapper_name, nif.param_typespecs, nif.return_typespec),
-                else: nil
-              )
-            )
+            unquote(if not public?, do: typespec_attribute_ast(name, nif.param_typespecs, nif.return_typespec))
 
-            unquote(doc_attribute_ast(if(nif_name == wrapper_name, do: nif.doc, else: false)))
-
-            def unquote(nif_name)(unquote_splicing(args_ast)),
-              do: :erlang.nif_error(:not_loaded)
-
-            unquote(wrapper_ast)
+            unquote(doc_attribute_ast(if public?, do: false, else: nif.doc))
+            def unquote(nif.nif_name)(unquote_splicing(args)), do: :erlang.nif_error(:not_loaded)
+            unquote(wrapper)
           end
 
-        {{ast, {nif_name, arity}}, raw_entry_ast}
-      end
+        {{ast, {nif.nif_name, arity}}, proxy}
+      end)
       |> Enum.unzip()
 
     {asts, exports} = Enum.unzip(entries)
 
     raw_module_ast =
-      case Enum.reject(raw_entries, &is_nil/1) do
-        [] ->
-          nil
-
-        raw_entries ->
-          quote do
-            defmodule Raw do
-              (unquote_splicing(raw_entries))
-            end
+      if proxies != [] do
+        quote do
+          defmodule Raw do
+            (unquote_splicing(proxies))
           end
+        end
       end
 
     {asts ++ List.wrap(raw_module_ast), exports}
@@ -244,54 +144,30 @@ defmodule Kinda.CodeGen do
   detail of resource modules rather than part of the public wrapper surface.
   """
   def public_nif_ast_from_decls(decls, raw_module, codec) do
-    decls
-    |> Enum.flat_map(fn nif ->
-      %NIFDecl{wrapper_name: wrapper_name, nif_name: nif_name} = nif
-
-      if nif_name == wrapper_name do
-        []
-      else
-        {args_ast, arity} = arguments_for(nif)
-        wrapper_name = normalize_function_name(wrapper_name)
-        call_error_context = call_error_context(nif, wrapper_name, arity)
-
-        raw_args =
-          Enum.map(args_ast, fn arg ->
-            quote do
-              Kinda.unwrap_ref(unquote(arg))
-            end
-          end)
-
-        raw_call = remote_call_ast(raw_module, wrapper_name, raw_args)
-
-        ast =
-          quote do
-            unquote(
-              typespec_attribute_ast(wrapper_name, nif.param_typespecs, nif.return_typespec)
-            )
-
-            unquote(doc_attribute_ast(nif.doc))
-
-            def unquote(wrapper_name)(unquote_splicing(args_ast)) do
-              try do
-                unquote(raw_call)
-                |> unquote(codec).normalize()
-              rescue
-                error in Kinda.CallError ->
-                  reraise Kinda.CallError.enrich(
-                            error,
-                            unquote(Macro.escape(call_error_context)),
-                            [unquote_splicing(args_ast)]
-                          ),
-                          __STACKTRACE__
-              end
-            end
-          end
-
-        [{ast, {wrapper_name, arity}}]
-      end
-    end)
+    for nif <- decls, nif.nif_name != nif.wrapper_name do
+      {args, arity} = arguments_for(nif)
+      name = normalize_function_name(nif.wrapper_name)
+      {wrapper_ast(nif, name, args, arity, raw_module, codec), {name, arity}}
+    end
     |> Enum.unzip()
+  end
+
+  defp wrapper_ast(nif, name, args, arity, raw_module, codec) do
+    context = Macro.escape(call_error_context(nif, name, arity))
+    raw_args = Enum.map(args, &quote(do: Kinda.unwrap_ref(unquote(&1))))
+    call = remote_call_ast(raw_module, name, raw_args)
+
+    quote do
+      unquote(typespec_attribute_ast(name, nif.param_typespecs, nif.return_typespec))
+      unquote(doc_attribute_ast(nif.doc))
+
+      def unquote(name)(unquote_splicing(args)) do
+        unquote(call) |> unquote(codec).normalize()
+      rescue
+        error in Kinda.CallError ->
+          reraise Kinda.CallError.enrich(error, unquote(context), [unquote_splicing(args)]), __STACKTRACE__
+      end
+    end
   end
 
   @doc """
@@ -302,50 +178,25 @@ defmodule Kinda.CodeGen do
   kind remains unambiguous.
   """
   def raw_nif_ast_from_decls(decls) do
-    decls
-    |> Enum.map(fn nif ->
-      {args_ast, arity} = arguments_for(nif)
-      %NIFDecl{wrapper_name: wrapper_name, nif_name: nif_name} = nif
-
-      raw_name =
-        if nif_name == wrapper_name,
-          do: nif_name,
-          else: normalize_function_name(wrapper_name)
+    for nif <- decls do
+      {args, arity} = arguments_for(nif)
+      name = if nif.nif_name == nif.wrapper_name, do: nif.nif_name, else: normalize_function_name(nif.wrapper_name)
 
       ast =
         quote do
           @doc false
-          def unquote(raw_name)(unquote_splicing(args_ast)),
-            do: :erlang.nif_error(:not_loaded)
+          def unquote(name)(unquote_splicing(args)), do: :erlang.nif_error(:not_loaded)
         end
 
-      {ast, {raw_name, arity}}
-    end)
+      {ast, {name, arity}}
+    end
     |> Enum.unzip()
   end
 
-  def type_decls(%DeclarationManifest{} = declaration_manifest),
-    do: DeclarationManifest.type_decls(declaration_manifest)
-
-  def type_decls(nil), do: []
-
-  def type_decls(signature_manifest), do: TypeDecl.from_signature_manifest(signature_manifest)
-
-  def declaration_manifest(nif_decls, type_decls, signature_manifest \\ nil) do
-    DeclarationManifest.from_parts(nif_decls, type_decls, signature_manifest)
-  end
-
-  def record_types_ast(signature_manifest),
-    do: signature_manifest |> type_decls() |> type_decls_ast()
-
-  def type_decls_ast(type_decls) when is_list(type_decls) do
-    Enum.flat_map(type_decls, &type_decl_ast/1)
-  end
+  def type_decls_ast(type_decls) when is_list(type_decls), do: Enum.flat_map(type_decls, &type_decl_ast/1)
 
   defp normalize_nif_decl(%NIFDecl{nif_name: nil, wrapper_name: wrapper_name} = nif, root_module)
-       when not is_nil(wrapper_name) do
-    %{nif | nif_name: Module.concat(root_module, wrapper_name)}
-  end
+       when not is_nil(wrapper_name), do: %{nif | nif_name: Module.concat(root_module, wrapper_name)}
 
   defp normalize_nif_decl(%NIFDecl{} = nif, _root_module), do: nif
 
@@ -367,34 +218,16 @@ defmodule Kinda.CodeGen do
         _ -> nil
       end)
 
-    %{
-      function: wrapper_name,
-      arity: arity,
-      argument_names: argument_names,
-      argument_types: argument_types
-    }
+    %{function: wrapper_name, arity: arity, argument_names: argument_names, argument_types: argument_types}
   end
 
-  defp remote_call_ast(module, function, args) do
-    {{:., [], [module, function]}, [], args}
-  end
+  defp remote_call_ast(module, function, args), do: {{:., [], [module, function]}, [], args}
 
   defp doc_attribute_ast(nil), do: nil
 
-  defp doc_attribute_ast(false) do
-    quote do
-      @doc false
-    end
-  end
+  defp doc_attribute_ast(doc), do: quote(do: @doc(unquote(doc)))
 
-  defp doc_attribute_ast(doc) do
-    quote do
-      @doc unquote(doc)
-    end
-  end
-
-  defp typespec_attribute_ast(_name, nil, _return_type), do: nil
-  defp typespec_attribute_ast(_name, _params, nil), do: nil
+  defp typespec_attribute_ast(_name, params, result) when is_nil(params) or is_nil(result), do: nil
 
   defp typespec_attribute_ast(name, params, return_type) do
     quote do
@@ -403,14 +236,9 @@ defmodule Kinda.CodeGen do
     end
   end
 
-  defp type_decl_ast(%TypeDecl{name: name, doc: doc, typespec: typespec}) do
-    [
-      quote do
-        @typedoc unquote(doc)
-      end,
-      quote do
-        @type unquote(name)() :: unquote(TypeSpecRef.to_quoted(typespec))
-      end
+  defp type_decl_ast(%TypeDecl{name: name, doc: doc, typespec: typespec}),
+    do: [
+      quote(do: @typedoc(unquote(doc))),
+      quote(do: @type(unquote(name)() :: unquote(TypeSpecRef.to_quoted(typespec))))
     ]
-  end
 end

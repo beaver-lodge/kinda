@@ -52,9 +52,7 @@ fn validate_nif_function(comptime f: anytype) void {
 
     switch (@typeInfo(Return)) {
         .error_union => |error_union| {
-            if (error_union.payload != beam.term) {
-                @compileError("Kinda.result.nif function must return an error union containing beam.term");
-            }
+            if (error_union.payload != beam.term) @compileError("Kinda.result.nif function must return an error union containing beam.term");
         },
         else => @compileError("Kinda.result.nif function must return an error union containing beam.term"),
     }
@@ -62,8 +60,4 @@ fn validate_nif_function(comptime f: anytype) void {
 
 pub fn nif(comptime name: [*c]const u8, comptime arity: usize, comptime f: anytype) type {
     return nif_with_flags(name, arity, f, 0);
-}
-
-pub fn wrap(comptime f: anytype) fn (env: beam.env, n: c_int, args: [*c]const beam.term) callconv(.C) beam.term {
-    return nif("", 0, f).exported;
 }

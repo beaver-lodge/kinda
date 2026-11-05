@@ -18,26 +18,18 @@ defmodule Kinda.Precompiler do
   def current_target({:unix, _}) do
     # get current target triplet from `:erlang.system_info/1`
     system_architecture = to_string(:erlang.system_info(:system_architecture))
-    current = String.split(system_architecture, "-", trim: true)
 
-    case length(current) do
-      4 ->
-        {:ok, "#{Enum.at(current, 0)}-#{Enum.at(current, 2)}-#{Enum.at(current, 3)}"}
+    case String.split(system_architecture, "-", trim: true) do
+      [arch, _vendor, os, abi] ->
+        {:ok, "#{arch}-#{os}-#{abi}"}
 
-      3 ->
-        case :os.type() do
-          {:unix, :darwin} ->
-            # could be something like aarch64-apple-darwin21.0.0
-            # but we don't really need the last 21.0.0 part
-            if String.match?(Enum.at(current, 2), ~r/^darwin.*/) do
-              {:ok, "#{Enum.at(current, 0)}-#{Enum.at(current, 1)}-darwin"}
-            else
-              {:ok, system_architecture}
-            end
+      [arch, vendor, os] ->
+        normalized =
+          if :os.type() == {:unix, :darwin} and String.starts_with?(os, "darwin"),
+            do: "#{arch}-#{vendor}-darwin",
+            else: system_architecture
 
-          _ ->
-            {:ok, system_architecture}
-        end
+        {:ok, normalized}
 
       _ ->
         {:error, "cannot decide current target"}
@@ -45,20 +37,11 @@ defmodule Kinda.Precompiler do
   end
 
   @impl ElixirMake.Precompiler
-  def current_target do
-    current_target(:os.type())
-  end
+  def current_target, do: current_target(:os.type())
 
   @impl ElixirMake.Precompiler
-  def all_supported_targets(:fetch) do
-    ~w(
-      aarch64-apple-darwin
-      x86_64-apple-darwin
-      x86_64-linux-gnu
-      aarch64-linux-gnu
-      x86_64-windows-msvc
-    )
-  end
+  def all_supported_targets(:fetch),
+    do: ~w( aarch64-apple-darwin x86_64-apple-darwin x86_64-linux-gnu aarch64-linux-gnu x86_64-windows-msvc )
 
   def all_supported_targets(:compile) do
     {:ok, t} = current_target()
@@ -66,9 +49,7 @@ defmodule Kinda.Precompiler do
   end
 
   @impl ElixirMake.Precompiler
-  def build_native(args) do
-    ElixirMake.Compiler.compile(args)
-  end
+  def build_native(args), do: ElixirMake.Compiler.compile(args)
 
   @impl ElixirMake.Precompiler
   def precompile(args, _target) do

@@ -1,7 +1,7 @@
 defmodule Kinda.ErrorTest do
   use ExUnit.Case, async: true
 
-  alias Kinda.CodeGen.{DeclarationManifest, DeclarationSurfaces, KindDecl}
+  alias Kinda.CodeGen.{DeclarationManifest, DeclarationSurfaces}
 
   defmodule MissingManifest do
   end
@@ -69,20 +69,6 @@ defmodule Kinda.ErrorTest do
     assert error.reason == :missing_declaration_manifest
     assert error.source == MissingManifest
     assert error.expected == {:declaration_manifest, 0}
-  end
-
-  test "unsupported kinds retain the generator and type" do
-    type = {:vector, 4, :i32}
-
-    error =
-      assert_raise Kinda.GenerationError, fn ->
-        KindDecl.default(__MODULE__, type)
-      end
-
-    assert error.stage == :kind_resolution
-    assert error.reason == :unsupported_type
-    assert error.source == __MODULE__
-    assert error.actual == type
   end
 
   test "NIF load errors retain the path and native reason" do

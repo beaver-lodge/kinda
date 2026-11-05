@@ -6,6 +6,7 @@ extern "C" {
 #endif
 
 int kinda_example_add(int a, int b);
+int kinda_example_variadic_identity(int value, ...);
 
 int kinda_example_sum_19(int a1, int a2, int a3, int a4, int a5, int a6,
                          int a7, int a8, int a9, int a10, int a11, int a12,

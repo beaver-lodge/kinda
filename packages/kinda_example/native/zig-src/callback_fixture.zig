@@ -39,7 +39,7 @@ fn fetchRegistration(environment: beam.env, term: beam.term) !*Registration {
 
 fn register(environment: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
     const dispatcher = try Dispatcher.initWithOptions(try beam.self(environment), .{
-        .timeout_ms = try beam.get_u64(environment, args[2]),
+        .timeout_ms = if (beam.is_nil2(environment, args[2])) null else try beam.get_u64(environment, args[2]),
     });
     errdefer dispatcher.deinit();
     dispatcher.setCallback("invoke", args[0]);

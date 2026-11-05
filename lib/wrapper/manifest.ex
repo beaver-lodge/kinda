@@ -13,8 +13,5 @@ defmodule Kinda.Wrapper.Manifest do
 
   defstruct functions: [], records: []
 
-  @type t :: %__MODULE__{
-          functions: [Function.t()],
-          records: [CRecord.t()]
-        }
+  @type t :: %__MODULE__{functions: [Function.t()], records: [CRecord.t()]}
 end

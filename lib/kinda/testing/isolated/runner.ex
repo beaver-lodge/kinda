@@ -8,10 +8,7 @@ defmodule Kinda.Testing.Isolated.Runner do
     with <<size::unsigned-big-32>> <- IO.binread(:stdio, 4),
          encoded when is_binary(encoded) <- IO.binread(:stdio, size),
          {:ok, payload} <- Base.decode64(encoded) do
-      payload
-      |> :erlang.binary_to_term()
-      |> execute()
-      |> reply()
+      payload |> :erlang.binary_to_term() |> execute() |> reply()
     else
       other -> reply({:exception, :error, {:invalid_request, other}, []})
     end
@@ -26,9 +23,6 @@ defmodule Kinda.Testing.Isolated.Runner do
   defp reply(term) do
     payload = :erlang.term_to_binary(term)
 
-    IO.binwrite(
-      :stdio,
-      <<@reply_marker::binary, byte_size(payload)::unsigned-big-32, payload::binary>>
-    )
+    IO.binwrite(:stdio, <<@reply_marker::binary, byte_size(payload)::unsigned-big-32, payload::binary>>)
   end
 end

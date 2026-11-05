@@ -24,29 +24,17 @@ defmodule Kinda.Codec do
   Applies Kinda's default raw-result normalization.
   """
   @spec normalize(term()) :: term() | no_return()
-  def normalize({:kind, mod, ref}) when is_atom(mod) do
-    struct!(mod, %{ref: ref})
-  end
+  def normalize({:kind, mod, ref}) when is_atom(mod), do: struct!(mod, %{ref: ref})
 
-  def normalize({{:kind, mod, ref}, metadata}) when is_atom(mod) do
-    {struct!(mod, %{ref: ref}), metadata}
-  end
+  def normalize({{:kind, mod, ref}, metadata}) when is_atom(mod), do: {struct!(mod, %{ref: ref}), metadata}
 
-  def normalize({:error, error}) do
-    raise_error(error)
-  end
+  def normalize({:error, error}), do: raise_error(error)
 
   def normalize(value), do: value
 
-  defp raise_error(%{__struct__: _, __exception__: true} = error) do
-    raise(error)
-  end
+  defp raise_error(%{__struct__: _, __exception__: true} = error), do: raise(error)
 
-  defp raise_error(message) when is_binary(message) do
-    raise(Kinda.CallError, message: message)
-  end
+  defp raise_error(message) when is_binary(message), do: raise(Kinda.CallError, message: message)
 
-  defp raise_error(error) do
-    raise(Kinda.CallError, message: inspect(error))
-  end
+  defp raise_error(error), do: raise(Kinda.CallError, message: inspect(error))
 end
