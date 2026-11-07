@@ -3,8 +3,8 @@
 //!
 //! Native libraries keep their domain-specific callback signatures and term
 //! conversion. `Dispatcher` owns the callback terms, sends callback messages,
-//! waits without occupying a BEAM scheduler, and transfers callback ownership
-//! to the process that replies. `ReplyToken` is the consumer-loaded NIF
+//! waits without occupying a BEAM scheduler, and supports fixed or transferable
+//! callback ownership. `ReplyToken` is the consumer-loaded NIF
 //! resource used to complete an invocation.
 
 const std = @import("std");
@@ -201,11 +201,19 @@ pub fn Dispatcher(comptime callback_names: anytype) type {
         timeout_ms: ?u64 = 30_000,
         library_pin: *anyopaque,
         invoke_mutex: std.Io.Mutex = .init,
+        ownership: Ownership = .reply,
+
+        pub const Ownership = enum { reply, fixed, bind_once };
 
         pub const Options = struct {
             /// `null` preserves an intentionally unbounded wait. Consumers
             /// should normally retain the bounded default.
             timeout_ms: ?u64 = 30_000,
+            /// `fixed` snapshots the message under a short lock, then waits
+            /// independently. `bind_once` transfers ownership on the first
+            /// reply (e.g. a cloned pass), then becomes fixed. Consumers must
+            /// keep the dispatcher alive until all invocations have returned.
+            ownership: Ownership = .reply,
         };
 
         fn callbackIndex(comptime callback_name: []const u8) comptime_int {
@@ -240,6 +248,7 @@ pub fn Dispatcher(comptime callback_names: anytype) type {
                 .id = nifApi("enif_make_unique_integer")(owned_env, e.ERL_NIF_UNIQUE_POSITIVE),
                 .timeout_ms = options.timeout_ms,
                 .library_pin = library_pin,
+                .ownership = options.ownership,
             };
             return self;
         }
@@ -251,7 +260,18 @@ pub fn Dispatcher(comptime callback_names: anytype) type {
         }
 
         pub fn clone(self: *const Self) !*Self {
-            const cloned = try initWithOptions(self.handler, .{ .timeout_ms = self.timeout_ms });
+            return self.cloneWithOwnership(null);
+        }
+
+        /// Copy a registration, optionally selecting an explicit ownership
+        /// handoff for the clone. A fixed registration stays fixed by default.
+        pub fn cloneWithOwnership(self: *const Self, ownership: ?Ownership) !*Self {
+            @constCast(&self.invoke_mutex).lockUncancelable(io);
+            defer @constCast(&self.invoke_mutex).unlock(io);
+            const cloned = try initWithOptions(self.handler, .{
+                .timeout_ms = self.timeout_ms,
+                .ownership = ownership orelse self.ownership,
+            });
             errdefer cloned.deinit();
             inline for (callback_names, 0..) |_, index| {
                 if (self.callbacks[index]) |callback| cloned.callbacks[index] = nifApi("enif_make_copy")(cloned.env, callback);
@@ -260,6 +280,8 @@ pub fn Dispatcher(comptime callback_names: anytype) type {
         }
 
         pub fn setCallback(self: *Self, comptime callback_name: []const u8, callback: ?beam.term) void {
+            self.invoke_mutex.lockUncancelable(io);
+            defer self.invoke_mutex.unlock(io);
             self.callbacks[callbackIndex(callback_name)] = if (callback) |value|
                 nifApi("enif_make_copy")(self.env, value)
             else
@@ -267,10 +289,14 @@ pub fn Dispatcher(comptime callback_names: anytype) type {
         }
 
         pub fn hasCallback(self: *const Self, comptime callback_name: []const u8) bool {
+            @constCast(&self.invoke_mutex).lockUncancelable(io);
+            defer @constCast(&self.invoke_mutex).unlock(io);
             return self.callbacks[callbackIndex(callback_name)] != null;
         }
 
         pub fn copyId(self: *const Self, destination_env: beam.env) beam.term {
+            @constCast(&self.invoke_mutex).lockUncancelable(io);
+            defer @constCast(&self.invoke_mutex).unlock(io);
             return nifApi("enif_make_copy")(destination_env, self.id);
         }
 
@@ -282,7 +308,8 @@ pub fn Dispatcher(comptime callback_names: anytype) type {
             }
 
             self.invoke_mutex.lockUncancelable(io);
-            defer self.invoke_mutex.unlock(io);
+            var locked = true;
+            defer if (locked) self.invoke_mutex.unlock(io);
 
             const callback = self.callbacks[callbackIndex(callback_name)] orelse {
                 nifApi("enif_free_env")(message_env);
@@ -304,15 +331,21 @@ pub fn Dispatcher(comptime callback_names: anytype) type {
             inline for (args, 0..) |arg, index| message_terms[4 + index] = arg;
 
             const message = beam.make_tuple(message_env, &message_terms);
-            if (!beam.send_advanced(null, self.handler, message_env, message)) {
+            const handler = self.handler;
+            if (self.ownership == .fixed) {
+                self.invoke_mutex.unlock(io);
+                locked = false;
+            }
+            if (!beam.send_advanced(null, handler, message_env, message)) {
                 nifApi("enif_free_env")(message_env);
                 return Error.FailedToSendCallback;
             }
             nifApi("enif_free_env")(message_env);
 
             const completed = allocation.state.wait(self.timeout_ms);
-            if (completed.response.status == .replied) {
+            if (locked and completed.response.status == .replied) {
                 if (completed.caller) |caller| self.handler = caller;
+                if (self.ownership == .bind_once) self.ownership = .fixed;
             }
             return completed.response;
         }

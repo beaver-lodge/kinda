@@ -149,6 +149,69 @@ defmodule KindaExampleTest do
     assert_receive {:callback_fixture_done, :replied, true, 7, 70}
   end
 
+  test "fixed callbacks release the dispatcher lock while waiting and retain their owner" do
+    registration = Raw.callback_fixture_register_fixed(:callback_id, nil, 5_000)
+    assert :ok = Raw.callback_fixture_invoke_on_worker(registration, 1)
+    assert :ok = Raw.callback_fixture_invoke_on_worker(registration, 2)
+    assert_receive {:invoke, first, :callback_id, id, _, _}, 1_000
+    assert_receive {:invoke, second, :callback_id, ^id, _, _}, 1_000
+    assert first != second
+
+    assert :ok =
+             Task.async(fn -> Raw.callback_fixture_reply_code(first, true, 1) end) |> Task.await()
+
+    assert :ok = Raw.callback_fixture_reply_code(second, true, 2)
+    assert_receive {:callback_fixture_done, :replied, true, 1, 0}
+    assert_receive {:callback_fixture_done, :replied, true, 2, 0}
+    assert :ok = Raw.callback_fixture_invoke_on_worker(registration, 3)
+    assert_receive {:invoke, third, :callback_id, ^id, _, _}
+    assert :ok = Raw.callback_fixture_reply_code(third, true, 3)
+    assert_receive {:callback_fixture_done, :replied, true, 3, 0}
+    assert :ok = Raw.callback_fixture_destroy_on_worker(registration)
+    assert_receive {:callback_fixture_destroyed, :replied, true, 0, 0}
+  end
+
+  test "bind-once ownership transfers once and concurrent waits remain independent" do
+    registration = Raw.callback_fixture_register_once(:callback_id, nil, 5_000)
+    parent = self()
+
+    owner =
+      spawn_link(fn ->
+        receive do
+          {:bind, token} ->
+            :ok = Raw.callback_fixture_reply_code(token, true, 0)
+
+            for _ <- 1..2 do
+              receive do
+                {:invoke, token, :callback_id, _, _, _} -> send(parent, {:forwarded, token})
+              end
+            end
+
+            receive do
+              :stop -> :ok
+            end
+        end
+      end)
+
+    assert :ok = Raw.callback_fixture_invoke_on_worker(registration, 1)
+    assert_receive {:invoke, token, :callback_id, _, _, _}
+    send(owner, {:bind, token})
+    assert_receive {:callback_fixture_done, :replied, true, 0, 0}
+
+    for input <- 2..3,
+        do: assert(:ok == Raw.callback_fixture_invoke_on_worker(registration, input))
+
+    assert_receive {:forwarded, first}, 1_000
+    assert_receive {:forwarded, second}, 1_000
+    assert :ok = Raw.callback_fixture_reply_code(first, true, 1)
+    assert :ok = Raw.callback_fixture_reply_code(second, true, 2)
+    assert_receive {:callback_fixture_done, :replied, true, 1, 0}
+    assert_receive {:callback_fixture_done, :replied, true, 2, 0}
+    assert :ok = Raw.callback_fixture_destroy_on_worker(registration)
+    assert_receive {:callback_fixture_destroyed, :replied, true, 0, 0}
+    send(owner, :stop)
+  end
+
   test "callback fixture bounds waits and rejects late replies" do
     callback = fn _handle, _range -> {:ok, {1, 2}} end
     registration = Raw.callback_fixture_register(callback, nil, 20)

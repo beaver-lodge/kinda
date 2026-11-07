@@ -19,6 +19,8 @@ defmodule KindaExample.NIF.Raw do
 
   for {name, arity} <- [
         callback_fixture_register: 3,
+        callback_fixture_register_fixed: 3,
+        callback_fixture_register_once: 3,
         callback_fixture_invoke_on_scheduler: 2,
         callback_fixture_invoke_on_worker: 2,
         callback_fixture_destroy_on_worker: 1,

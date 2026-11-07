@@ -38,8 +38,21 @@ fn fetchRegistration(environment: beam.env, term: beam.term) !*Registration {
 }
 
 fn register(environment: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
+    return registerWithOwnership(.reply, environment, args);
+}
+
+fn registerFixed(environment: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
+    return registerWithOwnership(.fixed, environment, args);
+}
+
+fn registerOnce(environment: beam.env, _: c_int, args: [*c]const beam.term) !beam.term {
+    return registerWithOwnership(.bind_once, environment, args);
+}
+
+fn registerWithOwnership(ownership: Dispatcher.Ownership, environment: beam.env, args: [*c]const beam.term) !beam.term {
     const dispatcher = try Dispatcher.initWithOptions(try beam.self(environment), .{
         .timeout_ms = if (beam.is_nil2(environment, args[2])) null else try beam.get_u64(environment, args[2]),
+        .ownership = ownership,
     });
     errdefer dispatcher.deinit();
     dispatcher.setCallback("invoke", args[0]);
@@ -204,6 +217,8 @@ pub fn open(environment: beam.env) void {
 
 pub const nifs = .{
     result.nif("callback_fixture_register", 3, register).entry,
+    result.nif("callback_fixture_register_fixed", 3, registerFixed).entry,
+    result.nif("callback_fixture_register_once", 3, registerOnce).entry,
     result.nif("callback_fixture_invoke_on_scheduler", 2, invokeOnScheduler).entry,
     result.nif("callback_fixture_invoke_on_worker", 2, invokeOnWorker).entry,
     result.nif("callback_fixture_destroy_on_worker", 1, destroyOnWorker).entry,
